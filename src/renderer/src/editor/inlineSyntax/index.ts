@@ -31,7 +31,8 @@ function parseToken(token: MarkdownToken, h: MarkdownParseHelpers): JSONContent 
 
 function renderNode(node: JSONContent): string {
   const kind = node.attrs?.kind as InlineSyntaxKind
-  return `${DEFINITIONS[kind]?.marker ?? '*'}${node.attrs?.value ?? ''}${DEFINITIONS[kind]?.marker ?? '*'}`
+  const marker = DEFINITIONS[kind]?.marker ?? '*'
+  return `${marker}${node.attrs?.value ?? ''}${marker}`
 }
 
 export const InlineSyntax = Node.create({
@@ -41,10 +42,7 @@ export const InlineSyntax = Node.create({
   atom: true,
   selectable: true,
   addAttributes() {
-    return {
-      kind: { default: 'italic' },
-      value: { default: '' }
-    }
+    return { kind: { default: 'italic' }, value: { default: '' } }
   },
   parseHTML() {
     return [{ tag: 'span[data-inline-syntax]' }]
@@ -68,19 +66,17 @@ export const InlineSyntax = Node.create({
   parseMarkdown: parseToken,
   renderMarkdown: renderNode,
   addInputRules() {
-    return [
-      new InputRule({
-        find: INPUT_PATTERN,
-        handler: ({ state, range, match }) => {
-          const kind = kindFromMarker(match[2])
-          if (!kind || !match[3].trim()) return
-          const node = this.type.create({ kind, value: match[3].trim() })
-          const start = range.from + match[1].length
-          const transaction = state.tr.replaceWith(start, range.to, node)
-          transaction.setSelection(TextSelection.create(transaction.doc, start + node.nodeSize))
-        }
-      })
-    ]
+    return [new InputRule({
+      find: INPUT_PATTERN,
+      handler: ({ state, range, match }) => {
+        const kind = kindFromMarker(match[2])
+        if (!kind || !match[3].trim()) return
+        const node = this.type.create({ kind, value: match[3].trim() })
+        const start = range.from + match[1].length
+        const transaction = state.tr.replaceWith(start, range.to, node)
+        transaction.setSelection(TextSelection.create(transaction.doc, start + node.nodeSize))
+      }
+    })]
   },
   addKeyboardShortcuts() {
     const type = this.type

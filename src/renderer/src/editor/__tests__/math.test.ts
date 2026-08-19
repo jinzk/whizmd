@@ -64,6 +64,22 @@ describe('math round-trip', () => {
     }
   )
 
+  it('keeps inline math separate from adjacent inline syntax nodes', () => {
+    const editor = new Editor({
+      extensions: buildEditorExtensions(),
+      content: '公式 $x^2$ 与 *斜体*',
+      contentType: 'markdown'
+    })
+    const nodes: string[] = []
+    editor.state.doc.descendants((node) => {
+      if (node.isInline) nodes.push(node.type.name)
+    })
+
+    expect(nodes).toEqual(['text', 'inlineMath', 'text', 'inlineSyntax'])
+    expect(editor.getMarkdown()).toBe('公式 $x^2$ 与 *斜体*')
+    editor.destroy()
+  })
+
   it('preserves inline math', () => {
     const source = 'Inline $E = mc^2$ math.'
     const result = toMarkdown(source)

@@ -184,7 +184,8 @@ export const TableTrigger = Extension.create({
               from !== to ||
               !$from.parent.isTextblock ||
               $from.parentOffset !== 0 ||
-              $from.parent.type.name !== 'paragraph'
+              $from.parent.type.name !== 'paragraph' ||
+              cellAround($from)
             ) {
               return false
             }

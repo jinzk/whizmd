@@ -10,80 +10,79 @@ const LABELS: Record<string, string> = {
 }
 
 export function InlineSyntaxNodeView({ node, updateAttributes, deleteNode }: NodeViewProps): React.JSX.Element {
-    const label = LABELS[String(node.attrs.kind)] ?? '行内格式'
-    const [editing, setEditing] = useState(false)
-    const [value, setValue] = useState(String(node.attrs.value ?? ''))
-    const inputRef = useRef<HTMLInputElement>(null)
+  const label = LABELS[String(node.attrs.kind)] ?? '行内格式'
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(String(node.attrs.value ?? ''))
+  const inputRef = useRef<HTMLInputElement>(null)
 
-    useEffect(() => {
-      if (!editing) setValue(String(node.attrs.value ?? ''))
-    }, [editing, node.attrs.value])
+  useEffect(() => {
+    if (!editing) setValue(String(node.attrs.value ?? ''))
+  }, [editing, node.attrs.value])
 
-    useEffect(() => {
-      if (editing) {
-        inputRef.current?.focus()
-        inputRef.current?.select()
-      }
-    }, [editing])
-
-    const commit = (): void => {
-      const next = value.trim()
-      if (!next) {
-        deleteNode()
-      } else {
-        updateAttributes({ value: next })
-        setEditing(false)
-      }
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus()
+      inputRef.current?.select()
     }
+  }, [editing])
 
-    const cancel = (): void => {
-      setValue(String(node.attrs.value ?? ''))
+  const commit = (): void => {
+    const next = value.trim()
+    if (!next) deleteNode()
+    else {
+      updateAttributes({ value: next })
       setEditing(false)
     }
+  }
 
-    return (
-      <NodeViewWrapper as="span" className="inline-syntax-node" data-editing={editing ? 'true' : 'false'}>
-        {editing ? (
-          <span className="inline-syntax-edit-controls">
-            <span className="inline-syntax-label">{label}</span>
-            <input
-              ref={inputRef}
-              className="inline-syntax-input"
-              value={value}
-              aria-label={`编辑${label}`}
-              onChange={(event) => setValue(event.target.value)}
-              onBlur={commit}
-              onClick={(event) => event.stopPropagation()}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === 'Escape') {
-                  event.preventDefault()
-                  event.key === 'Escape' ? cancel() : commit()
-                }
-              }}
-            />
-            <button
-              type="button"
-              className="inline-syntax-delete"
-              aria-label={`删除${label}`}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={deleteNode}
-            >
-              删除
-            </button>
-          </span>
-        ) : (
+  const cancel = (): void => {
+    setValue(String(node.attrs.value ?? ''))
+    setEditing(false)
+  }
+
+  return (
+    <NodeViewWrapper as="span" className="inline-syntax-node" data-editing={editing ? 'true' : 'false'}>
+      {editing ? (
+        <span className="inline-syntax-edit-controls">
+          <span className="inline-syntax-label">{label}</span>
+          <input
+            ref={inputRef}
+            className="inline-syntax-input"
+            value={value}
+            aria-label={`编辑${label}`}
+            onChange={(event) => setValue(event.target.value)}
+            onBlur={commit}
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === 'Escape') {
+                event.preventDefault()
+                event.key === 'Escape' ? cancel() : commit()
+              }
+            }}
+          />
           <button
             type="button"
-            className="inline-syntax-preview"
-            aria-label={`编辑${label}`}
+            className="inline-syntax-delete"
+            aria-label={`删除${label}`}
             onMouseDown={(event) => event.preventDefault()}
-            onClick={() => setEditing(true)}
+            onClick={deleteNode}
           >
-            <span className={`inline-syntax-value inline-syntax-${String(node.attrs.kind)}`}>
-              {String(node.attrs.value ?? '')}
-            </span>
+            删除
           </button>
-        )}
-      </NodeViewWrapper>
-    )
+        </span>
+      ) : (
+        <button
+          type="button"
+          className="inline-syntax-preview"
+          aria-label={`编辑${label}`}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => setEditing(true)}
+        >
+          <span className={`inline-syntax-value inline-syntax-${String(node.attrs.kind)}`}>
+            {String(node.attrs.value ?? '')}
+          </span>
+        </button>
+      )}
+    </NodeViewWrapper>
+  )
 }

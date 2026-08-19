@@ -719,12 +719,10 @@
   cursor: pointer;
 }
 
-.wysiwyg-editor .tiptap .inline-syntax-node,
 .wysiwyg-editor .tiptap .inline-html-node {
   display: inline;
 }
 
-.wysiwyg-editor .tiptap .inline-syntax-preview,
 .wysiwyg-editor .tiptap .inline-html-preview {
   display: inline;
   padding: 0 2px;
@@ -738,8 +736,64 @@
   cursor: pointer;
 }
 
-.wysiwyg-editor .tiptap .inline-syntax-preview:hover,
 .wysiwyg-editor .tiptap .inline-html-preview:hover {
+  background: var(--md-code-bg);
+}
+
+.wysiwyg-editor .tiptap .inline-html-edit-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  vertical-align: baseline;
+}
+
+.wysiwyg-editor .tiptap .inline-html-label {
+  color: var(--md-text-muted);
+  font-size: 0.75em;
+  white-space: nowrap;
+}
+
+.wysiwyg-editor .tiptap .inline-html-input {
+  width: 14ch;
+  min-width: 3ch;
+  max-width: 32ch;
+  padding: 0 4px;
+  border: 1px solid var(--md-accent);
+  border-radius: 4px;
+  outline: none;
+  color: var(--md-text);
+  background: var(--md-bg);
+  font: 0.9em 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+.wysiwyg-editor .tiptap .inline-html-delete {
+  padding: 1px 5px;
+  border: 1px solid var(--md-border);
+  border-radius: 3px;
+  color: var(--md-text-muted);
+  background: var(--md-bg-soft);
+  font-size: 0.75em;
+  cursor: pointer;
+}
+
+.wysiwyg-editor .tiptap .inline-syntax-node {
+  display: inline;
+}
+
+.wysiwyg-editor .tiptap .inline-syntax-preview {
+  display: inline;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 4px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  line-height: inherit;
+  vertical-align: baseline;
+  cursor: pointer;
+}
+
+.wysiwyg-editor .tiptap .inline-syntax-preview:hover {
   background: var(--md-code-bg);
 }
 

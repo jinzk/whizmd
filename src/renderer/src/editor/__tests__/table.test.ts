@@ -100,4 +100,22 @@ describe('table editing', () => {
     expect(cells?.[0]?.type).toBe('tableHeader')
     editor.destroy()
   })
+
+  it('keeps a leading pipe as cell text inside an existing table', () => {
+    const editor = createEditor()
+    editor.commands.setContent('| Header |\n| --- |\n| value |', { contentType: 'markdown' })
+
+    let paragraphPosition = 0
+    editor.state.doc.descendants((node, position) => {
+      if (node.type.name === 'paragraph' && node.textContent === 'value') {
+        paragraphPosition = position
+      }
+    })
+    editor.commands.setTextSelection(paragraphPosition + 1)
+    typeInto(editor, '|')
+
+    expect(editor.getJSON().content?.[0]?.type).toBe('table')
+    expect(editor.getText()).toContain('|value')
+    editor.destroy()
+  })
 })

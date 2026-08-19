@@ -86,10 +86,10 @@ function InlineHtmlView({ node, updateAttributes, deleteNode }: NodeViewProps): 
   return (
     <NodeViewWrapper as="span" className="inline-html-node" data-editing={editing ? 'true' : 'false'}>
       {editing ? (
-        <span className="inline-syntax-edit-controls">
-          <span className="inline-syntax-label">HTML</span>
-          <input ref={inputRef} className="inline-syntax-input" value={value} aria-label="编辑 HTML 标签" onChange={(event) => setValue(event.target.value)} onBlur={commit} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); event.key === 'Escape' ? cancel() : commit() } }} />
-          <button type="button" className="inline-syntax-delete" aria-label="删除 HTML 标签" onMouseDown={(event) => event.preventDefault()} onClick={deleteNode}>删除</button>
+        <span className="inline-html-edit-controls">
+          <span className="inline-html-label">HTML</span>
+          <input ref={inputRef} className="inline-html-input" value={value} aria-label="编辑 HTML 标签" onChange={(event) => setValue(event.target.value)} onBlur={commit} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); event.key === 'Escape' ? cancel() : commit() } }} />
+          <button type="button" className="inline-html-delete" aria-label="删除 HTML 标签" onMouseDown={(event) => event.preventDefault()} onClick={deleteNode}>删除</button>
         </span>
       ) : (
         <button type="button" className="inline-html-preview" aria-label="编辑 HTML 标签" onMouseDown={(event) => event.preventDefault()} onClick={() => setEditing(true)} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(String(node.attrs.html ?? '')) }} />
