@@ -12,6 +12,8 @@ import { TableTrigger } from './tableTrigger'
 import { InlineHtml } from './inlineHtml'
 import { SyntaxSource } from './syntaxSource'
 import { InlineSyntax } from './inlineSyntax'
+import { TaskItem } from '@tiptap/extension-list/task-item'
+import { TaskList } from '@tiptap/extension-list/task-list'
 
 /**
  * Full set of extensions for WYSIWYG mode. StarterKit provides the base nodes
@@ -21,6 +23,8 @@ import { InlineSyntax } from './inlineSyntax'
 export function buildEditorExtensions(): AnyExtension[] {
   return [
     StarterKit.configure({ codeBlock: false, link: { markdownLinks: true } }),
+    TaskList,
+    TaskItem.configure({ nested: true }),
     MermaidCodeBlock.configure({ lowlight, defaultLanguage: 'plaintext' }),
     InlineMath.configure({ katexOptions: { throwOnError: false, displayMode: false } }),
     BlockMath.configure({ katexOptions: { throwOnError: false, displayMode: true } }),

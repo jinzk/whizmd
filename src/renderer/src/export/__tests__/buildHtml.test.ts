@@ -55,4 +55,14 @@ describe('buildExportHtml', () => {
     expect(html).not.toContain('<script>alert(1)</script>')
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;')
   })
+
+  it('keeps safe inline HTML rendered while escaping unsafe HTML', async () => {
+    const html = await buildExportHtml('<strong>safe</strong><script>alert(1)</script>', {
+      title: 'test',
+      docPath: null
+    })
+    expect(html).toContain('<strong>safe</strong>')
+    expect(html).not.toContain('<script>alert(1)</script>')
+    expect(html).toContain('alert(1)')
+  })
 })

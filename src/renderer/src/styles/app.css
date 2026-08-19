@@ -183,6 +183,26 @@
   padding-left: 1.5em;
 }
 
+.wysiwyg-editor .tiptap ul[data-type='taskList'] {
+  padding-left: 1.7em;
+  list-style: none;
+}
+
+.wysiwyg-editor .tiptap li[data-type='taskItem'] {
+  position: relative;
+}
+
+.wysiwyg-editor .tiptap li[data-type='taskItem'] > label {
+  position: absolute;
+  left: -1.7em;
+  top: 0.25em;
+}
+
+.wysiwyg-editor .tiptap li[data-type='taskItem'] > label input {
+  accent-color: var(--md-accent);
+  cursor: pointer;
+}
+
 .wysiwyg-editor .tiptap pre {
   background-color: var(--md-bg-soft);
   border-radius: 6px;

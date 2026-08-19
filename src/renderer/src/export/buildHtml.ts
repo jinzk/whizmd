@@ -3,6 +3,7 @@ import katex from 'katex'
 import katexCss from 'katex/dist/katex.min.css?raw'
 import hljsCss from 'highlight.js/styles/github.min.css?raw'
 import { isAbsolutePath, dirnamePath, resolveRelative } from '../utils/path'
+import { sanitizeInlineHtml } from '../editor/inlineHtml'
 
 const CODE_FENCE_RE = /```([^\n]*)\n([\s\S]*?)```/g
 const INLINE_CODE_RE = /`([^`\n]+)`/g
@@ -142,6 +143,7 @@ export async function buildExportHtml(content: string, options: BuildOptions): P
   const codeBlocks: Array<{ lang: string; text: string }> = []
   const inlineCodes: string[] = []
   const inlineMath: string[] = []
+  const inlineHtml: string[] = []
   const images: ExtractedImage[] = []
 
   let md = content
@@ -160,6 +162,14 @@ export async function buildExportHtml(content: string, options: BuildOptions): P
     inlineMath.push(latex)
     return `@@MATHINLINE${inlineMath.length - 1}@@`
   })
+
+  md = md.replace(
+    /<(?:a|b|br|del|em|i|img|mark|s|span|strong|sub|sup|u)\b[^>]*(?:\/>|>[^\n<]*(?:<\/(?:a|b|del|em|i|mark|s|span|strong|sub|sup|u)>)?)/gi,
+    (source) => {
+      inlineHtml.push(sanitizeInlineHtml(source))
+      return `@@INLINEHTML${inlineHtml.length - 1}@@`
+    }
+  )
 
   md = md.replace(BLOCK_MATH_RE, (_m, _delimiter, fenced, single) => {
     return `\n${renderBlockMath((fenced ?? single ?? '').trim())}\n`
@@ -188,6 +198,10 @@ export async function buildExportHtml(content: string, options: BuildOptions): P
   inlineCodes.forEach((text, i) => {
     const token = `@@INLINECODE${i}@@`
     body = body.split(token).join(`<code>${escapeHtml(text)}</code>`)
+  })
+
+  inlineHtml.forEach((source, i) => {
+    body = body.split(`@@INLINEHTML${i}@@`).join(source)
   })
 
   for (const [i, block] of codeBlocks.entries()) {

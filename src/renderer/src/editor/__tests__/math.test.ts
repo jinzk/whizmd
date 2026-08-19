@@ -4,6 +4,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
 import { InlineMath, BlockMath } from '../math'
 import { typeInto } from './helpers'
+import { buildEditorExtensions } from '../extensions'
 
 function toMarkdown(md: string): string {
   const editor = new Editor({
@@ -36,6 +37,33 @@ function toJson(md: string) {
 }
 
 describe('math round-trip', () => {
+  it('converts single-dollar inline math with the production extensions', () => {
+    const editor = new Editor({ extensions: buildEditorExtensions() })
+    typeInto(editor, '面积 $x^2$ 结束')
+    expect(editor.getJSON().content?.[0]).toMatchObject({
+      content: [
+        { type: 'text', text: '面积 ' },
+        { type: 'inlineMath', attrs: { latex: 'x^2' } },
+        { type: 'text', text: ' 结束' }
+      ]
+    })
+    editor.destroy()
+  })
+
+  it.each(['$x$', '文字$x$文字', '文字 $x$文字', '文字$x$ 文字'])(
+    'parses inline math at boundary: %s',
+    (source) => {
+      const editor = new Editor({ extensions: buildEditorExtensions(), content: source, contentType: 'markdown' })
+      let mathCount = 0
+      editor.state.doc.descendants((node) => {
+        if (node.type.name === 'inlineMath') mathCount += 1
+      })
+      expect(mathCount).toBe(1)
+      expect(editor.getMarkdown()).toBe(source)
+      editor.destroy()
+    }
+  )
+
   it('preserves inline math', () => {
     const source = 'Inline $E = mc^2$ math.'
     const result = toMarkdown(source)
