@@ -1,0 +1,105 @@
+:root {
+  --md-bg: #ffffff;
+  --md-bg-soft: #f6f8fa;
+  --md-bg-hover: #eaeef2;
+  --md-bg-active: #ddf4ff;
+  --md-border: #d0d7de;
+  --md-border-soft: #eaeef2;
+  --md-text: #24292f;
+  --md-text-muted: #57606a;
+  --md-text-subtle: #6a737d;
+  --md-accent: #0969da;
+  --md-accent-text: #ffffff;
+  --md-code-bg: #f6f8fa;
+  --md-quote-border: #d0d7de;
+  --md-error: #d73a49;
+  --md-selection: rgba(9, 105, 218, 0.2);
+  --md-active-line: rgba(9, 105, 218, 0.06);
+  --md-scrollbar: rgba(140, 149, 159, 0.4);
+  --md-mermaid-background: #ffffff;
+  --md-mermaid-text: #24292f;
+  --md-mermaid-primary: #dff1ff;
+  --md-mermaid-primary-text: #1f2328;
+  --md-mermaid-primary-border: #79c0ff;
+  --md-mermaid-secondary: #f0f8e8;
+  --md-mermaid-secondary-text: #1f2328;
+  --md-mermaid-secondary-border: #7ee787;
+  --md-mermaid-tertiary: #f6f8fa;
+  --md-mermaid-line: #6e7781;
+  --md-mermaid-node-border: #d0d7de;
+}
+
+:root[data-theme='dark'] {
+  --md-bg: #0d1117;
+  --md-bg-soft: #161b22;
+  --md-bg-hover: #21262d;
+  --md-bg-active: #1f3d5c;
+  --md-border: #30363d;
+  --md-border-soft: #21262d;
+  --md-text: #e6edf3;
+  --md-text-muted: #8b949e;
+  --md-text-subtle: #6e7681;
+  --md-accent: #58a6ff;
+  --md-accent-text: #ffffff;
+  --md-code-bg: #161b22;
+  --md-quote-border: #30363d;
+  --md-error: #f85149;
+  --md-active-line: rgba(88, 166, 255, 0.1);
+  --md-selection: rgba(88, 166, 255, 0.3);
+  --md-scrollbar: rgba(110, 118, 129, 0.4);
+  --md-mermaid-background: #0d1117;
+  --md-mermaid-text: #e6edf3;
+  --md-mermaid-primary: #1f3d5c;
+  --md-mermaid-primary-text: #e6edf3;
+  --md-mermaid-primary-border: #58a6ff;
+  --md-mermaid-secondary: #1f3d2f;
+  --md-mermaid-secondary-text: #e6edf3;
+  --md-mermaid-secondary-border: #7ee787;
+  --md-mermaid-tertiary: #161b22;
+  --md-mermaid-line: #6e7681;
+  --md-mermaid-node-border: #30363d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--md-text);
+  background-color: var(--md-bg);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+::selection {
+  background-color: var(--md-selection);
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--md-scrollbar);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
