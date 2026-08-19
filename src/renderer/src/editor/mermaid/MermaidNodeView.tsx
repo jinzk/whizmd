@@ -90,6 +90,70 @@ function CodeBlockView({ node, deleteNode }: NodeViewProps): React.JSX.Element {
   )
 }
 
+function HtmlBlockView({ node, selected, editor, getPos, deleteNode }: NodeViewProps): React.JSX.Element {
+  const [editing, setEditing] = useState(selected)
+  const code = node.textContent
+
+  useEffect(() => {
+    const updateEditing = (): void => {
+      const position = getPos()
+      if (position === undefined) return
+      const selection = editor.state.selection
+      setEditing(selection.from > position && selection.from < position + node.nodeSize || selected)
+    }
+    updateEditing()
+    editor.on('selectionUpdate', updateEditing)
+    return () => {
+      editor.off('selectionUpdate', updateEditing)
+    }
+  }, [editor, getPos, node.nodeSize, selected])
+
+  const enterEditMode = (): void => {
+    const position = getPos()
+    if (position === undefined) return
+    editor.commands.focus()
+    editor.commands.setTextSelection(position + 1)
+  }
+
+  return (
+    <NodeViewWrapper className="html-block" data-html-editing={editing ? 'true' : 'false'}>
+      <div className="html-preview" onMouseDown={enterEditMode}>
+        <iframe title="HTML 预览" sandbox="" srcDoc={code} />
+        <button
+          type="button"
+          className="html-preview-edit"
+          aria-label="编辑 HTML 源码"
+          title="编辑 HTML 源码"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={enterEditMode}
+        >
+          编辑源码
+        </button>
+      </div>
+      <div className="html-source" aria-hidden={!editing}>
+        <div className="block-source-header html-source-header">
+          <span>HTML</span>
+          <button
+            type="button"
+            className="block-module-delete"
+            aria-label="删除 HTML 模块"
+            title="删除 HTML 模块"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={deleteNode}
+          >
+            删除
+          </button>
+        </div>
+        <pre className="html-source-code">
+          <code className="language-html">
+            <NodeViewContent />
+          </code>
+        </pre>
+      </div>
+    </NodeViewWrapper>
+  )
+}
+
 /**
  * Node view for `codeBlock` nodes whose language is `mermaid`. Renders the
  * diagram preview on top and keeps the editable source (ProseMirror content)
@@ -223,5 +287,8 @@ function MermaidBlockView({ node, selected, editor, getPos, deleteNode }: NodeVi
 
 export function MermaidNodeView(props: NodeViewProps): React.JSX.Element {
   const isMermaid = (props.node.attrs.language ?? '') === 'mermaid'
+  if (props.node.attrs.htmlPreview === true) {
+    return <HtmlBlockView {...props} />
+  }
   return isMermaid ? <MermaidBlockView {...props} /> : <CodeBlockView {...props} />
 }

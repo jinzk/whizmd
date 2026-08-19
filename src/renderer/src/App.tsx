@@ -4,11 +4,9 @@ import { useEditorStore } from './store/editor'
 import { WysiwygEditor } from './components/WysiwygEditor'
 import { SourceEditor } from './components/SourceEditor'
 import { FileSidebar } from './components/FileSidebar'
-import { insertImageFromDialog } from './editor/image/insert'
 import { buildExportHtml } from './export/buildHtml'
 import { useTheme } from './hooks/useTheme'
 import type { ThemeMode } from '@shared/types'
-import { TextSelection } from '@tiptap/pm/state'
 
 const THEME_CYCLE: ThemeMode[] = ['system', 'light', 'dark']
 
@@ -29,16 +27,6 @@ export function App(): React.JSX.Element {
   const [rootDir, setRootDir] = useState<string | null>(null)
   const [fileTree, setFileTree] = useState<FileNode | null>(null)
   const saveInFlightRef = useRef<Promise<void> | null>(null)
-  const sourceInsertRef = useRef<((text: string) => void) | null>(null)
-
-  const tableCommand = useCallback(
-    (command: (editor: NonNullable<ReturnType<typeof useEditorStore.getState>['editor']>) => void) => {
-      const editor = useEditorStore.getState().editor
-      if (editor && mode === 'wysiwyg') command(editor)
-    },
-    [mode]
-  )
-
   const confirmDiscardChanges = useCallback((): boolean => {
     if (!useEditorStore.getState().dirty) {
       return true
@@ -216,25 +204,6 @@ export function App(): React.JSX.Element {
     [exportDefaultPath, exportTitle]
   )
 
-  const insertMermaid = useCallback((): void => {
-    if (mode === 'source') {
-      sourceInsertRef.current?.('```mermaid\n\n```')
-      return
-    }
-
-    const editor = useEditorStore.getState().editor
-    if (!editor) {
-      return
-    }
-    const { state } = editor
-    const { $from } = state.selection
-    const insertPos = state.doc.childCount === 0 ? 0 : $from.depth > 0 ? $from.after(1) : 0
-    const codeBlock = state.schema.nodes.codeBlock.create({ language: 'mermaid' })
-    const transaction = state.tr.insert(insertPos, codeBlock)
-    transaction.setSelection(TextSelection.create(transaction.doc, insertPos + 1))
-    editor.view.dispatch(transaction)
-    editor.commands.focus()
-  }, [mode])
   // Global shortcuts: Ctrl/Cmd+S save, Ctrl/Cmd+O open.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
@@ -275,64 +244,22 @@ export function App(): React.JSX.Element {
             保存
           </button>
           <span className="toolbar-sep" />
-          <button
-            type="button"
-            className={mode === 'wysiwyg' ? 'active' : ''}
-            onClick={() => enterMode('wysiwyg')}
-          >
-            所见即所得
-          </button>
-          <button
-            type="button"
-            className={mode === 'source' ? 'active' : ''}
-            onClick={() => enterMode('source')}
-          >
-            源码
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const editor = useEditorStore.getState().editor
-              if (editor) {
-                void insertImageFromDialog(editor)
-              }
-            }}
-          >
-            插入图片
-          </button>
-           <button
-             type="button"
-             disabled={mode !== 'wysiwyg'}
-            onClick={() => {
-              useEditorStore
-                .getState()
-                .editor?.chain()
-                .focus()
-                .setCodeBlock({ language: 'plaintext' })
-                .run()
-            }}
-          >
-             插入代码块
-           </button>
-           <button
-             type="button"
-             disabled={mode !== 'wysiwyg'}
-             onClick={() =>
-               tableCommand((editor) =>
-                 editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
-               )
-             }
-           >
-             插入表格
-           </button>
-          <button
-            type="button"
-            onClick={() => {
-              insertMermaid()
-            }}
-          >
-            插入 Mermaid
-          </button>
+          <div className="mode-switch" role="group" aria-label="编辑模式">
+            <button
+              type="button"
+              className={mode === 'wysiwyg' ? 'active' : ''}
+              onClick={() => enterMode('wysiwyg')}
+            >
+              编辑
+            </button>
+            <button
+              type="button"
+              className={mode === 'source' ? 'active' : ''}
+              onClick={() => enterMode('source')}
+            >
+              源码
+            </button>
+          </div>
           <button type="button" onClick={() => void exportDocument('html')}>
             导出 HTML
           </button>
@@ -373,9 +300,6 @@ export function App(): React.JSX.Element {
               content={externalContent}
               onUpdate={handleUpdate}
               theme={theme}
-              registerInsert={(insert) => {
-                sourceInsertRef.current = insert
-              }}
             />
           )}
         </main>

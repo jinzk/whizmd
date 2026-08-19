@@ -31,5 +31,10 @@ export const useEditorStore = create<EditorState>((set) => ({
   setContent: (content) => set({ content }),
   setDirty: (dirty) => set({ dirty }),
   setConfig: (config) => set({ config }),
-  setEditor: (editor) => set({ editor })
+  setEditor: (editor) => {
+    if (typeof window !== 'undefined') {
+      ;(window as unknown as { __editor: Editor | null }).__editor = editor
+    }
+    set({ editor })
+  }
 }))

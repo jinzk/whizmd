@@ -1,12 +1,15 @@
 import { InputRule } from '@tiptap/core'
-import { NodeSelection } from '@tiptap/pm/state'
+import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { InlineMath as BaseInlineMath, BlockMath as BaseBlockMath } from '@tiptap/extension-mathematics'
-import type { JSONContent, MarkdownParseHelpers, MarkdownToken } from '@tiptap/core'
+import type { Editor, JSONContent, MarkdownParseHelpers, MarkdownToken } from '@tiptap/core'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import { BlockMathNodeView } from './math/BlockMathNodeView'
+import { InlineMathNodeView } from './math/InlineMathNodeView'
 
 const INLINE_MATH_PATTERN =
-  /(?<!\$)\$(?!\s)(?!\d+\$)([^$\n]+?)(?<!\s)\$(?!\d)/
+  /(?<!\$)\$(?!\$|\s)(?!\d+\$)([^$\n]+?)(?<!\s)\$(?!\$|\d)/
+const INLINE_MATH_INPUT_PATTERN =
+  /(?<!\$)\$(?!\$|\s)(?!\d+\$)([^$\n]+?)(?<!\s)\$(?!\$|\d)$/
 
 function inlineTokenToJson(token: MarkdownToken, h: MarkdownParseHelpers): JSONContent {
   const latex = (token.latex ?? token.text ?? '').trim()
@@ -14,34 +17,20 @@ function inlineTokenToJson(token: MarkdownToken, h: MarkdownParseHelpers): JSONC
 }
 
 /**
- * InlineMath extended with a `$...$` markdown spec so it round-trips through
- * the @tiptap/markdown bridge (marked does not understand dollar math by
- * default). A single-dollar input rule is added so typing `$x^2$` converts
- * immediately, mirroring the regex used by migrateMathStrings.
+ * InlineMath uses the node attribute as its only source of truth. The visible
+ * dollar delimiters belong to Markdown, never to the ProseMirror document.
  */
 export const InlineMath = BaseInlineMath.extend({
   markdownTokenizer: {
     name: 'inlineMath',
     level: 'inline',
     start(src: string): number {
-      let searchFrom = 0
-      while (searchFrom < src.length) {
-        const index = src.indexOf('$', searchFrom)
-        if (index === -1) {
-          return -1
-        }
-        const prev = src[index - 1]
-        const next = src[index + 1]
-        if ((!prev || prev === ' ') && next && next !== ' ') {
-          return index
-        }
-        searchFrom = index + 1
-      }
-      return -1
+      const match = src.match(/(?<!\$)\$(?!\$|\s)/)
+      return match?.index ?? -1
     },
     tokenize(src: string): MarkdownToken | undefined {
       const match = src.match(INLINE_MATH_PATTERN)
-      if (!match) {
+      if (!match || match.index !== 0) {
         return undefined
       }
       return {
@@ -56,17 +45,47 @@ export const InlineMath = BaseInlineMath.extend({
   addInputRules() {
     return [
       new InputRule({
-        find: INLINE_MATH_PATTERN,
+        find: INLINE_MATH_INPUT_PATTERN,
         handler: ({ state, range, match }) => {
           const latex = match[1].trim()
           if (!latex) {
             return
           }
           const { tr } = state
-          tr.replaceWith(range.from, range.to, this.type.create({ latex }))
+          const mathNode = this.type.create({ latex })
+          tr.replaceWith(range.from, range.to, mathNode)
+          tr.setSelection(TextSelection.create(tr.doc, range.from + mathNode.nodeSize))
         }
       })
     ]
+  },
+  addKeyboardShortcuts() {
+    const mathType = this.type
+    const deleteAdjacent = (direction: 'backward' | 'forward') => ({ editor }: { editor: Editor }) => {
+      const { selection } = editor.state
+      if (!selection.empty) return false
+
+      if (selection instanceof NodeSelection && selection.node.type === mathType) {
+        editor.commands.deleteSelection()
+        return true
+      }
+
+      const position = selection.from
+      const adjacent = direction === 'backward' ? editor.state.doc.nodeAt(position - 1) : editor.state.doc.nodeAt(position)
+      if (!adjacent || adjacent.type !== mathType) return false
+
+      const from = direction === 'backward' ? position - adjacent.nodeSize : position
+      editor.view.dispatch(editor.state.tr.delete(from, from + adjacent.nodeSize))
+      return true
+    }
+
+    return {
+      Backspace: deleteAdjacent('backward'),
+      Delete: deleteAdjacent('forward')
+    }
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(InlineMathNodeView)
   }
 })
 

@@ -9,6 +9,9 @@ import { ActiveLine } from './activeLine'
 import { LinkNode } from './link'
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table'
 import { TableTrigger } from './tableTrigger'
+import { InlineHtml } from './inlineHtml'
+import { SyntaxSource } from './syntaxSource'
+import { InlineSyntax } from './inlineSyntax'
 
 /**
  * Full set of extensions for WYSIWYG mode. StarterKit provides the base nodes
@@ -23,6 +26,9 @@ export function buildEditorExtensions(): AnyExtension[] {
     BlockMath.configure({ katexOptions: { throwOnError: false, displayMode: true } }),
     Image.configure({ allowBase64: true }),
     LinkNode,
+    InlineHtml,
+    InlineSyntax,
+    SyntaxSource,
     Table.configure({ HTMLAttributes: { class: 'wysiwyg-table' } }),
     TableRow,
     TableHeader,

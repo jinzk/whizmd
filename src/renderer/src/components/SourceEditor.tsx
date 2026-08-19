@@ -48,23 +48,20 @@ interface Props {
   content: string
   onUpdate: (markdown: string) => void
   theme: EffectiveTheme
-  registerInsert?: (insert: (text: string) => void) => void
 }
 
-export function SourceEditor({ content, onUpdate, theme, registerInsert }: Props): React.JSX.Element {
+export function SourceEditor({ content, onUpdate, theme }: Props): React.JSX.Element {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const onUpdateRef = useRef(onUpdate)
   const setDirtyRef = useRef<() => void>(() => {})
-  const registerInsertRef = useRef(registerInsert)
   const initialContentRef = useRef(content)
   const setDirty = useEditorStore((s) => s.setDirty)
 
   useEffect(() => {
     onUpdateRef.current = onUpdate
     setDirtyRef.current = () => setDirty(true)
-    registerInsertRef.current = registerInsert
-  }, [onUpdate, registerInsert, setDirty])
+  }, [onUpdate, setDirty])
 
   useEffect(() => {
     if (!hostRef.current) return
@@ -99,21 +96,7 @@ export function SourceEditor({ content, onUpdate, theme, registerInsert }: Props
     const view = new EditorView({ state, parent: hostRef.current })
     viewRef.current = view
 
-    registerInsertRef.current?.((text) => {
-      const current = view.state.selection.main.head
-      const line = view.state.doc.lineAt(current)
-      const prefix = line.length === 0 ? '' : '\n'
-      const insert = `${prefix}${text}`
-      const cursor = line.to + prefix.length + text.indexOf('\n') + 1
-      view.dispatch({
-        changes: { from: line.to, insert },
-        selection: { anchor: cursor }
-      })
-      view.focus()
-    })
-
     return () => {
-      registerInsertRef.current?.(() => {})
       view.destroy()
       viewRef.current = null
     }

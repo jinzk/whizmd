@@ -1,15 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { Editor } from '@tiptap/core'
+import type { JSONContent } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
 import { TableTrigger } from '../tableTrigger'
+import { InlineMath } from '../math'
 import { typeInto } from './helpers'
 
 function createEditor(): Editor {
   return new Editor({
     extensions: [
       StarterKit,
+      InlineMath.configure({ katexOptions: { throwOnError: false } }),
       Table,
       TableRow,
       TableHeader,
@@ -43,6 +46,46 @@ describe('table editing', () => {
     expect(markdown).toContain('Name')
     expect(markdown).toContain('City')
     expect(markdown).toContain('Beijing')
+    editor.destroy()
+  })
+
+  it('supports inline formatting inside table cells', () => {
+    const editor = createEditor()
+    editor.commands.setContent(
+      '| Content |\n| --- |\n| *italic* **bold** ***bold italic*** `code` $x^2$ [link](https://example.com) |',
+      { contentType: 'markdown' }
+    )
+
+    const cell = editor.getJSON().content?.[0]
+    const row = cell && 'content' in cell ? cell.content?.[1] : undefined
+    const bodyCell = row && 'content' in row ? row.content?.[0] : undefined
+    const paragraph = bodyCell && 'content' in bodyCell ? bodyCell.content?.[0] : undefined
+    const textNodes: JSONContent[] = paragraph && 'content' in paragraph ? paragraph.content ?? [] : []
+
+    const marks = textNodes.flatMap((node) => ('marks' in node && node.marks ? node.marks : []))
+    expect(marks.map((mark) => mark.type)).toEqual(
+      expect.arrayContaining(['italic', 'bold', 'code', 'link'])
+    )
+    expect(textNodes).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'inlineMath', attrs: { latex: 'x^2' } })])
+    )
+    expect(textNodes.find((node) => node.text === 'bold italic')?.marks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'bold' }),
+        expect.objectContaining({ type: 'italic' })
+      ])
+    )
+    expect(marks.find((mark) => mark.type === 'link')?.attrs).toMatchObject({
+      href: 'https://example.com'
+    })
+
+    const markdown = editor.getMarkdown()
+    expect(markdown).toContain('*italic*')
+    expect(markdown).toContain('**bold**')
+    expect(markdown).toContain('***bold italic***')
+    expect(markdown).toContain('`code`')
+    expect(markdown).toContain('$x^2$')
+    expect(markdown).toContain('[link](https://example.com)')
     editor.destroy()
   })
 
