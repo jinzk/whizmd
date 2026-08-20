@@ -838,6 +838,38 @@
   cursor: pointer;
 }
 
+.wysiwyg-editor .tiptap [data-inline-decoration="highlight"] {
+  padding: 0 2px;
+  background: #fff2a8;
+}
+
+.wysiwyg-editor .tiptap [data-inline-decoration="superscript"] {
+  vertical-align: super;
+  font-size: 0.75em;
+}
+
+.wysiwyg-editor .tiptap [data-inline-decoration="subscript"] {
+  vertical-align: sub;
+  font-size: 0.75em;
+}
+
+.wysiwyg-editor .tiptap [data-footnote-reference] {
+  color: var(--md-accent);
+  font-size: 0.8em;
+  vertical-align: super;
+}
+
+.wysiwyg-editor .tiptap [data-markdown-alert] {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-left: 4px solid var(--md-accent);
+  background: var(--md-bg-soft);
+}
+
+.wysiwyg-editor .tiptap [data-markdown-alert] p {
+  margin: 4px 0 0;
+}
+
 .wysiwyg-editor .tiptap .syntax-source-mark::before {
   content: attr(data-syntax-open);
 }

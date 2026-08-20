@@ -5,7 +5,7 @@ import type { JSONContent, MarkdownParseHelpers, MarkdownToken } from '@tiptap/c
 import { LinkNodeView } from './LinkNodeView'
 
 function linkTokenToJson(token: MarkdownToken, h: MarkdownParseHelpers): JSONContent {
-  return h.createNode('linkNode', { text: token.text ?? '', href: token.href ?? '' })
+  return h.createNode('linkNode', { text: token.text ?? '', href: token.href ?? '', reference: token.reference ?? null })
 }
 
 export const LinkNode = Node.create({
@@ -17,7 +17,7 @@ export const LinkNode = Node.create({
   selectable: true,
   isolating: true,
   addAttributes() {
-    return { text: { default: '' }, href: { default: '' } }
+    return { text: { default: '' }, href: { default: '' }, reference: { default: null } }
   },
   parseHTML() {
     return [{ tag: 'span[data-link-node]' }]
@@ -31,12 +31,16 @@ export const LinkNode = Node.create({
     start(src: string): number { return src.indexOf('[') },
     tokenize(src: string): MarkdownToken | undefined {
       const match = src.match(/^\[([^\]]*)\]\(([^)]+)\)/)
-      if (!match) return undefined
-      return { type: 'linkNode', raw: match[0], text: match[1], href: match[2] }
+      if (match) return { type: 'linkNode', raw: match[0], text: match[1], href: match[2] }
+      const reference = src.match(/^\[([^\]]*)\]\[([^\]]+)\]/)
+      if (!reference) return undefined
+      return { type: 'linkNode', raw: reference[0], text: reference[1], href: reference[2], reference: reference[2] }
     }
   },
   parseMarkdown: linkTokenToJson,
-  renderMarkdown: (node: JSONContent): string => `[${node.attrs?.text ?? ''}](${node.attrs?.href ?? ''})`,
+  renderMarkdown: (node: JSONContent): string => node.attrs?.reference
+    ? `[${node.attrs?.text ?? ''}][${node.attrs.reference}]`
+    : `[${node.attrs?.text ?? ''}](${node.attrs?.href ?? ''})`,
   addInputRules() {
     return [new InputRule({
       find: /(?:^| )\[$/,

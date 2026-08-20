@@ -9,7 +9,7 @@ const IMAGE_PATTERN =
   /^!\[([^\]]*)\]\(([^\s)]+)(?:\s+("(?:[^"\\]|\\.)*"))?(?:\s+=\s*(\d+(?:\.\d+)?)(?:x(\d+(?:\.\d+)?)?)?)?\)/
 
 function imageTokenToJson(token: MarkdownToken, h: MarkdownParseHelpers): JSONContent {
-  const attrs: Record<string, unknown> = { src: token.src ?? '' }
+  const attrs: Record<string, unknown> = { src: token.src ?? '', reference: token.reference ?? null }
   if (token.alt) {
     attrs.alt = token.alt
   }
@@ -48,7 +48,8 @@ export const Image = BaseImage.extend({
           }
           return { width: attributes.width }
         }
-      }
+      },
+      reference: { default: null }
     }
   },
   markdownTokenizer: {
@@ -60,7 +61,10 @@ export const Image = BaseImage.extend({
     tokenize(src: string): MarkdownToken | undefined {
       const match = src.match(IMAGE_PATTERN)
       if (!match) {
-        return undefined
+        const reference = src.match(/^!\[([^\]]*)\]\[([^\]]+)\]/)
+        return reference
+          ? { type: 'image', raw: reference[0], src: reference[2], alt: reference[1], reference: reference[2] }
+          : undefined
       }
       const [, alt, rawSrc, title, width, height] = match
       const token: MarkdownToken = {
@@ -94,7 +98,7 @@ export const Image = BaseImage.extend({
     if (width) {
       inner += ` =${width}`
     }
-    return `![${alt}](${inner})`
+    return node.attrs?.reference ? `![${alt}][${node.attrs.reference}]` : `![${alt}](${inner})`
   },
   addInputRules() {
     return [

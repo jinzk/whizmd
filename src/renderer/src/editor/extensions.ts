@@ -14,6 +14,7 @@ import { SyntaxSource } from './syntaxSource'
 import { InlineSyntax } from './inlineSyntax'
 import { TaskItem } from '@tiptap/extension-list/task-item'
 import { TaskList } from '@tiptap/extension-list/task-list'
+import { FootnoteReference, FootnoteDefinition, MarkdownAlert, InlineDecoration, DefinitionListItem } from './advancedSyntax'
 
 /**
  * Full set of extensions for WYSIWYG mode. StarterKit provides the base nodes
@@ -32,6 +33,11 @@ export function buildEditorExtensions(): AnyExtension[] {
     LinkNode,
     InlineHtml,
     InlineSyntax,
+    FootnoteReference,
+    FootnoteDefinition,
+    MarkdownAlert,
+    InlineDecoration,
+    DefinitionListItem,
     SyntaxSource,
     Table.configure({ HTMLAttributes: { class: 'wysiwyg-table' } }),
     TableRow,
