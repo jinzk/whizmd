@@ -191,7 +191,26 @@
   border-right: 1px solid var(--md-border);
   background-color: var(--md-bg-soft);
   overflow-y: auto;
+  padding: 0;
+}
+
+.sidebar-section {
   padding: 8px 0;
+}
+
+.sidebar-section + .sidebar-section {
+  border-top: 1px solid var(--md-border);
+}
+
+.sidebar-section-title {
+  padding: 4px 12px 8px;
+  color: var(--md-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sidebar-open-files .file-item {
+  padding-left: 12px;
 }
 
 .sidebar-header {

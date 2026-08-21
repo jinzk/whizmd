@@ -12,6 +12,13 @@ import { useI18n } from './i18n'
 
 const THEME_CYCLE: ThemeMode[] = ['system', 'light', 'dark']
 
+interface OpenDocument {
+  id: string
+  path: string | null
+  content: string
+  dirty: boolean
+}
+
 export function App(): React.JSX.Element {
   const mode = useEditorStore((s) => s.mode)
   const setMode = useEditorStore((s) => s.setMode)
@@ -29,25 +36,47 @@ export function App(): React.JSX.Element {
   const [externalContent, setExternalContent] = useState('')
   const [rootDir, setRootDir] = useState<string | null>(null)
   const [fileTree, setFileTree] = useState<FileNode | null>(null)
+  const [openedFiles, setOpenedFiles] = useState<OpenDocument[]>([
+    { id: 'untitled-1', path: null, content: '', dirty: false }
+  ])
+  const [activeDocumentId, setActiveDocumentId] = useState('untitled-1')
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false)
   const [closeDialogOpen, setCloseDialogOpen] = useState(false)
   const [closeHasUnsavedChanges, setCloseHasUnsavedChanges] = useState(false)
+  const [documentCloseDialogOpen, setDocumentCloseDialogOpen] = useState(false)
   const languageMenuRef = useRef<HTMLDivElement>(null)
   const saveInFlightRef = useRef<Promise<void> | null>(null)
-  const confirmDiscardChanges = useCallback((): boolean => {
-    if (!useEditorStore.getState().dirty) {
-      return true
-    }
-    return window.confirm(t('discard'))
-  }, [t])
-
+  const openedFilesRef = useRef(openedFiles)
+  openedFilesRef.current = openedFiles
+  const updateActiveDocument = useCallback(
+    (content: string, isDirty: boolean): void => {
+      setOpenedFiles((files) =>
+        files.map((file) =>
+          file.id === activeDocumentId ? { ...file, content, dirty: isDirty } : file
+        )
+      )
+    },
+    [activeDocumentId]
+  )
   useEffect(() => {
     void window.markdownApp.config.get().then(setConfig)
   }, [setConfig])
 
   useEffect(() => {
     const removeListener = window.markdownApp.window.onCloseRequest(() => {
-      setCloseHasUnsavedChanges(useEditorStore.getState().dirty)
+      const current = useEditorStore.getState()
+      setOpenedFiles((files) =>
+        files.map((file) =>
+          file.id === activeDocumentId
+            ? {
+                ...file,
+                content: current.editor?.getMarkdown() ?? current.content,
+                dirty: current.dirty
+              }
+            : file
+        )
+      )
+      setCloseHasUnsavedChanges(current.dirty || openedFilesRef.current.some((file) => file.dirty))
       setCloseDialogOpen(true)
     })
     void window.markdownApp.window.readyForCloseRequests()
@@ -66,8 +95,9 @@ export function App(): React.JSX.Element {
     () => (md: string) => {
       useEditorStore.getState().setContent(md)
       setDirty(true)
+      updateActiveDocument(md, true)
     },
-    [setDirty]
+    [setDirty, updateActiveDocument]
   )
 
   // Capture the latest markdown into `externalContent` before swapping editors
@@ -102,6 +132,13 @@ export function App(): React.JSX.Element {
         setDocPath(target)
       }
       await window.markdownApp.file.write(target, current)
+      setOpenedFiles((files) =>
+        files.map((file) =>
+          file.id === activeDocumentId
+            ? { ...file, path: target, content: current, dirty: false }
+            : file
+        )
+      )
       const latest = useEditorStore.getState()
       if (latest.docPath === target) {
         setDirty(false)
@@ -125,19 +162,28 @@ export function App(): React.JSX.Element {
         saveInFlightRef.current = null
       }
     }
-  }, [rootDir, setDocPath, setDirty])
+  }, [activeDocumentId, rootDir, setDocPath, setDirty, t])
 
   const openFile = useCallback(
     async (path: string) => {
-      if (!confirmDiscardChanges()) {
-        return
-      }
+      if (path === docPath) return
       try {
-        const text = await window.markdownApp.file.read(path)
-        setExternalContent(text)
-        useEditorStore.getState().setContent(text)
+        const current =
+          useEditorStore.getState().editor?.getMarkdown() ?? useEditorStore.getState().content
+        updateActiveDocument(current, useEditorStore.getState().dirty)
+        const existing = openedFiles.find((file) => file.path === path)
+        const next = existing ?? {
+          id: `file-${Date.now()}`,
+          path,
+          content: await window.markdownApp.file.read(path),
+          dirty: false
+        }
+        if (!existing) setOpenedFiles((files) => [...files, next])
+        setActiveDocumentId(next.id)
+        setExternalContent(next.content)
+        useEditorStore.getState().setContent(next.content)
         setDocPath(path)
-        setDirty(false)
+        setDirty(next.dirty)
       } catch (error) {
         console.error('Failed to open document', error)
         window.alert(
@@ -145,13 +191,10 @@ export function App(): React.JSX.Element {
         )
       }
     },
-    [confirmDiscardChanges, setDocPath, setDirty]
+    [docPath, openedFiles, setDocPath, setDirty, updateActiveDocument]
   )
 
   const openFolder = useCallback(async () => {
-    if (!confirmDiscardChanges()) {
-      return
-    }
     const dir = await window.markdownApp.file.openDirectoryDialog()
     if (!dir) {
       return
@@ -159,7 +202,7 @@ export function App(): React.JSX.Element {
     const tree = await window.markdownApp.dir.scan(dir)
     setRootDir(dir)
     setFileTree(tree)
-  }, [confirmDiscardChanges])
+  }, [])
 
   const openFileDialog = useCallback(async () => {
     const path = await window.markdownApp.file.openDialog()
@@ -168,15 +211,71 @@ export function App(): React.JSX.Element {
     }
   }, [openFile])
 
-  const newFile = useCallback(() => {
-    if (!confirmDiscardChanges()) {
+  const selectDocument = useCallback(
+    (id: string): void => {
+      if (id === activeDocumentId) return
+      const target = openedFiles.find((file) => file.id === id)
+      if (!target) return
+
+      const current = useEditorStore.getState()
+      updateActiveDocument(current.editor?.getMarkdown() ?? current.content, current.dirty)
+      setActiveDocumentId(target.id)
+      setExternalContent(target.content)
+      current.setContent(target.content)
+      setDocPath(target.path)
+      setDirty(target.dirty)
+    },
+    [activeDocumentId, openedFiles, setDocPath, setDirty, updateActiveDocument]
+  )
+
+  const closeCurrentDocument = useCallback((): void => {
+    const current = useEditorStore.getState()
+    updateActiveDocument(current.editor?.getMarkdown() ?? current.content, current.dirty)
+    if (current.dirty) {
+      setDocumentCloseDialogOpen(true)
       return
     }
+    setOpenedFiles((files) => files.filter((file) => file.id !== activeDocumentId))
+    const next = openedFiles.find((file) => file.id !== activeDocumentId)
+    if (next) selectDocument(next.id)
+  }, [activeDocumentId, openedFiles, selectDocument, updateActiveDocument])
+
+  const removeCurrentDocument = useCallback((): void => {
+    setDocumentCloseDialogOpen(false)
+    setOpenedFiles((files) => files.filter((file) => file.id !== activeDocumentId))
+    const next = openedFiles.find((file) => file.id !== activeDocumentId)
+    if (next) {
+      selectDocument(next.id)
+    } else {
+      const id = `untitled-${Date.now()}`
+      setOpenedFiles([{ id, path: null, content: '', dirty: false }])
+      setActiveDocumentId(id)
+      setExternalContent('')
+      useEditorStore.getState().setContent('')
+      setDocPath(null)
+      setDirty(false)
+    }
+  }, [activeDocumentId, openedFiles, selectDocument, setDirty, setDocPath])
+
+  const saveAndCloseDocument = useCallback(async (): Promise<void> => {
+    await save()
+    if (!useEditorStore.getState().dirty) {
+      removeCurrentDocument()
+    }
+  }, [removeCurrentDocument, save])
+
+  const newFile = useCallback(() => {
+    const current =
+      useEditorStore.getState().editor?.getMarkdown() ?? useEditorStore.getState().content
+    updateActiveDocument(current, useEditorStore.getState().dirty)
+    const id = `untitled-${Date.now()}`
+    setOpenedFiles((files) => [...files, { id, path: null, content: '', dirty: false }])
+    setActiveDocumentId(id)
     setExternalContent('')
     useEditorStore.getState().setContent('')
     setDocPath(null)
     setDirty(false)
-  }, [confirmDiscardChanges, setDocPath, setDirty])
+  }, [setDocPath, setDirty, updateActiveDocument])
 
   useEffect(() => {
     if (!languageMenuOpen) return
@@ -245,12 +344,13 @@ export function App(): React.JSX.Element {
       'new-file': newFile,
       'open-folder': () => void openFolder(),
       'open-file': () => void openFileDialog(),
+      'close-file': closeCurrentDocument,
       save: () => void save(),
       'export-html': () => void exportDocument('html'),
       'export-pdf': () => void exportDocument('pdf')
     }
     return window.markdownApp.window.onMenuCommand((command) => actions[command]())
-  }, [exportDocument, newFile, openFileDialog, openFolder, save])
+  }, [closeCurrentDocument, exportDocument, newFile, openFileDialog, openFolder, save])
 
   // Global shortcuts: Ctrl/Cmd+S save, Ctrl/Cmd+O open.
   useEffect(() => {
@@ -279,6 +379,9 @@ export function App(): React.JSX.Element {
     <div className="app">
       <header className="toolbar">
         <div className="toolbar-left">
+          <button type="button" onClick={newFile}>
+            {t('newFile')}
+          </button>
           <button type="button" onClick={() => void save()}>
             {t('save')}
           </button>
@@ -372,7 +475,10 @@ export function App(): React.JSX.Element {
           root={fileTree}
           rootDir={rootDir}
           activePath={docPath}
+          activeDocumentId={activeDocumentId}
+          openedFiles={openedFiles}
           onOpenFile={(p) => void openFile(p)}
+          onSelectDocument={selectDocument}
         />
         <main className="editor-area">
           {mode === 'wysiwyg' ? (
@@ -402,6 +508,25 @@ export function App(): React.JSX.Element {
                 onClick={() => void window.markdownApp.window.confirmClose()}
               >
                 {t('continueClose')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {documentCloseDialogOpen ? (
+        <div className="app-dialog-backdrop" role="presentation">
+          <div className="app-dialog" role="alertdialog" aria-modal="true">
+            <h2>{t('closeFile')}</h2>
+            <p>{t('closeDocumentMessage')}</p>
+            <div className="app-dialog-actions">
+              <button type="button" onClick={() => setDocumentCloseDialogOpen(false)}>
+                {t('cancel')}
+              </button>
+              <button type="button" onClick={() => void saveAndCloseDocument()}>
+                {t('saveAndClose')}
+              </button>
+              <button type="button" className="app-dialog-danger" onClick={removeCurrentDocument}>
+                {t('discardChanges')}
               </button>
             </div>
           </div>

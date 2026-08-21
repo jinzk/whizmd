@@ -1,7 +1,7 @@
 export type ThemeMode = 'light' | 'dark' | 'system'
 export type LanguageMode = 'system' | 'zh-CN' | 'en-US'
 export type MenuCommand =
-  'new-file' | 'open-folder' | 'open-file' | 'save' | 'export-html' | 'export-pdf'
+  'new-file' | 'open-folder' | 'open-file' | 'close-file' | 'save' | 'export-html' | 'export-pdf'
 
 export interface AppConfig {
   themeMode: ThemeMode

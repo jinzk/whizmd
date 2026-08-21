@@ -6,7 +6,14 @@ interface Props {
   root: FileNode | null
   rootDir: string | null
   activePath: string | null
+  activeDocumentId: string
+  openedFiles: Array<{ id: string; path: string | null; dirty: boolean }>
   onOpenFile: (path: string) => void
+  onSelectDocument: (id: string) => void
+}
+
+function fileName(path: string): string {
+  return path.split(/[\\/]/).pop() ?? path
 }
 
 function TreeNode({
@@ -62,16 +69,55 @@ function TreeNode({
   )
 }
 
-export function FileSidebar({ root, rootDir, activePath, onOpenFile }: Props): React.JSX.Element {
+export function FileSidebar({
+  root,
+  rootDir,
+  activePath,
+  activeDocumentId,
+  openedFiles,
+  onOpenFile,
+  onSelectDocument
+}: Props): React.JSX.Element {
   const { t } = useI18n()
   return (
     <aside className="sidebar">
-      {rootDir ? <div className="sidebar-header">{rootDir}</div> : null}
-      {root ? (
-        <TreeNode node={root} depth={0} activePath={activePath} onOpenFile={onOpenFile} />
-      ) : (
-        <p className="sidebar-empty">{t('noFolder')}</p>
-      )}
+      <section className="sidebar-section sidebar-open-files">
+        <div className="sidebar-section-title">{t('openedFiles')}</div>
+        {openedFiles.length > 0 ? (
+          openedFiles.map((file) => {
+            const active = file.id === activeDocumentId
+            const label = file.path ? fileName(file.path) : t('untitledDocument')
+            return (
+              <button
+                key={file.id}
+                type="button"
+                className={`file-item ${active ? 'active' : ''}`}
+                onClick={() => {
+                  if (file.path) {
+                    onOpenFile(file.path)
+                  } else {
+                    onSelectDocument(file.id)
+                  }
+                }}
+              >
+                {file.dirty ? '*' : ''}
+                {label}
+              </button>
+            )
+          })
+        ) : (
+          <p className="sidebar-empty">{t('noOpenFiles')}</p>
+        )}
+      </section>
+      {rootDir ? (
+        <section className="sidebar-section sidebar-folder-tree">
+          <div className="sidebar-section-title">{t('folder')}</div>
+          <div className="sidebar-header">{rootDir}</div>
+          {root ? (
+            <TreeNode node={root} depth={0} activePath={activePath} onOpenFile={onOpenFile} />
+          ) : null}
+        </section>
+      ) : null}
     </aside>
   )
 }
