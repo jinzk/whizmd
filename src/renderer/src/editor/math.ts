@@ -1,12 +1,13 @@
 import { InputRule } from '@tiptap/core'
 import { NodeSelection } from '@tiptap/pm/state'
 import { InlineMath as BaseInlineMath, BlockMath as BaseBlockMath } from '@tiptap/extension-mathematics'
-import type { Editor, JSONContent, MarkdownParseHelpers, MarkdownToken } from '@tiptap/core'
+import type { JSONContent, MarkdownParseHelpers, MarkdownToken } from '@tiptap/core'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import { BlockMathNodeView } from './math/BlockMathNodeView'
 import { InlineMathNodeView } from './math/InlineMathNodeView'
 import { getInputContext } from './input/context'
 import { createPairedTriggerExtension, createPairedTriggerInputRule } from './input/pairedTrigger'
+import { inlineAtomKeyboardShortcuts } from './nodeView/inlineAtomKeyboard'
 
 const INLINE_MATH_PATTERN =
   /(?<!\$)\$(?!\$|\s)([^$\n]+?)(?<!\s)\$(?!\$|\d)/
@@ -63,29 +64,7 @@ export const InlineMath = BaseInlineMath.extend({
     ], 'inlineMathCompletion')]
   },
   addKeyboardShortcuts() {
-    const mathType = this.type
-    const deleteAdjacent = (direction: 'backward' | 'forward') => ({ editor }: { editor: Editor }) => {
-      const { selection } = editor.state
-      if (!selection.empty) return false
-
-      if (selection instanceof NodeSelection && selection.node.type === mathType) {
-        editor.commands.deleteSelection()
-        return true
-      }
-
-      const position = selection.from
-      const adjacent = direction === 'backward' ? editor.state.doc.nodeAt(position - 1) : editor.state.doc.nodeAt(position)
-      if (!adjacent || adjacent.type !== mathType) return false
-
-      const from = direction === 'backward' ? position - adjacent.nodeSize : position
-      editor.view.dispatch(editor.state.tr.delete(from, from + adjacent.nodeSize))
-      return true
-    }
-
-    return {
-      Backspace: deleteAdjacent('backward'),
-      Delete: deleteAdjacent('forward')
-    }
+    return inlineAtomKeyboardShortcuts(this.type)
   },
   addNodeView() {
     return ReactNodeViewRenderer(InlineMathNodeView)

@@ -1,0 +1,14 @@
+/* Table controls and WYSIWYG table presentation. */
+.wysiwyg-editor .tiptap table { width: 100%; margin: 1em 0; border-collapse: separate; border-spacing: 0; table-layout: auto; color: var(--md-text); font-size: 14px; line-height: 1.5; }
+.wysiwyg-editor .tiptap th, .wysiwyg-editor .tiptap td { min-width: 80px; padding: 6px 13px; border: 1px solid var(--md-border); vertical-align: top; text-align: left; }
+.wysiwyg-editor .tiptap th { background-color: var(--md-bg-active) !important; font-weight: 600; }
+.wysiwyg-editor .tiptap tr:nth-child(2n) td { background: color-mix(in srgb, var(--md-bg-soft) 55%, transparent); }
+.wysiwyg-editor .tiptap td p, .wysiwyg-editor .tiptap th p { margin: 0; }
+.wysiwyg-editor .tiptap .selectedCell { background: color-mix(in srgb, var(--md-accent) 14%, transparent); }
+.table-add-button, .table-align-toolbar { position: fixed; z-index: 30; }
+.table-add-button { width: 24px; height: 24px; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--md-border); border-radius: 5px; background: var(--md-bg); color: var(--md-accent); cursor: pointer; font-size: 18px; line-height: 1; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12); }
+.table-add-button:hover { background: var(--md-bg-hover); }
+.table-remove-column, .table-remove-row { color: var(--md-error); }
+.table-align-toolbar { display: none; gap: 2px; padding: 3px; border: 1px solid var(--md-border); border-radius: 5px; background: var(--md-bg); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14); }
+.table-align-toolbar button { padding: 3px 7px; border: 0; border-radius: 3px; background: transparent; color: var(--md-text); cursor: pointer; font-size: 12px; }
+.table-align-toolbar button:hover { background: var(--md-bg-hover); }

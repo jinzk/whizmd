@@ -12,6 +12,7 @@ import { InlineDecoration } from '../syntax/inlineDecoration'
 import { LinkNode } from '../link'
 import { Image } from '../image'
 import { InlineHtml } from '../inlineHtml'
+import { HtmlBlock } from '../htmlBlock'
 import { DefinitionListItem } from '../syntax/definitionList'
 import { MarkdownAlert } from '../syntax/alert'
 import { FootnoteReference, FootnoteDefinition } from '../syntax/footnote'
@@ -133,6 +134,14 @@ describe('NodeView DOM interactions', () => {
 
     await event(() => fireEvent.change(screen.getByRole('combobox', { name: '提示块类型' }), { target: { value: 'WARNING' } }))
     expect(json(editor).content?.[2].attrs?.kind).toBe('WARNING')
+  })
+
+  it('hides the HTML source edit button while an HTML block is being edited', async () => {
+    await mount([{ type: 'htmlBlock', attrs: { html: '<section>content</section>' } }], [...baseExtensions, HtmlBlock])
+
+    const block = document.querySelector('[data-html-block]')
+    expect(block).toHaveAttribute('data-html-editing', 'true')
+    expect(screen.queryByRole('button', { name: '编辑 HTML 源码' })).not.toBeInTheDocument()
   })
 
   it('activates footnote references and renders the definition NodeView controls', async () => {

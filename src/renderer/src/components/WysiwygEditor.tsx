@@ -167,11 +167,11 @@ export function WysiwygEditor({ content, onUpdate }: Props): React.JSX.Element {
     editor.commands.setContent(content, { emitUpdate: false, contentType: 'markdown' })
   }, [content, editor])
 
-  // Focus the editor on startup (and whenever it is (re)mounted) so the caret
-  // is active and the user can start typing immediately.
+  // Start each newly opened document at its beginning instead of restoring a
+  // position near the end of the previous editor instance.
   useEffect(() => {
     if (!editor) return
-    const raf = requestAnimationFrame(() => editor.commands.focus('end'))
+    const raf = requestAnimationFrame(() => editor.commands.focus('start'))
     return () => cancelAnimationFrame(raf)
   }, [editor])
 

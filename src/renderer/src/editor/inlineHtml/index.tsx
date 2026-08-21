@@ -1,11 +1,12 @@
 import { InputRule, Node } from '@tiptap/core'
 import type { JSONContent, MarkdownParseHelpers, MarkdownToken } from '@tiptap/core'
-import { NodeSelection, TextSelection, Plugin } from '@tiptap/pm/state'
+import { TextSelection, Plugin } from '@tiptap/pm/state'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
 import { useEffect, useRef, useState } from 'react'
 import { canTriggerInlineMarkdown, isInCodeBlock } from '../input/context'
 import { useNodeViewField } from '../nodeView/useNodeViewField'
+import { inlineAtomKeyboardShortcuts } from '../nodeView/inlineAtomKeyboard'
 
 const ALLOWED_TAGS = new Set(['a', 'b', 'br', 'del', 'em', 'i', 'img', 'mark', 's', 'span', 'strong', 'sub', 'sup', 'u'])
 const GLOBAL_ATTRIBUTES = new Set(['class', 'id', 'style', 'title'])
@@ -143,24 +144,6 @@ export const InlineHtml = Node.create({
        }
      })]
    },
-   addKeyboardShortcuts() {
-     const type = this.type
-     const moveAcross = (direction: 'left' | 'right') => ({ editor }: { editor: import('@tiptap/core').Editor }) => {
-       const { selection } = editor.state
-       if (selection instanceof NodeSelection && selection.node.type === type) {
-         editor.commands.setTextSelection(direction === 'left' ? selection.from : selection.to)
-         return true
-       }
-       if (!selection.empty || !(selection instanceof TextSelection)) return false
-       const position = direction === 'left' ? selection.from - 1 : selection.from
-       const node = editor.state.doc.nodeAt(position)
-       if (!node || node.type !== type) return false
-       const target = direction === 'left' ? position - node.nodeSize + 1 : position + node.nodeSize
-       editor.commands.setTextSelection(target)
-       return true
-     }
-     const remove = (direction: 'backward' | 'forward') => ({ editor }: { editor: import('@tiptap/core').Editor }) => { const { selection } = editor.state; if (selection instanceof NodeSelection && selection.node.type === type) { editor.commands.deleteSelection(); return true } if (!selection.empty) return false; const position = direction === 'backward' ? selection.from - 1 : selection.from; const node = editor.state.doc.nodeAt(position); if (!node || node.type !== type) return false; const from = direction === 'backward' ? position - node.nodeSize + 1 : position; editor.view.dispatch(editor.state.tr.delete(from, from + node.nodeSize)); return true }
-     return { ArrowLeft: moveAcross('left'), ArrowRight: moveAcross('right'), Backspace: remove('backward'), Delete: remove('forward') }
-   },
+    addKeyboardShortcuts() { return inlineAtomKeyboardShortcuts(this.type) },
   addNodeView() { return ReactNodeViewRenderer(InlineHtmlView) }
 })

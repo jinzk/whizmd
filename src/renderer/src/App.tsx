@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { FileNode } from '@shared/types'
 import { useEditorStore } from './store/editor'
-import { useDocumentStore } from './store/documents'
 import { WysiwygEditor } from './components/WysiwygEditor'
 import { SourceEditor } from './components/SourceEditor'
 import { FileSidebar } from './components/FileSidebar'
@@ -10,6 +8,7 @@ import { useTheme } from './hooks/useTheme'
 import type { ThemeMode } from '@shared/types'
 import type { LanguageMode, MenuCommand } from '@shared/types'
 import { useI18n } from './i18n'
+import { useDocumentActions } from './hooks/useDocumentActions'
 
 const THEME_CYCLE: ThemeMode[] = ['system', 'light', 'dark']
 
@@ -18,38 +17,29 @@ export function App(): React.JSX.Element {
   const setMode = useEditorStore((s) => s.setMode)
   const config = useEditorStore((s) => s.config)
   const setConfig = useEditorStore((s) => s.setConfig)
-  const openedFiles = useDocumentStore((s) => s.documents)
-  const activeDocumentId = useDocumentStore((s) => s.activeDocumentId)
-  const activeDocument = openedFiles.find((file) => file.id === activeDocumentId) ?? openedFiles[0]
-  const addDocument = useDocumentStore((s) => s.addDocument)
-  const updateDocument = useDocumentStore((s) => s.updateDocument)
-  const setActiveDocument = useDocumentStore((s) => s.setActiveDocument)
-  const replaceDocuments = useDocumentStore((s) => s.replaceDocuments)
-
   const theme = useTheme()
   const { t } = useI18n()
 
-  const [rootDir, setRootDir] = useState<string | null>(null)
-  const [fileTree, setFileTree] = useState<FileNode | null>(null)
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false)
   const [closeDialogOpen, setCloseDialogOpen] = useState(false)
   const [closeHasUnsavedChanges, setCloseHasUnsavedChanges] = useState(false)
   const [documentCloseDialogOpen, setDocumentCloseDialogOpen] = useState(false)
-  const languageMenuRef = useRef<HTMLDivElement>(null)
-  const saveInFlightRef = useRef<Promise<void> | null>(null)
+  const requestDocumentClose = useCallback(() => setDocumentCloseDialogOpen(true), [])
+  const { documents: openedFiles, activeDocumentId, activeDocument, hasUnsavedChanges, rootDir, fileTree, handleUpdate, save, openFile, openFolder, openFileDialog, newFile, selectDocument, closeCurrentDocument, removeCurrentDocument, saveAndCloseDocument } = useDocumentActions(t, requestDocumentClose, () => setDocumentCloseDialogOpen(false))
   const docPath = activeDocument?.path ?? null
+  const languageMenuRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     void window.markdownApp.config.get().then(setConfig)
   }, [setConfig])
 
   useEffect(() => {
     const removeListener = window.markdownApp.window.onCloseRequest(() => {
-      setCloseHasUnsavedChanges(useDocumentStore.getState().documents.some((file) => file.dirty))
+      setCloseHasUnsavedChanges(hasUnsavedChanges)
       setCloseDialogOpen(true)
     })
     void window.markdownApp.window.readyForCloseRequests()
     return removeListener
-  }, [])
+  }, [hasUnsavedChanges])
 
   useEffect(() => {
     const fileName = docPath?.split(/[\\/]/).pop()
@@ -57,146 +47,7 @@ export function App(): React.JSX.Element {
     void window.markdownApp.window.setTitle(title)
   }, [docPath, t])
 
-  const handleUpdate = useCallback((md: string): void => {
-    updateDocument(activeDocumentId, { content: md, dirty: true })
-  }, [activeDocumentId, updateDocument])
-
   const enterMode = useCallback((target: 'wysiwyg' | 'source'): void => setMode(target), [setMode])
-
-  const save = useCallback(async (): Promise<void> => {
-    if (saveInFlightRef.current) {
-      await saveInFlightRef.current
-      return
-    }
-
-    const operation = (async (): Promise<void> => {
-      const state = useDocumentStore.getState()
-      const document = state.documents.find((file) => file.id === state.activeDocumentId)
-      if (!document) return
-      const sourcePath = document.path
-      const current = document.content
-      let target = sourcePath
-      if (!target) {
-        target = await window.markdownApp.file.saveFileDialog('untitled.md')
-        if (!target) {
-          return
-        }
-      }
-      await window.markdownApp.file.write(target, current)
-      updateDocument(document.id, { path: target, content: current, dirty: false })
-      if (rootDir) {
-        const tree = await window.markdownApp.dir.scan(rootDir)
-        setFileTree(tree)
-      }
-    })()
-
-    saveInFlightRef.current = operation
-    try {
-      await operation
-    } catch (error) {
-      console.error('Failed to save document', error)
-      window.alert(
-        t('saveFailed', { error: error instanceof Error ? error.message : String(error) })
-      )
-    } finally {
-      if (saveInFlightRef.current === operation) {
-        saveInFlightRef.current = null
-      }
-    }
-  }, [rootDir, t, updateDocument])
-
-  const openFile = useCallback(
-    async (path: string) => {
-      const state = useDocumentStore.getState()
-      const existing = state.documents.find((file) => file.path === path)
-      if (existing?.id === state.activeDocumentId) return
-      try {
-        const next = existing ?? {
-          id: `file-${Date.now()}`,
-          path,
-          content: await window.markdownApp.file.read(path),
-          dirty: false
-        }
-        if (!existing) addDocument(next)
-        setActiveDocument(next.id)
-      } catch (error) {
-        console.error('Failed to open document', error)
-        window.alert(
-          t('openFailed', { error: error instanceof Error ? error.message : String(error) })
-        )
-      }
-    },
-    [addDocument, setActiveDocument, t]
-  )
-
-  const openFolder = useCallback(async () => {
-    const dir = await window.markdownApp.file.openDirectoryDialog()
-    if (!dir) {
-      return
-    }
-    const tree = await window.markdownApp.dir.scan(dir)
-    setRootDir(dir)
-    setFileTree(tree)
-  }, [])
-
-  const openFileDialog = useCallback(async () => {
-    const path = await window.markdownApp.file.openDialog()
-    if (path) {
-      await openFile(path)
-    }
-  }, [openFile])
-
-  const selectDocument = useCallback(
-    (id: string): void => {
-      if (id === activeDocumentId) return
-      const target = useDocumentStore.getState().documents.find((file) => file.id === id)
-      if (!target) return
-      setActiveDocument(target.id)
-    },
-    [activeDocumentId, setActiveDocument]
-  )
-
-  const closeCurrentDocument = useCallback((): void => {
-    const state = useDocumentStore.getState()
-    const current = state.documents.find((file) => file.id === activeDocumentId)
-    if (current?.dirty) {
-      setDocumentCloseDialogOpen(true)
-      return
-    }
-    const remaining = state.documents.filter((file) => file.id !== activeDocumentId)
-    if (remaining.length > 0) {
-      replaceDocuments(remaining, remaining[0].id)
-    } else {
-      const id = `untitled-${Date.now()}`
-      replaceDocuments([{ id, path: null, content: '', dirty: false }], id)
-    }
-  }, [activeDocumentId, replaceDocuments])
-
-  const removeCurrentDocument = useCallback((): void => {
-    setDocumentCloseDialogOpen(false)
-    const state = useDocumentStore.getState()
-    const remaining = state.documents.filter((file) => file.id !== activeDocumentId)
-    const next = remaining[0]
-    if (next) {
-      replaceDocuments(remaining, next.id)
-    } else {
-      const id = `untitled-${Date.now()}`
-      replaceDocuments([{ id, path: null, content: '', dirty: false }], id)
-    }
-  }, [activeDocumentId, replaceDocuments])
-
-  const saveAndCloseDocument = useCallback(async (): Promise<void> => {
-    await save()
-    if (!useDocumentStore.getState().documents.find((file) => file.id === activeDocumentId)?.dirty) {
-      removeCurrentDocument()
-    }
-  }, [activeDocumentId, removeCurrentDocument, save])
-
-  const newFile = useCallback(() => {
-    const id = `untitled-${Date.now()}`
-    addDocument({ id, path: null, content: '', dirty: false })
-    setActiveDocument(id)
-  }, [addDocument, setActiveDocument])
 
   useEffect(() => {
     if (!languageMenuOpen) return
@@ -238,8 +89,8 @@ export function App(): React.JSX.Element {
 
   const exportDocument = useCallback(
     async (kind: 'html' | 'pdf') => {
-      const path = useDocumentStore.getState().documents.find((file) => file.id === activeDocumentId)?.path ?? null
-      const md = useDocumentStore.getState().documents.find((file) => file.id === activeDocumentId)?.content ?? ''
+      const path = activeDocument?.path ?? null
+      const md = activeDocument?.content ?? ''
       const html = await buildExportHtml(md, {
         title: exportTitle(path),
         docPath: path
@@ -256,7 +107,7 @@ export function App(): React.JSX.Element {
         })
       }
     },
-    [activeDocumentId, exportDefaultPath, exportTitle]
+    [activeDocument, exportDefaultPath, exportTitle]
   )
 
   useEffect(() => {

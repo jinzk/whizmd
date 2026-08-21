@@ -118,6 +118,8 @@ export function SourceEditor({ content, onUpdate, theme }: Props): React.JSX.Ele
     if (current !== content) {
       view.dispatch({
         changes: { from: 0, to: current.length, insert: content },
+        selection: { anchor: 0 },
+        effects: EditorView.scrollIntoView(0, { y: 'start' }),
         annotations: externalSync.of(true)
       })
     }

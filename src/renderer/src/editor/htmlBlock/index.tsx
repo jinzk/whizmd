@@ -105,16 +105,18 @@ function HtmlBlockView({ node, selected, updateAttributes, deleteNode }: NodeVie
       <div className="html-block-label">HTML</div>
       <div className="html-block-preview">
         <div dangerouslySetInnerHTML={{ __html: renderHtmlBlockPreview(source) }} />
-        <button
-          type="button"
-          className="html-block-edit"
-          aria-label="编辑 HTML 源码"
-          title="编辑 HTML 源码"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => setEditing(true)}
-        >
-          编辑源码
-        </button>
+        {!editing ? (
+          <button
+            type="button"
+            className="html-block-edit"
+            aria-label="编辑 HTML 源码"
+            title="编辑 HTML 源码"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => setEditing(true)}
+          >
+            编辑源码
+          </button>
+        ) : null}
       </div>
       <div
         className="html-block-source"
