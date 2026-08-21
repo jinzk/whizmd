@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FileNode } from '@shared/types'
+import { useI18n } from '../i18n'
 
 interface Props {
   root: FileNode | null
@@ -61,19 +62,15 @@ function TreeNode({
   )
 }
 
-export function FileSidebar({
-  root,
-  rootDir,
-  activePath,
-  onOpenFile
-}: Props): React.JSX.Element {
+export function FileSidebar({ root, rootDir, activePath, onOpenFile }: Props): React.JSX.Element {
+  const { t } = useI18n()
   return (
     <aside className="sidebar">
       {rootDir ? <div className="sidebar-header">{rootDir}</div> : null}
       {root ? (
         <TreeNode node={root} depth={0} activePath={activePath} onOpenFile={onOpenFile} />
       ) : (
-        <p className="sidebar-empty">未打开文件夹</p>
+        <p className="sidebar-empty">{t('noFolder')}</p>
       )}
     </aside>
   )

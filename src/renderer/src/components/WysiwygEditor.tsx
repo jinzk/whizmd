@@ -3,11 +3,8 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import type { Editor } from '@tiptap/core'
 import { buildEditorExtensions } from '../editor/extensions'
 import { useEditorStore } from '../store/editor'
-import {
-  insertDroppedImages,
-  insertPastedImages,
-  isImageFile
-} from '../editor/image/insert'
+import { useI18n } from '../i18n'
+import { insertDroppedImages, insertPastedImages, isImageFile } from '../editor/image/insert'
 
 interface Props {
   content: string
@@ -31,6 +28,7 @@ const CODE_LANGUAGES = [
 ] as const
 
 export function WysiwygEditor({ content, onUpdate }: Props): React.JSX.Element {
+  const { t } = useI18n()
   const setDirty = useEditorStore((s) => s.setDirty)
   const setEditor = useEditorStore((s) => s.setEditor)
   const editorRef = useRef<Editor | null>(null)
@@ -59,9 +57,7 @@ export function WysiwygEditor({ content, onUpdate }: Props): React.JSX.Element {
       const menuHeight = 330
       const spaceBelow = window.innerHeight - coords.bottom - 8
       const top =
-        spaceBelow >= menuHeight
-          ? coords.bottom + 8
-          : Math.max(8, coords.top - menuHeight - 8)
+        spaceBelow >= menuHeight ? coords.bottom + 8 : Math.max(8, coords.top - menuHeight - 8)
       setLanguageMenuPosition({
         top,
         left: Math.max(8, Math.min(coords.left, window.innerWidth - menuWidth - 8))
@@ -180,12 +176,7 @@ export function WysiwygEditor({ content, onUpdate }: Props): React.JSX.Element {
     const { $from } = editor.state.selection
     const from = $from.start()
     const to = $from.end()
-    editor
-      .chain()
-      .focus()
-      .deleteRange({ from, to })
-      .setCodeBlock({ language })
-      .run()
+    editor.chain().focus().deleteRange({ from, to }).setCodeBlock({ language }).run()
     setShowLanguageMenu(false)
   }
 
@@ -215,10 +206,10 @@ export function WysiwygEditor({ content, onUpdate }: Props): React.JSX.Element {
         <div
           className="code-language-menu"
           role="listbox"
-          aria-label="选择代码语言"
+          aria-label={t('chooseCodeLanguage')}
           style={{ top: languageMenuPosition.top, left: languageMenuPosition.left }}
         >
-          <div className="code-language-title">选择代码语言</div>
+          <div className="code-language-title">{t('chooseCodeLanguage')}</div>
           {CODE_LANGUAGES.map(([language, label]) => (
             <button
               key={language}
@@ -228,7 +219,13 @@ export function WysiwygEditor({ content, onUpdate }: Props): React.JSX.Element {
               onClick={() => chooseLanguage(language)}
             >
               <code>{language}</code>
-              <span>{label}</span>
+              <span>
+                {language === 'mermaid'
+                  ? t('mermaid')
+                  : language === 'plaintext'
+                    ? t('plaintext')
+                    : label}
+              </span>
             </button>
           ))}
         </div>

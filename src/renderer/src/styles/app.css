@@ -6,6 +6,7 @@
 }
 
 .toolbar {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -32,6 +33,9 @@
 }
 
 .mode-switch {
+  position: absolute;
+  top: 8px;
+  left: 260px;
   display: inline-flex;
   align-items: stretch;
 }
@@ -67,6 +71,52 @@
   margin-left: auto;
 }
 
+.toolbar-menu {
+  position: relative;
+}
+
+.toolbar-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.toolbar-menu-chevron {
+  font-size: 11px;
+  color: var(--md-text-muted);
+}
+
+.toolbar-menu-content {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 150px;
+  padding: 4px;
+  border: 1px solid var(--md-border);
+  border-radius: 6px;
+  background-color: var(--md-bg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+}
+
+.toolbar-menu-content button {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  text-align: left;
+  color: var(--md-text);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.toolbar-menu-content button:hover,
+.toolbar-menu-content button[aria-checked='true'] {
+  background-color: var(--md-bg-active);
+}
+
 .doc-title {
   font-size: 13px;
   color: var(--md-text-muted);
@@ -80,6 +130,58 @@
   flex: 1;
   min-height: 0;
   display: flex;
+}
+
+.app-dialog-backdrop {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.app-dialog {
+  width: min(420px, calc(100vw - 32px));
+  padding: 22px;
+  border: 1px solid var(--md-border);
+  border-radius: 10px;
+  background: var(--md-bg);
+  color: var(--md-text);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.24);
+}
+
+.app-dialog h2 {
+  margin: 0 0 10px;
+  font-size: 17px;
+}
+
+.app-dialog p {
+  margin: 0;
+  color: var(--md-text-muted);
+  line-height: 1.5;
+}
+
+.app-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.app-dialog-actions button {
+  padding: 7px 14px;
+  border: 1px solid var(--md-border);
+  border-radius: 6px;
+  background: var(--md-bg-soft);
+  color: var(--md-text);
+  cursor: pointer;
+}
+
+.app-dialog-actions .app-dialog-danger {
+  border-color: var(--md-accent);
+  background: var(--md-accent);
+  color: var(--md-accent-text);
 }
 
 /* ---- Sidebar ---- */
@@ -240,7 +342,10 @@
 
 .wysiwyg-editor .tiptap .code-block-language {
   color: var(--md-text-muted);
-  font: 12px/1.4 'SFMono-Regular', Consolas, monospace;
+  font:
+    12px/1.4 'SFMono-Regular',
+    Consolas,
+    monospace;
 }
 
 .wysiwyg-editor .tiptap .code-block-copy {
@@ -456,7 +561,10 @@
 
 .wysiwyg-editor .tiptap .block-math-source-header {
   color: var(--md-text-muted);
-  font: 12px/1.4 'SFMono-Regular', Consolas, monospace;
+  font:
+    12px/1.4 'SFMono-Regular',
+    Consolas,
+    monospace;
 }
 
 .wysiwyg-editor .tiptap .block-math-module[data-math-editing='true'] .block-math-source {
@@ -473,7 +581,10 @@
   resize: vertical;
   background: transparent;
   color: var(--md-text);
-  font: 13px/1.5 'SFMono-Regular', Consolas, monospace;
+  font:
+    13px/1.5 'SFMono-Regular',
+    Consolas,
+    monospace;
 }
 
 .wysiwyg-editor .tiptap .block-module-delete {
@@ -505,7 +616,11 @@
 }
 
 .wysiwyg-editor:focus-within .tiptap .editor-line-active {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--md-accent) 12%, transparent), transparent 92%);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--md-accent) 12%, transparent),
+    transparent 92%
+  );
 }
 
 .wysiwyg-editor .tiptap .inline-math-error,
@@ -559,7 +674,10 @@
 
 .wysiwyg-editor .tiptap .mermaid-source-header {
   color: var(--md-text-muted);
-  font: 12px/1.4 'SFMono-Regular', Consolas, monospace;
+  font:
+    12px/1.4 'SFMono-Regular',
+    Consolas,
+    monospace;
 }
 
 .wysiwyg-editor .tiptap .mermaid-source > pre {
@@ -626,7 +744,10 @@
 
 .wysiwyg-editor .tiptap .html-source-header {
   color: var(--md-text-muted);
-  font: 12px/1.4 'SFMono-Regular', Consolas, monospace;
+  font:
+    12px/1.4 'SFMono-Regular',
+    Consolas,
+    monospace;
 }
 
 .wysiwyg-editor .tiptap .html-source > pre {
@@ -675,7 +796,10 @@
   padding: 3px 8px;
   color: var(--md-text-muted);
   background: var(--md-bg-soft);
-  font: 11px/1.4 'SFMono-Regular', Consolas, monospace;
+  font:
+    11px/1.4 'SFMono-Regular',
+    Consolas,
+    monospace;
   letter-spacing: 0.04em;
 }
 
@@ -818,7 +942,12 @@
   outline: none;
   color: var(--md-text);
   background: var(--md-bg);
-  font: 0.9em 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font:
+    0.9em 'SFMono-Regular',
+    Consolas,
+    'Liberation Mono',
+    Menlo,
+    monospace;
 }
 
 .wysiwyg-editor .tiptap .inline-html-delete {
@@ -852,10 +981,19 @@
   background: var(--md-code-bg);
 }
 
-.wysiwyg-editor .tiptap .inline-syntax-bold { font-weight: 700; }
-.wysiwyg-editor .tiptap .inline-syntax-italic { font-style: italic; }
-.wysiwyg-editor .tiptap .inline-syntax-boldItalic { font-weight: 700; font-style: italic; }
-.wysiwyg-editor .tiptap .inline-syntax-strike { text-decoration: line-through; }
+.wysiwyg-editor .tiptap .inline-syntax-bold {
+  font-weight: 700;
+}
+.wysiwyg-editor .tiptap .inline-syntax-italic {
+  font-style: italic;
+}
+.wysiwyg-editor .tiptap .inline-syntax-boldItalic {
+  font-weight: 700;
+  font-style: italic;
+}
+.wysiwyg-editor .tiptap .inline-syntax-strike {
+  text-decoration: line-through;
+}
 
 .wysiwyg-editor .tiptap .inline-syntax-edit-controls {
   display: inline-flex;
@@ -880,7 +1018,12 @@
   outline: none;
   color: var(--md-text);
   background: var(--md-bg);
-  font: 0.9em 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font:
+    0.9em 'SFMono-Regular',
+    Consolas,
+    'Liberation Mono',
+    Menlo,
+    monospace;
 }
 
 .wysiwyg-editor .tiptap .inline-syntax-delete {
@@ -893,7 +1036,7 @@
   cursor: pointer;
 }
 
-.wysiwyg-editor .tiptap [data-inline-decoration="highlight"] {
+.wysiwyg-editor .tiptap [data-inline-decoration='highlight'] {
   padding: 0 2px;
   background: #fff2a8;
 }
@@ -903,7 +1046,7 @@
   background: #fff2a8;
 }
 
-.wysiwyg-editor .tiptap [data-inline-decoration="superscript"] {
+.wysiwyg-editor .tiptap [data-inline-decoration='superscript'] {
   vertical-align: super;
   font-size: 0.75em;
 }
@@ -913,7 +1056,7 @@
   font-size: 0.75em;
 }
 
-.wysiwyg-editor .tiptap [data-inline-decoration="subscript"] {
+.wysiwyg-editor .tiptap [data-inline-decoration='subscript'] {
   vertical-align: sub;
   font-size: 0.75em;
 }
@@ -1319,7 +1462,10 @@
   outline: none;
   background: var(--md-code-bg);
   color: var(--md-text);
-  font: 13px/1.5 'SFMono-Regular', Consolas, monospace;
+  font:
+    13px/1.5 'SFMono-Regular',
+    Consolas,
+    monospace;
 }
 
 .wysiwyg-editor .tiptap .image-field .image-delete {

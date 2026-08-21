@@ -1,7 +1,11 @@
 export type ThemeMode = 'light' | 'dark' | 'system'
+export type LanguageMode = 'system' | 'zh-CN' | 'en-US'
+export type MenuCommand =
+  'new-file' | 'open-folder' | 'open-file' | 'save' | 'export-html' | 'export-pdf'
 
 export interface AppConfig {
   themeMode: ThemeMode
+  language: LanguageMode
   assetsDir: string
   /** 'relative' | 'absolute' */
   imagePathStrategy: 'relative' | 'absolute'
@@ -41,6 +45,13 @@ export interface MarkdownAppApi {
   config: {
     get: () => Promise<AppConfig>
     set: (patch: Partial<AppConfig>) => Promise<AppConfig>
+  }
+  window: {
+    setTitle: (title: string) => Promise<void>
+    onMenuCommand: (listener: (command: MenuCommand) => void) => () => void
+    onCloseRequest: (listener: () => void) => () => void
+    readyForCloseRequests: () => Promise<void>
+    confirmClose: () => Promise<void>
   }
   file: {
     openDialog: () => Promise<string | null>

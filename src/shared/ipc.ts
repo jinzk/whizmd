@@ -1,6 +1,11 @@
 export const IpcChannels = {
   appConfigGet: 'config:get',
   appConfigSet: 'config:set',
+  windowSetTitle: 'window:set-title',
+  menuCommand: 'menu:command',
+  windowCloseRequest: 'window:close-request',
+  windowCloseConfirm: 'window:close-confirm',
+  windowCloseReady: 'window:close-ready',
 
   dialogOpenFile: 'dialog:open-file',
   dialogOpenImage: 'dialog:open-image',

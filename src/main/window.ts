@@ -1,7 +1,11 @@
-import { BrowserWindow, dialog, shell } from 'electron'
+import { BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
+import { IpcChannels } from '../shared/ipc'
 
 let mainWindow: BrowserWindow | null = null
+let closeConfirmed = false
+let closeRequestPending = false
+let closeRequestReady = false
 
 export function createMainWindow(): BrowserWindow {
   mainWindow = new BrowserWindow({
@@ -24,20 +28,15 @@ export function createMainWindow(): BrowserWindow {
     mainWindow?.show()
   })
 
-  // Chromium reports a prevented beforeunload here. Use a native dialog so the
-  // window close button remains reliable instead of leaving the window open.
-  mainWindow.webContents.on('will-prevent-unload', (event) => {
-    if (!mainWindow) return
-    const choice = dialog.showMessageBoxSync(mainWindow, {
-      type: 'question',
-      buttons: ['关闭窗口', '取消'],
-      defaultId: 1,
-      cancelId: 1,
-      title: '关闭窗口',
-      message: '当前文档有未保存的修改，确定要关闭窗口吗？'
-    })
-    if (choice === 0) {
-      event.preventDefault()
+  mainWindow.on('close', (event) => {
+    if (closeConfirmed) {
+      return
+    }
+    event.preventDefault()
+    closeRequestPending = true
+    if (closeRequestReady) {
+      closeRequestPending = false
+      mainWindow?.webContents.send(IpcChannels.windowCloseRequest)
     }
   })
 
@@ -54,6 +53,9 @@ export function createMainWindow(): BrowserWindow {
 
   mainWindow.on('closed', () => {
     mainWindow = null
+    closeConfirmed = false
+    closeRequestPending = false
+    closeRequestReady = false
   })
 
   return mainWindow
@@ -61,4 +63,18 @@ export function createMainWindow(): BrowserWindow {
 
 export function getMainWindow(): BrowserWindow | null {
   return mainWindow
+}
+
+export function confirmMainWindowClose(): void {
+  if (!mainWindow) return
+  closeConfirmed = true
+  mainWindow.close()
+}
+
+export function markCloseRequestReady(): void {
+  closeRequestReady = true
+  if (closeRequestPending && mainWindow) {
+    closeRequestPending = false
+    mainWindow.webContents.send(IpcChannels.windowCloseRequest)
+  }
 }

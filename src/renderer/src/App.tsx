@@ -7,6 +7,8 @@ import { FileSidebar } from './components/FileSidebar'
 import { buildExportHtml } from './export/buildHtml'
 import { useTheme } from './hooks/useTheme'
 import type { ThemeMode } from '@shared/types'
+import type { LanguageMode, MenuCommand } from '@shared/types'
+import { useI18n } from './i18n'
 
 const THEME_CYCLE: ThemeMode[] = ['system', 'light', 'dark']
 
@@ -20,23 +22,43 @@ export function App(): React.JSX.Element {
   const setConfig = useEditorStore((s) => s.setConfig)
 
   const theme = useTheme()
+  const { t } = useI18n()
 
   // Markdown loaded from disk or swapped in from the other editor. Editing does
   // NOT mutate this (see handleUpdate), so typing never re-renders the tree.
   const [externalContent, setExternalContent] = useState('')
   const [rootDir, setRootDir] = useState<string | null>(null)
   const [fileTree, setFileTree] = useState<FileNode | null>(null)
+  const [languageMenuOpen, setLanguageMenuOpen] = useState(false)
+  const [closeDialogOpen, setCloseDialogOpen] = useState(false)
+  const [closeHasUnsavedChanges, setCloseHasUnsavedChanges] = useState(false)
+  const languageMenuRef = useRef<HTMLDivElement>(null)
   const saveInFlightRef = useRef<Promise<void> | null>(null)
   const confirmDiscardChanges = useCallback((): boolean => {
     if (!useEditorStore.getState().dirty) {
       return true
     }
-    return window.confirm('当前文档有未保存的修改，确定要放弃吗？')
-  }, [])
+    return window.confirm(t('discard'))
+  }, [t])
 
   useEffect(() => {
     void window.markdownApp.config.get().then(setConfig)
   }, [setConfig])
+
+  useEffect(() => {
+    const removeListener = window.markdownApp.window.onCloseRequest(() => {
+      setCloseHasUnsavedChanges(useEditorStore.getState().dirty)
+      setCloseDialogOpen(true)
+    })
+    void window.markdownApp.window.readyForCloseRequests()
+    return removeListener
+  }, [])
+
+  useEffect(() => {
+    const fileName = docPath?.split(/[\\/]/).pop()
+    const title = fileName?.replace(/\.(md|markdown|txt)$/i, '') || t('untitledDocument')
+    void window.markdownApp.window.setTitle(title)
+  }, [docPath, t])
 
   // Keep the store's markdown mirror current during editing WITHOUT triggering
   // any React re-render (nothing subscribes to `content` reactively).
@@ -95,7 +117,9 @@ export function App(): React.JSX.Element {
       await operation
     } catch (error) {
       console.error('Failed to save document', error)
-      window.alert(`保存失败：${error instanceof Error ? error.message : String(error)}`)
+      window.alert(
+        t('saveFailed', { error: error instanceof Error ? error.message : String(error) })
+      )
     } finally {
       if (saveInFlightRef.current === operation) {
         saveInFlightRef.current = null
@@ -116,7 +140,9 @@ export function App(): React.JSX.Element {
         setDirty(false)
       } catch (error) {
         console.error('Failed to open document', error)
-        window.alert(`打开失败：${error instanceof Error ? error.message : String(error)}`)
+        window.alert(
+          t('openFailed', { error: error instanceof Error ? error.message : String(error) })
+        )
       }
     },
     [confirmDiscardChanges, setDocPath, setDirty]
@@ -153,24 +179,35 @@ export function App(): React.JSX.Element {
   }, [confirmDiscardChanges, setDocPath, setDirty])
 
   useEffect(() => {
-    const onBeforeUnload = (event: BeforeUnloadEvent): void => {
-      if (useEditorStore.getState().dirty) {
-        // Let Electron's will-prevent-unload handler show the native dialog.
-        event.preventDefault()
-        event.returnValue = ''
+    if (!languageMenuOpen) return
+    const onPointerDown = (event: MouseEvent): void => {
+      if (!languageMenuRef.current?.contains(event.target as Node)) {
+        setLanguageMenuOpen(false)
       }
     }
-    window.addEventListener('beforeunload', onBeforeUnload)
-    return () => window.removeEventListener('beforeunload', onBeforeUnload)
-  }, [])
-
-  const exportTitle = useCallback((path: string | null): string => {
-    if (!path) {
-      return 'untitled'
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        setLanguageMenuOpen(false)
+      }
     }
-    const base = path.split(/[\\/]/).pop() ?? 'untitled'
-    return base.replace(/\.(md|markdown|txt)$/i, '') || 'untitled'
-  }, [])
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [languageMenuOpen])
+
+  const exportTitle = useCallback(
+    (path: string | null): string => {
+      if (!path) {
+        return t('untitled')
+      }
+      const base = path.split(/[\\/]/).pop() ?? t('untitled')
+      return base.replace(/\.(md|markdown|txt)$/i, '') || t('untitled')
+    },
+    [t]
+  )
 
   const exportDefaultPath = useCallback((path: string | null, ext: 'html' | 'pdf'): string => {
     if (!path) {
@@ -183,8 +220,7 @@ export function App(): React.JSX.Element {
     async (kind: 'html' | 'pdf') => {
       const path = useEditorStore.getState().docPath
       const md =
-        useEditorStore.getState().editor?.getMarkdown() ??
-        useEditorStore.getState().content
+        useEditorStore.getState().editor?.getMarkdown() ?? useEditorStore.getState().content
       const html = await buildExportHtml(md, {
         title: exportTitle(path),
         docPath: path
@@ -203,6 +239,18 @@ export function App(): React.JSX.Element {
     },
     [exportDefaultPath, exportTitle]
   )
+
+  useEffect(() => {
+    const actions: Record<MenuCommand, () => void> = {
+      'new-file': newFile,
+      'open-folder': () => void openFolder(),
+      'open-file': () => void openFileDialog(),
+      save: () => void save(),
+      'export-html': () => void exportDocument('html'),
+      'export-pdf': () => void exportDocument('pdf')
+    }
+    return window.markdownApp.window.onMenuCommand((command) => actions[command]())
+  }, [exportDocument, newFile, openFileDialog, openFolder, save])
 
   // Global shortcuts: Ctrl/Cmd+S save, Ctrl/Cmd+O open.
   useEffect(() => {
@@ -231,41 +279,26 @@ export function App(): React.JSX.Element {
     <div className="app">
       <header className="toolbar">
         <div className="toolbar-left">
-          <button type="button" onClick={newFile}>
-            新建
-          </button>
-          <button type="button" onClick={openFolder}>
-            打开文件夹
-          </button>
-          <button type="button" onClick={openFileDialog}>
-            打开文件
-          </button>
           <button type="button" onClick={() => void save()}>
-            保存
+            {t('save')}
           </button>
           <span className="toolbar-sep" />
-          <div className="mode-switch" role="group" aria-label="编辑模式">
+          <div className="mode-switch" role="group" aria-label={t('editMode')}>
             <button
               type="button"
               className={mode === 'wysiwyg' ? 'active' : ''}
               onClick={() => enterMode('wysiwyg')}
             >
-              编辑
+              {t('edit')}
             </button>
             <button
               type="button"
               className={mode === 'source' ? 'active' : ''}
               onClick={() => enterMode('source')}
             >
-              源码
+              {t('source')}
             </button>
           </div>
-          <button type="button" onClick={() => void exportDocument('html')}>
-            导出 HTML
-          </button>
-          <button type="button" onClick={() => void exportDocument('pdf')}>
-            导出 PDF
-          </button>
         </div>
         <div className="toolbar-right">
           <button
@@ -277,11 +310,60 @@ export function App(): React.JSX.Element {
                 ]
               void window.markdownApp.config.set({ themeMode: next }).then(setConfig)
             }}
-            title="切换主题"
+            title={t('switchTheme')}
           >
-            {config?.themeMode ?? 'system'} 主题
+            {config?.themeMode === 'light'
+              ? t('lightTheme')
+              : config?.themeMode === 'dark'
+                ? t('darkTheme')
+                : t('systemTheme')}
           </button>
-          <span className="doc-title">{docPath ?? '未命名文档'}</span>
+          <div className="toolbar-menu" ref={languageMenuRef}>
+            <button
+              type="button"
+              className="toolbar-menu-trigger"
+              aria-label={t('language')}
+              aria-haspopup="menu"
+              aria-expanded={languageMenuOpen}
+              onClick={() => setLanguageMenuOpen((open) => !open)}
+            >
+              {t('language')}:{' '}
+              {config?.language === 'zh-CN'
+                ? t('chinese')
+                : config?.language === 'en-US'
+                  ? t('english')
+                  : t('system')}
+              <span className="toolbar-menu-chevron" aria-hidden="true">
+                ▾
+              </span>
+            </button>
+            {languageMenuOpen ? (
+              <div className="toolbar-menu-content" role="menu" aria-label={t('language')}>
+                {(
+                  [
+                    ['system', t('system')],
+                    ['zh-CN', t('chinese')],
+                    ['en-US', t('english')]
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={(config?.language ?? 'system') === value}
+                    onClick={() => {
+                      setLanguageMenuOpen(false)
+                      void window.markdownApp.config
+                        .set({ language: value as LanguageMode })
+                        .then(setConfig)
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
       </header>
 
@@ -296,14 +378,35 @@ export function App(): React.JSX.Element {
           {mode === 'wysiwyg' ? (
             <WysiwygEditor content={externalContent} onUpdate={handleUpdate} />
           ) : (
-            <SourceEditor
-              content={externalContent}
-              onUpdate={handleUpdate}
-              theme={theme}
-            />
+            <SourceEditor content={externalContent} onUpdate={handleUpdate} theme={theme} />
           )}
         </main>
       </div>
+      {closeDialogOpen ? (
+        <div className="app-dialog-backdrop" role="presentation">
+          <div
+            className="app-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="close-dialog-title"
+          >
+            <h2 id="close-dialog-title">{t('closeWindow')}</h2>
+            <p>{t(closeHasUnsavedChanges ? 'closeUnsavedMessage' : 'closeMessage')}</p>
+            <div className="app-dialog-actions">
+              <button type="button" onClick={() => setCloseDialogOpen(false)}>
+                {t('cancel')}
+              </button>
+              <button
+                type="button"
+                className="app-dialog-danger"
+                onClick={() => void window.markdownApp.window.confirmClose()}
+              >
+                {t('continueClose')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

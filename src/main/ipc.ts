@@ -4,8 +4,19 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } 
 import { IpcChannels } from '../shared/ipc'
 import type { AppConfig, FileNode, ExportPayload, ImportImageResult } from '../shared/types'
 import { allowMediaDirectory, allowMediaFile } from './protocol'
+import { rebuildApplicationMenu } from './menu'
+import { confirmMainWindowClose, markCloseRequestReady } from './window'
 
-const SKIPPED_DIRS = new Set(['node_modules', '.git', '.svn', '.hg', '.idea', '.vscode', 'dist', 'out'])
+const SKIPPED_DIRS = new Set([
+  'node_modules',
+  '.git',
+  '.svn',
+  '.hg',
+  '.idea',
+  '.vscode',
+  'dist',
+  'out'
+])
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.markdown', '.txt'])
 const MAX_SCAN_DEPTH = 8
 const allowedFileRoots = new Set<string>()
@@ -13,6 +24,7 @@ const allowedFiles = new Set<string>()
 
 const DEFAULT_CONFIG: AppConfig = {
   themeMode: 'system',
+  language: 'system',
   assetsDir: 'assets',
   imagePathStrategy: 'relative'
 }
@@ -74,10 +86,19 @@ function validateConfig(config: AppConfig): AppConfig {
   if (!['light', 'dark', 'system'].includes(config.themeMode)) {
     config.themeMode = DEFAULT_CONFIG.themeMode
   }
+  if (!['system', 'zh-CN', 'en-US'].includes(config.language)) {
+    config.language = DEFAULT_CONFIG.language
+  }
   if (!['relative', 'absolute'].includes(config.imagePathStrategy)) {
     config.imagePathStrategy = DEFAULT_CONFIG.imagePathStrategy
   }
   return config
+}
+
+async function dialogLanguage(): Promise<'zh-CN' | 'en-US'> {
+  const config = await getConfig()
+  if (config.language !== 'system') return config.language
+  return app.getLocale().toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US'
 }
 
 async function setConfig(patch: Partial<AppConfig>): Promise<AppConfig> {
@@ -93,6 +114,9 @@ async function setConfig(patch: Partial<AppConfig>): Promise<AppConfig> {
   }
   if (patch.themeMode !== undefined && !['light', 'dark', 'system'].includes(patch.themeMode)) {
     throw new Error('Invalid theme mode')
+  }
+  if (patch.language !== undefined && !['system', 'zh-CN', 'en-US'].includes(patch.language)) {
+    throw new Error('Invalid language')
   }
   if (
     patch.imagePathStrategy !== undefined &&
@@ -115,14 +139,36 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle(IpcChannels.appConfigGet, () => getConfig())
-  ipcMain.handle(IpcChannels.appConfigSet, (_e, patch: Partial<AppConfig>) => setConfig(patch))
+  ipcMain.handle(IpcChannels.appConfigSet, async (_e, patch: Partial<AppConfig>) => {
+    const config = await setConfig(patch)
+    await rebuildApplicationMenu(
+      config.language === 'zh-CN' ||
+        (config.language === 'system' && app.getLocale().toLowerCase().startsWith('zh'))
+    )
+    return config
+  })
+  ipcMain.handle(IpcChannels.windowSetTitle, (event, title: unknown) => {
+    if (typeof title !== 'string' || title.length > 512) {
+      throw new Error('Invalid window title')
+    }
+    BrowserWindow.fromWebContents(event.sender)?.setTitle(`${title} - WhizMD`)
+  })
+  ipcMain.handle(IpcChannels.windowCloseConfirm, (event) => {
+    if (BrowserWindow.fromWebContents(event.sender)) {
+      confirmMainWindowClose()
+    }
+  })
+  ipcMain.handle(IpcChannels.windowCloseReady, () => {
+    markCloseRequestReady()
+  })
 
   ipcMain.handle(IpcChannels.dialogOpenFile, async () => {
+    const chinese = (await dialogLanguage()) === 'zh-CN'
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [
-        { name: 'Markdown', extensions: ['md', 'markdown', 'txt'] },
-        { name: 'All Files', extensions: ['*'] }
+        { name: chinese ? 'Markdown 文件' : 'Markdown', extensions: ['md', 'markdown', 'txt'] },
+        { name: chinese ? '所有文件' : 'All Files', extensions: ['*'] }
       ]
     })
     if (result.canceled || result.filePaths.length === 0) {
@@ -134,14 +180,15 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle(IpcChannels.dialogOpenImage, async () => {
+    const chinese = (await dialogLanguage()) === 'zh-CN'
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [
         {
-          name: 'Images',
+          name: chinese ? '图片' : 'Images',
           extensions: ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico', 'avif']
         },
-        { name: 'All Files', extensions: ['*'] }
+        { name: chinese ? '所有文件' : 'All Files', extensions: ['*'] }
       ]
     })
     if (result.canceled || result.filePaths.length === 0) {
@@ -276,19 +323,20 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle(IpcChannels.dialogSaveFile, async (_e, defaultPath?: string) => {
+    const chinese = (await dialogLanguage()) === 'zh-CN'
     const result = await dialog.showSaveDialog({
-      title: '保存 Markdown',
+      title: chinese ? '保存 Markdown' : 'Save Markdown',
       defaultPath,
       filters: [
-        { name: 'Markdown', extensions: ['md'] },
-        { name: 'All Files', extensions: ['*'] }
+        { name: chinese ? 'Markdown 文件' : 'Markdown', extensions: ['md'] },
+        { name: chinese ? '所有文件' : 'All Files', extensions: ['*'] }
       ]
     })
-      if (result.canceled || !result.filePath) {
-        return null
-      }
-      allowFile(result.filePath)
-      return result.filePath
+    if (result.canceled || !result.filePath) {
+      return null
+    }
+    allowFile(result.filePath)
+    return result.filePath
   })
 
   ipcMain.handle(IpcChannels.dirScan, async (_e, dirPath: string): Promise<FileNode | null> => {
@@ -307,12 +355,13 @@ export function registerIpcHandlers(): void {
       if (typeof payload?.html !== 'string') {
         throw new Error('exportHtml requires an html payload')
       }
+      const chinese = (await dialogLanguage()) === 'zh-CN'
       const result = await dialog.showSaveDialog({
-        title: '导出 HTML',
+        title: chinese ? '导出 HTML' : 'Export HTML',
         defaultPath: payload.defaultPath,
         filters: [
           { name: 'HTML', extensions: ['html', 'htm'] },
-          { name: 'All Files', extensions: ['*'] }
+          { name: chinese ? '所有文件' : 'All Files', extensions: ['*'] }
         ]
       })
       if (result.canceled || !result.filePath) {
@@ -323,47 +372,53 @@ export function registerIpcHandlers(): void {
     }
   )
 
-  ipcMain.handle(IpcChannels.exportPdf, async (_e, payload: ExportPayload): Promise<string | null> => {
-    if (typeof payload?.html !== 'string') {
-      throw new Error('exportPdf requires an html payload')
-    }
-    const result = await dialog.showSaveDialog({
-      title: '导出 PDF',
-      defaultPath: payload.defaultPath,
-      filters: [{ name: 'PDF', extensions: ['pdf'] }]
-    })
-    if (result.canceled || !result.filePath) {
-      return null
-    }
-
-    const tmpHtml = join(app.getPath('temp'), `markdownapp-export-${Date.now()}.html`)
-    await fs.writeFile(tmpHtml, payload.html, 'utf-8')
-
-    const exportWindow = new BrowserWindow({
-      show: false,
-      width: 900,
-      height: 1200,
-      webPreferences: {
-        sandbox: true,
-        webSecurity: true
+  ipcMain.handle(
+    IpcChannels.exportPdf,
+    async (_e, payload: ExportPayload): Promise<string | null> => {
+      if (typeof payload?.html !== 'string') {
+        throw new Error('exportPdf requires an html payload')
       }
-    })
-
-    try {
-      await exportWindow.loadFile(tmpHtml)
-       const pdf = await exportWindow.webContents.printToPDF({
-        printBackground: true,
-        pageSize: 'A4',
-        margins: { top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 }
+      const chinese = (await dialogLanguage()) === 'zh-CN'
+      const result = await dialog.showSaveDialog({
+        title: chinese ? '导出 PDF' : 'Export PDF',
+        defaultPath: payload.defaultPath,
+        filters: [{ name: 'PDF', extensions: ['pdf'] }]
       })
-      await fs.writeFile(result.filePath, pdf)
-      return result.filePath
-    } finally {
-      exportWindow.destroy()
-      await fs.unlink(tmpHtml).catch(() => {})
+      if (result.canceled || !result.filePath) {
+        return null
+      }
+
+      const tmpHtml = join(app.getPath('temp'), `markdownapp-export-${Date.now()}.html`)
+      await fs.writeFile(tmpHtml, payload.html, 'utf-8')
+
+      const exportWindow = new BrowserWindow({
+        show: false,
+        width: 900,
+        height: 1200,
+        webPreferences: {
+          sandbox: true,
+          webSecurity: true
+        }
+      })
+
+      try {
+        await exportWindow.loadFile(tmpHtml)
+        const pdf = await exportWindow.webContents.printToPDF({
+          printBackground: true,
+          pageSize: 'A4',
+          margins: { top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 }
+        })
+        await fs.writeFile(result.filePath, pdf)
+        return result.filePath
+      } finally {
+        exportWindow.destroy()
+        await fs.unlink(tmpHtml).catch(() => {})
+      }
     }
-  })
+  )
 }
+
+export { getConfig }
 
 async function scanDirectory(dirPath: string, depth = 0): Promise<FileNode | null> {
   let entries
