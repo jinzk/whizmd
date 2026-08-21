@@ -1,0 +1,5 @@
+export { FootnoteReference, FootnoteDefinition } from './footnote'
+export { MarkdownAlert } from './alert'
+export { InlineDecoration } from './inlineDecoration'
+export { DefinitionListItem } from './definitionList'
+export { ReferenceDefinition } from './referenceDefinition'

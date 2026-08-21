@@ -1,8 +1,9 @@
 import { InputRule, Node } from '@tiptap/core'
-import { NodeSelection } from '@tiptap/pm/state'
+import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import type { JSONContent, MarkdownParseHelpers, MarkdownToken } from '@tiptap/core'
 import { LinkNodeView } from './LinkNodeView'
+import { canTriggerInlineMarkdown } from '../input/context'
 
 function linkTokenToJson(token: MarkdownToken, h: MarkdownParseHelpers): JSONContent {
   return h.createNode('linkNode', { text: token.text ?? '', href: token.href ?? '', reference: token.reference ?? null })
@@ -43,15 +44,27 @@ export const LinkNode = Node.create({
     : `[${node.attrs?.text ?? ''}](${node.attrs?.href ?? ''})`,
   addInputRules() {
     return [new InputRule({
-      find: /(?:^| )\[$/,
-      handler: ({ state, range }) => {
+      find: /(?:^| )\[([^\]]+)\]\[([^\]]+)\]$/,
+      handler: ({ state, range, match }) => {
+        if (!canTriggerInlineMarkdown(state, range.from)) return
+        const start = range.from + match[0].indexOf('[')
+        const node = this.type.create({ text: match[1], href: match[2], reference: match[2] })
+        const tr = state.tr.replaceWith(start, range.to, node)
+        tr.setSelection(TextSelection.create(tr.doc, start + node.nodeSize))
+      }
+    }), new InputRule({
+      find: /(?:^| )\[([^\]\n]*)\]\($/,
+      handler: ({ state, range, match }) => {
+        if (!canTriggerInlineMarkdown(state, range.from)) return
+        const start = range.from + match[0].indexOf('[')
         const transaction = state.tr.replaceRangeWith(
-          range.from,
+          start,
           range.to,
-          this.type.create({ text: '', href: '' })
+          this.type.create({ text: match[1], href: '' })
         )
-        const position = transaction.mapping.map(range.from)
-        if (transaction.doc.nodeAt(position)) {
+        const position = transaction.mapping.map(start)
+        const node = transaction.doc.nodeAt(position)
+        if (node) {
           transaction.setSelection(NodeSelection.create(transaction.doc, position))
         }
       }

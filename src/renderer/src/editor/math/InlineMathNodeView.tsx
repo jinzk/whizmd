@@ -1,40 +1,14 @@
 import katex from 'katex'
 import { NodeViewWrapper } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
-import { useEffect, useRef, useState } from 'react'
+import { useInlineAtomEditor } from '../nodeView/useInlineAtomEditor'
 
 export function InlineMathNodeView({ node, updateAttributes, deleteNode }: NodeViewProps): React.JSX.Element {
-  const [editing, setEditing] = useState(false)
-  const [value, setValue] = useState(String(node.attrs.latex ?? ''))
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (!editing) {
-      setValue(String(node.attrs.latex ?? ''))
-    }
-  }, [editing, node.attrs.latex])
-
-  useEffect(() => {
-    if (editing) {
-      inputRef.current?.focus()
-      inputRef.current?.select()
-    }
-  }, [editing])
-
-  const commit = (): void => {
-    const latex = value.trim()
-    if (!latex) {
-      deleteNode()
-    } else if (latex !== node.attrs.latex) {
-      updateAttributes({ latex })
-    }
-    setEditing(false)
-  }
-
-  const cancel = (): void => {
-    setValue(String(node.attrs.latex ?? ''))
-    setEditing(false)
-  }
+  const { editing, setEditing, value, setValue, inputRef, commit, cancel } = useInlineAtomEditor({
+    value: String(node.attrs.latex ?? ''),
+    onCommit: (latex) => updateAttributes({ latex }),
+    onDelete: deleteNode
+  })
 
   let preview = ''
   try {

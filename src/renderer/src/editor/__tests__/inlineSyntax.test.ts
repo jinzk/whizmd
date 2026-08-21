@@ -49,4 +49,52 @@ describe('inline syntax nodes', () => {
     expect(editor.getMarkdown()).toBe('a ***mix*** b')
     editor.destroy()
   })
+
+  it.each([
+    ['==', 'highlight'],
+    ['^', 'superscript'],
+    ['~', 'subscript']
+  ])('converts content typed between existing %s markers', (marker, kind) => {
+    const editor = createEditor()
+    typeInto(editor, `a${marker}${marker}`)
+    editor.commands.setTextSelection(marker === '==' ? 4 : 3)
+    typeInto(editor, 'value')
+    editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+
+    expect(editor.getJSON().content?.[0]).toMatchObject({
+      content: [
+        { type: 'text', text: 'a' },
+        { type: 'inlineDecoration', attrs: { kind, value: 'value' } }
+      ]
+    })
+    editor.destroy()
+  })
+
+  it('completes a delayed pair when selection moves outside it', () => {
+    const editor = createEditor()
+    typeInto(editor, '==value==')
+    editor.commands.setTextSelection(3)
+    editor.commands.setTextSelection(1)
+    expect(editor.getJSON().content?.[0].content).toEqual([{ type: 'inlineDecoration', attrs: { kind: 'highlight', value: 'value' } }])
+    editor.destroy()
+  })
+
+  it('keeps nested Markdown markers in the paired content', () => {
+    const editor = createEditor('==**重点**==')
+    expect(editor.getJSON().content?.[0].content?.[0]).toMatchObject({ type: 'inlineDecoration', attrs: { value: '**重点**' } })
+    editor.destroy()
+  })
+
+  it('completes inline code typed between existing backticks', () => {
+    const editor = createEditor()
+    typeInto(editor, 'a``')
+    editor.commands.setTextSelection(3)
+    typeInto(editor, 'code')
+    editor.commands.setTextSelection(1)
+    expect(editor.getJSON().content?.[0].content).toEqual([
+      { type: 'text', text: 'a' },
+      { type: 'text', marks: [{ type: 'code' }], text: 'code' }
+    ])
+    editor.destroy()
+  })
 })

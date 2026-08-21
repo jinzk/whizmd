@@ -4,6 +4,8 @@ import { NodeSelection, TextSelection, Plugin } from '@tiptap/pm/state'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
 import { useEffect, useRef, useState } from 'react'
+import { canTriggerInlineMarkdown, isInCodeBlock } from '../input/context'
+import { useNodeViewField } from '../nodeView/useNodeViewField'
 
 const ALLOWED_TAGS = new Set(['a', 'b', 'br', 'del', 'em', 'i', 'img', 'mark', 's', 'span', 'strong', 'sub', 'sup', 'u'])
 const GLOBAL_ATTRIBUTES = new Set(['class', 'id', 'style', 'title'])
@@ -57,38 +59,30 @@ const HTML_PATTERN = /^<(?:a|b|br|del|em|i|img|mark|s|span|strong|sub|sup|u)\b[^
 const HTML_INPUT_PATTERN = /<(a|b|br|del|em|i|img|mark|s|span|strong|sub|sup|u)\b[^>]*(?:\/>|>[^\n<]*<\/\1>)$/i
 const HTML_SCAN_PATTERN = /<(a|b|del|em|i|mark|s|span|strong|sub|sup|u)\b[^>]*>[^\n<]*<\/\1>|<(br|img)\b[^>]*\/>/gi
 
-function isInsideCodeBlock(state: any, position: number): boolean {
-  const resolved = state.doc.resolve(position)
-  for (let depth = resolved.depth; depth > 0; depth -= 1) {
-    if (resolved.node(depth).type.name === 'codeBlock') return true
-  }
-  return false
-}
-
 function tokenToJson(token: MarkdownToken, h: MarkdownParseHelpers): JSONContent {
   return h.createNode('inlineHtml', { html: token.raw ?? '' })
 }
 
 function InlineHtmlView({ node, updateAttributes, deleteNode }: NodeViewProps): React.JSX.Element {
   const [editing, setEditing] = useState(false)
-  const [value, setValue] = useState(String(node.attrs.html ?? ''))
+  const field = useNodeViewField(String(node.attrs.html ?? ''), (value) => updateAttributes({ html: value }))
+  const value = field.value
   const inputRef = useRef<HTMLInputElement>(null)
-  useEffect(() => { if (!editing) setValue(String(node.attrs.html ?? '')) }, [editing, node.attrs.html])
   useEffect(() => { if (editing) { inputRef.current?.focus(); inputRef.current?.select() } }, [editing])
 
   const commit = (): void => {
     const next = value.trim()
     if (!next) deleteNode()
-    else { updateAttributes({ html: next }); setEditing(false) }
+    else { field.change(next); setEditing(false) }
   }
-  const cancel = (): void => { setValue(String(node.attrs.html ?? '')); setEditing(false) }
+  const cancel = (): void => { field.cancel(); setEditing(false) }
 
   return (
     <NodeViewWrapper as="span" className="inline-html-node" data-editing={editing ? 'true' : 'false'}>
       {editing ? (
         <span className="inline-html-edit-controls">
           <span className="inline-html-label">HTML</span>
-          <input ref={inputRef} className="inline-html-input" value={value} aria-label="编辑 HTML 标签" onChange={(event) => setValue(event.target.value)} onBlur={commit} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); event.key === 'Escape' ? cancel() : commit() } }} />
+           <input ref={inputRef} className="inline-html-input" value={value} aria-label="编辑 HTML 标签" onChange={(event) => field.setValue(event.target.value)} onBlur={commit} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); event.key === 'Escape' ? cancel() : commit() } }} />
           <button type="button" className="inline-html-delete" aria-label="删除 HTML 标签" onMouseDown={(event) => event.preventDefault()} onClick={deleteNode}>删除</button>
         </span>
       ) : (
@@ -109,8 +103,8 @@ export const InlineHtml = Node.create({
   },
   parseMarkdown: tokenToJson,
   renderMarkdown: (node: JSONContent): string => sanitizeInlineHtml(String(node.attrs?.html ?? '')),
-  addInputRules() { return [new InputRule({ find: HTML_INPUT_PATTERN, handler: ({ state, range, match }) => { if (isInsideCodeBlock(state, range.from)) return; const clean = sanitizeInlineHtml(match[0]); if (!clean) return; const node = this.type.create({ html: match[0] }); const tr = state.tr.replaceRangeWith(range.from, range.to, node); tr.setSelection(TextSelection.create(tr.doc, range.from + node.nodeSize)) } })] },
-  addProseMirrorPlugins() { return [new Plugin({ appendTransaction: (_transactions, _oldState, state) => { const matches: Array<{ from: number; to: number; html: string }> = []; state.doc.descendants((node, position) => { if (!node.isText || !node.text || isInsideCodeBlock(state, position)) return; for (const match of node.text.matchAll(HTML_SCAN_PATTERN)) { if (match.index !== undefined) matches.push({ from: position + match.index, to: position + match.index + match[0].length, html: match[0] }) } }); if (!matches.length) return null; const tr = state.tr; for (const match of matches.reverse()) tr.replaceWith(match.from, match.to, this.type.create({ html: match.html })); return tr } })] },
+  addInputRules() { return [new InputRule({ find: HTML_INPUT_PATTERN, handler: ({ state, range, match }) => { if (!canTriggerInlineMarkdown(state, range.from)) return; const clean = sanitizeInlineHtml(match[0]); if (!clean) return; const node = this.type.create({ html: match[0] }); const tr = state.tr.replaceRangeWith(range.from, range.to, node); tr.setSelection(TextSelection.create(tr.doc, range.from + node.nodeSize)) } })] },
+  addProseMirrorPlugins() { return [new Plugin({ appendTransaction: (transactions, _oldState, state) => { const changed = transactions.filter((transaction) => transaction.docChanged); if (!changed.length) return null; const ranges = changed.flatMap((transaction) => transaction.mapping.maps.map((map) => { let from = Number.POSITIVE_INFINITY; let to = 0; map.forEach((_oldStart, _oldSize, newStart, newSize) => { from = Math.min(from, newStart); to = Math.max(to, newStart + newSize) }); return Number.isFinite(from) ? { from: Math.max(0, from - 1), to: Math.min(state.doc.content.size, to + 1) } : null }).filter((range): range is { from: number; to: number } => range !== null)); if (!ranges.length) return null; const matches: Array<{ from: number; to: number; html: string }> = []; for (const range of ranges) { state.doc.nodesBetween(range.from, range.to, (node, position) => { if (!node.isText || !node.text || isInCodeBlock(state, position)) return; for (const match of node.text.matchAll(HTML_SCAN_PATTERN)) { if (match.index !== undefined) matches.push({ from: position + match.index, to: position + match.index + match[0].length, html: match[0] }) } }); } if (!matches.length) return null; const tr = state.tr; for (const match of matches.reverse()) tr.replaceWith(match.from, match.to, this.type.create({ html: match.html })); return tr } })] },
   addKeyboardShortcuts() { const type = this.type; const remove = (direction: 'backward' | 'forward') => ({ editor }: { editor: import('@tiptap/core').Editor }) => { const { selection } = editor.state; if (selection instanceof NodeSelection && selection.node.type === type) { editor.commands.deleteSelection(); return true } if (!selection.empty) return false; const position = direction === 'backward' ? selection.from - 1 : selection.from; const node = editor.state.doc.nodeAt(position); if (!node || node.type !== type) return false; const from = direction === 'backward' ? position - node.nodeSize + 1 : position; editor.view.dispatch(editor.state.tr.delete(from, from + node.nodeSize)); return true }; return { Backspace: remove('backward'), Delete: remove('forward') } },
   addNodeView() { return ReactNodeViewRenderer(InlineHtmlView) }
 })

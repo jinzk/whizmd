@@ -27,3 +27,10 @@ export function typeInto(editor: Editor, text: string): void {
     }
   }
 }
+
+export function pasteInto(editor: Editor, text: string): void {
+  const { view, state } = editor
+  const from = state.selection.from
+  const to = state.selection.to
+  view.dispatch(state.tr.insertText(text, from, to))
+}

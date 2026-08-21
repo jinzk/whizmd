@@ -3,6 +3,9 @@ import { NodeViewWrapper } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
 import { useEditorStore } from '../../store/editor'
 import { dirnamePath, isAbsolutePath, resolveRelative } from '../../utils/path'
+import { referenceEntry } from '../referenceRegistry'
+import { ReferenceStatus } from '../reference/ReferenceStatus'
+import { useNodeViewField } from '../nodeView/useNodeViewField'
 
 function resolveSrc(src: string, docPath: string | null): string {
   src = src.trim()
@@ -29,9 +32,12 @@ export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
   const { node, updateAttributes, deleteNode, selected } = props
   const docPath = useEditorStore((s) => s.docPath)
 
-  const src = node.attrs.src ?? ''
-  const alt = node.attrs.alt ?? ''
+  const srcField = useNodeViewField(String(node.attrs.src ?? ''), (value) => updateAttributes({ src: value }))
+  const altField = useNodeViewField(String(node.attrs.alt ?? ''), (value) => updateAttributes({ alt: value }))
+  const src = srcField.value
+  const alt = altField.value
   const width = node.attrs.width ?? null
+  const reference = node.attrs.reference ? referenceEntry(props.editor, String(node.attrs.reference)) : undefined
 
   // Temporary width applied while dragging; null falls back to the attr.
   const [editing, setEditing] = useState(selected || !src)
@@ -129,7 +135,8 @@ export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
               value={alt}
               aria-label="图片说明"
               placeholder="输入图片说明"
-              onChange={(event) => updateAttributes({ alt: event.target.value })}
+                onChange={(event) => altField.change(event.target.value)}
+               onKeyDown={altField.onKeyDown}
             />
             <button
               type="button"
@@ -148,9 +155,11 @@ export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
               value={src}
               aria-label="图片 src"
               placeholder="输入图片地址"
-              onChange={(event) => updateAttributes({ src: event.target.value })}
+              onChange={(event) => srcField.change(event.target.value)}
+              onKeyDown={srcField.onKeyDown}
             />
           </label>
+          {node.attrs.reference ? <ReferenceStatus editor={props.editor} id={String(node.attrs.reference)} entry={reference} /> : null}
         </div>
       ) : alt ? (
         <div className="image-caption">{alt}</div>

@@ -1,15 +1,15 @@
 import { InputRule } from '@tiptap/core'
-import { NodeSelection, TextSelection } from '@tiptap/pm/state'
+import { NodeSelection } from '@tiptap/pm/state'
 import { InlineMath as BaseInlineMath, BlockMath as BaseBlockMath } from '@tiptap/extension-mathematics'
 import type { Editor, JSONContent, MarkdownParseHelpers, MarkdownToken } from '@tiptap/core'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import { BlockMathNodeView } from './math/BlockMathNodeView'
 import { InlineMathNodeView } from './math/InlineMathNodeView'
+import { getInputContext } from './input/context'
+import { createPairedTriggerExtension, createPairedTriggerInputRule } from './input/pairedTrigger'
 
 const INLINE_MATH_PATTERN =
-  /(?<!\$)\$(?!\$|\s)(?!\d+\$)([^$\n]+?)(?<!\s)\$(?!\$|\d)/
-const INLINE_MATH_INPUT_PATTERN =
-  /(?<!\$)\$(?!\$|\s)(?!\d+\$)([^$\n]+?)(?<!\s)\$(?!\$|\d)$/
+  /(?<!\$)\$(?!\$|\s)([^$\n]+?)(?<!\s)\$(?!\$|\d)/
 
 function inlineTokenToJson(token: MarkdownToken, h: MarkdownParseHelpers): JSONContent {
   const latex = (token.latex ?? token.text ?? '').trim()
@@ -43,21 +43,24 @@ export const InlineMath = BaseInlineMath.extend({
   parseMarkdown: inlineTokenToJson,
   renderMarkdown: (node: JSONContent): string => `$${node.attrs?.latex ?? ''}$`,
   addInputRules() {
-    return [
-      new InputRule({
-        find: INLINE_MATH_INPUT_PATTERN,
-        handler: ({ state, range, match }) => {
-          const latex = match[1].trim()
-          if (!latex) {
-            return
-          }
-          const { tr } = state
-          const mathNode = this.type.create({ latex })
-          tr.replaceWith(range.from, range.to, mathNode)
-          tr.setSelection(TextSelection.create(tr.doc, range.from + mathNode.nodeSize))
-        }
-      })
-    ]
+    return [createPairedTriggerInputRule([
+      {
+        marker: '$',
+        priority: 100,
+        accepts: (content) => content.length > 0 && !/^\s|\s$/.test(content) && !content.includes('\n') && !content.includes('$'),
+        createNode: (content, state) => state?.schema.nodes.inlineMath.create({ latex: content.trim() }) ?? null
+      }
+    ])]
+  },
+  addExtensions() {
+    return [createPairedTriggerExtension([
+      {
+        marker: '$',
+        priority: 100,
+        accepts: (content) => content.length > 0 && !/^\s|\s$/.test(content) && !content.includes('\n') && !content.includes('$'),
+        createNode: (content, state) => state?.schema.nodes.inlineMath.create({ latex: content.trim() }) ?? null
+      }
+    ], 'inlineMathCompletion')]
   },
   addKeyboardShortcuts() {
     const mathType = this.type
@@ -132,6 +135,8 @@ export const BlockMath = BaseBlockMath.extend({
       new InputRule({
         find: /^\$\$$/,
         handler: ({ state, range }) => {
+          const context = getInputContext(state, range.from)
+          if (context.inCodeBlock || context.inHtmlBlock || context.inTableCell) return
           const $from = state.doc.resolve(range.from)
           const consumesTextblock =
             $from.depth > 0 &&

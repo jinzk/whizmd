@@ -1,8 +1,9 @@
-import { InputRule, Node } from '@tiptap/core'
+import { Node } from '@tiptap/core'
 import type { JSONContent, MarkdownParseHelpers, MarkdownToken } from '@tiptap/core'
-import { NodeSelection, TextSelection } from '@tiptap/pm/state'
+import { NodeSelection } from '@tiptap/pm/state'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import { InlineSyntaxNodeView } from './InlineSyntaxNodeView'
+import { createPairedTriggerExtension, createPairedTriggerInputRule } from '../input/pairedTrigger'
 
 export type InlineSyntaxKind = 'italic' | 'bold' | 'boldItalic' | 'strike'
 
@@ -15,7 +16,6 @@ const DEFINITIONS: Record<InlineSyntaxKind, { marker: string; label: string }> =
 
 const KINDS = Object.keys(DEFINITIONS) as InlineSyntaxKind[]
 const TOKEN_PATTERN = /^(\*\*\*|\*\*|\*|~~)([^\n]+?)\1(?!\1)/
-const INPUT_PATTERN = /(^|[^\*~])(\*{1,3}|~~)(?!\*)([^\n]+?)\2(?!\*)$/
 
 function kindFromMarker(marker: string): InlineSyntaxKind | undefined {
   return KINDS.find((kind) => DEFINITIONS[kind].marker === marker)
@@ -66,17 +66,20 @@ export const InlineSyntax = Node.create({
   parseMarkdown: parseToken,
   renderMarkdown: renderNode,
   addInputRules() {
-    return [new InputRule({
-      find: INPUT_PATTERN,
-      handler: ({ state, range, match }) => {
-        const kind = kindFromMarker(match[2])
-        if (!kind || !match[3].trim()) return
-        const node = this.type.create({ kind, value: match[3].trim() })
-        const start = range.from + match[1].length
-        const transaction = state.tr.replaceWith(start, range.to, node)
-        transaction.setSelection(TextSelection.create(transaction.doc, start + node.nodeSize))
-      }
-    })]
+    return [createPairedTriggerInputRule([
+      { marker: '***', priority: 100, accepts: (content) => content.trim().length > 0 && !content.includes('\n') && !content.includes('*'), createNode: (content, state) => state?.schema.nodes.inlineSyntax.create({ kind: 'boldItalic', value: content.trim() }) ?? null },
+      { marker: '**', priority: 90, accepts: (content) => content.trim().length > 0 && !content.includes('\n') && !content.includes('*'), createNode: (content, state) => state?.schema.nodes.inlineSyntax.create({ kind: 'bold', value: content.trim() }) ?? null },
+      { marker: '~~', priority: 80, accepts: (content) => content.trim().length > 0 && !content.includes('\n') && !content.includes('~'), createNode: (content, state) => state?.schema.nodes.inlineSyntax.create({ kind: 'strike', value: content.trim() }) ?? null },
+      { marker: '*', priority: 70, accepts: (content) => content.trim().length > 0 && !content.includes('\n') && !content.includes('*'), createNode: (content, state) => state?.schema.nodes.inlineSyntax.create({ kind: 'italic', value: content.trim() }) ?? null }
+    ])]
+  },
+  addExtensions() {
+    return [createPairedTriggerExtension([
+      { marker: '***', priority: 100, accepts: (content) => content.trim().length > 0 && !content.includes('\n') && !content.includes('*'), createNode: (content, state) => state?.schema.nodes.inlineSyntax.create({ kind: 'boldItalic', value: content.trim() }) ?? null },
+      { marker: '**', priority: 90, accepts: (content) => content.trim().length > 0 && !content.includes('\n') && !content.includes('*'), createNode: (content, state) => state?.schema.nodes.inlineSyntax.create({ kind: 'bold', value: content.trim() }) ?? null },
+      { marker: '~~', priority: 80, accepts: (content) => content.trim().length > 0 && !content.includes('\n') && !content.includes('~'), createNode: (content, state) => state?.schema.nodes.inlineSyntax.create({ kind: 'strike', value: content.trim() }) ?? null },
+      { marker: '*', priority: 70, accepts: (content) => content.trim().length > 0 && !content.includes('\n') && !content.includes('*'), createNode: (content, state) => state?.schema.nodes.inlineSyntax.create({ kind: 'italic', value: content.trim() }) ?? null }
+    ], 'inlineSyntaxCompletion')]
   },
   addKeyboardShortcuts() {
     const type = this.type

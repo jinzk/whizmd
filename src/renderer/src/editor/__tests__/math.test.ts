@@ -50,7 +50,7 @@ describe('math round-trip', () => {
     editor.destroy()
   })
 
-  it.each(['$x$', '文字$x$文字', '文字 $x$文字', '文字$x$ 文字'])(
+  it.each(['$x$', '$123$', '文字$x$文字', '文字$123$文字', '文字 $x$文字', '文字$x$ 文字'])(
     'parses inline math at boundary: %s',
     (source) => {
       const editor = new Editor({ extensions: buildEditorExtensions(), content: source, contentType: 'markdown' })
@@ -133,6 +133,16 @@ describe('math round-trip', () => {
     const source = 'The price is $100.'
     const result = toMarkdown(source)
     expect(result).toBe(source)
+  })
+
+  it('converts a numeric inline formula when the closing dollar is typed', () => {
+    const editor = new Editor({ extensions: buildEditorExtensions() })
+    typeInto(editor, '$123$')
+    expect(editor.getJSON().content?.[0]?.content).toEqual([
+      { type: 'inlineMath', attrs: { latex: '123' } }
+    ])
+    expect(editor.getMarkdown()).toBe('$123$')
+    editor.destroy()
   })
 
   it('keeps text immediately after an inline formula', () => {

@@ -1,9 +1,10 @@
 import { Image as BaseImage } from '@tiptap/extension-image'
 import { InputRule } from '@tiptap/core'
-import { NodeSelection } from '@tiptap/pm/state'
+import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import type { JSONContent, MarkdownParseHelpers, MarkdownToken } from '@tiptap/core'
 import { ImageNodeView } from './ImageNodeView'
+import { canTriggerInlineMarkdown } from '../input/context'
 
 const IMAGE_PATTERN =
   /^!\[([^\]]*)\]\(([^\s)]+)(?:\s+("(?:[^"\\]|\\.)*"))?(?:\s+=\s*(\d+(?:\.\d+)?)(?:x(\d+(?:\.\d+)?)?)?)?\)/
@@ -103,14 +104,26 @@ export const Image = BaseImage.extend({
   addInputRules() {
     return [
       new InputRule({
-        find: /^!$/,
-        handler: ({ state, range }) => {
+        find: /(?:^| )!\[([^\]]+)\]\[([^\]]+)\]$/,
+        handler: ({ state, range, match }) => {
+          if (!canTriggerInlineMarkdown(state, range.from)) return
+          const start = range.from + match[0].indexOf('![')
+          const node = this.type.create({ src: match[2], alt: match[1], reference: match[2] })
+          const tr = state.tr.replaceWith(start, range.to, node)
+          tr.setSelection(TextSelection.create(tr.doc, start + node.nodeSize))
+        }
+      }),
+      new InputRule({
+        find: /(?:^| )!\[([^\]\n]*)\]\($/,
+        handler: ({ state, range, match }) => {
+          if (!canTriggerInlineMarkdown(state, range.from)) return
+          const start = range.from + match[0].indexOf('![')
           const transaction = state.tr.replaceRangeWith(
-            range.from,
+            start,
             range.to,
-            this.type.create({ src: '', alt: '' })
+            this.type.create({ src: '', alt: match[1] })
           )
-          const imagePosition = transaction.mapping.map(range.from)
+          const imagePosition = transaction.mapping.map(start)
           if (transaction.doc.nodeAt(imagePosition)) {
             transaction.setSelection(NodeSelection.create(transaction.doc, imagePosition))
           }

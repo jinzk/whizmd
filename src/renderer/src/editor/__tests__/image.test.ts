@@ -20,7 +20,7 @@ function toMarkdown(md: string): string {
 }
 
 describe('image round-trip', () => {
-  it('turns a typed exclamation mark into an editable image node', () => {
+  it('turns a typed image prefix into an editable image node', () => {
     const editor = new Editor({
       extensions: [
         StarterKit,
@@ -29,11 +29,11 @@ describe('image round-trip', () => {
       ]
     })
 
-    typeInto(editor, '!')
+    typeInto(editor, '![图片](')
 
     expect(editor.getJSON().content?.[0]).toMatchObject({
       type: 'image',
-      attrs: { src: '', alt: '' }
+      attrs: { src: '', alt: '图片' }
     })
     editor.destroy()
   })
