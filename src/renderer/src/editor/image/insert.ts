@@ -1,5 +1,5 @@
 import type { Editor } from '@tiptap/core'
-import { useEditorStore } from '../../store/editor'
+import { useDocumentStore } from '../../store/documents'
 
 const IMAGE_EXTENSION_RE = /\.(png|jpe?g|gif|svg|webp|bmp|ico|avif)$/i
 
@@ -25,7 +25,9 @@ export async function insertImageFromDialog(editor: Editor): Promise<void> {
   if (!sourcePath) {
     return
   }
-  const docPath = useEditorStore.getState().docPath
+  const docPath = useDocumentStore.getState().documents.find(
+    (document) => document.id === useDocumentStore.getState().activeDocumentId
+  )?.path ?? null
   try {
     const result = await window.markdownApp.file.importImage(sourcePath, docPath)
     insertImage(editor, resolveStoredSrc(result, docPath), '')
@@ -36,7 +38,8 @@ export async function insertImageFromDialog(editor: Editor): Promise<void> {
 
 /** Import a list of dropped image files into assets and insert them. */
 export async function insertDroppedImages(editor: Editor, files: File[]): Promise<void> {
-  const docPath = useEditorStore.getState().docPath
+  const state = useDocumentStore.getState()
+  const docPath = state.documents.find((document) => document.id === state.activeDocumentId)?.path ?? null
   for (const file of files) {
     try {
       let result: ImageResult

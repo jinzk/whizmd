@@ -10,7 +10,6 @@ import { indentUnit, indentOnInput } from '@codemirror/language'
 import { insertNewlineContinueMarkup, deleteMarkupBackward } from '@codemirror/lang-markdown'
 import { indentWithTab, insertTab, indentLess } from '@codemirror/commands'
 import type { EffectiveTheme } from '../hooks/useTheme'
-import { useEditorStore } from '../store/editor'
 
 const themeCompartment = new Compartment()
 const externalSync = Annotation.define<boolean>()
@@ -58,20 +57,16 @@ export function SourceEditor({ content, onUpdate, theme }: Props): React.JSX.Ele
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const onUpdateRef = useRef(onUpdate)
-  const setDirtyRef = useRef<() => void>(() => {})
-  const initialContentRef = useRef(content)
-  const setDirty = useEditorStore((s) => s.setDirty)
 
   useEffect(() => {
     onUpdateRef.current = onUpdate
-    setDirtyRef.current = () => setDirty(true)
-  }, [onUpdate, setDirty])
+  }, [onUpdate])
 
   useEffect(() => {
     if (!hostRef.current) return
 
     const state = EditorState.create({
-      doc: initialContentRef.current,
+      doc: content,
       extensions: [
           basicSetup,
           autocompletion({
@@ -96,7 +91,6 @@ export function SourceEditor({ content, onUpdate, theme }: Props): React.JSX.Ele
            )
             if (update.docChanged && !isExternalSync) {
               onUpdateRef.current(update.state.doc.toString())
-              setDirtyRef.current()
               const line = update.state.doc.lineAt(update.state.selection.main.head)
               if (/^```$/.test(line.text)) {
                 startCompletion(view)
@@ -116,15 +110,10 @@ export function SourceEditor({ content, onUpdate, theme }: Props): React.JSX.Ele
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // When switching back INTO source mode, sync the latest markdown from the
-  // store snapshot, unless the content is identical (e.g. fresh mount).
+  // Sync the current document session when switching files or editor modes.
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
-    if (initialContentRef.current === content) {
-      initialContentRef.current = content
-      return
-    }
     const current = view.state.doc.toString()
     if (current !== content) {
       view.dispatch({

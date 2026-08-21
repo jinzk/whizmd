@@ -81,9 +81,11 @@ function InlineHtmlView({ node, updateAttributes, deleteNode }: NodeViewProps): 
     <NodeViewWrapper as="span" className="inline-html-node" data-editing={editing ? 'true' : 'false'}>
       {editing ? (
         <span className="inline-html-edit-controls">
-          <span className="inline-html-label">HTML</span>
-           <input ref={inputRef} className="inline-html-input" value={value} aria-label="编辑 HTML 标签" onChange={(event) => field.setValue(event.target.value)} onBlur={commit} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); event.key === 'Escape' ? cancel() : commit() } }} />
-          <button type="button" className="inline-html-delete" aria-label="删除 HTML 标签" onMouseDown={(event) => event.preventDefault()} onClick={deleteNode}>删除</button>
+           <span className="inline-html-label">HTML</span>
+            <span className="inline-html-input-row">
+              <input ref={inputRef} className="inline-html-input" style={{ width: `${Math.max(3, value.length + 1)}ch` }} value={value} aria-label="编辑 HTML 标签" onChange={(event) => field.setValue(event.target.value)} onBlur={commit} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); event.key === 'Escape' ? cancel() : commit() } }} />
+              <button type="button" className="inline-html-delete" aria-label="删除 HTML 标签" onMouseDown={(event) => event.preventDefault()} onClick={deleteNode}>删除</button>
+            </span>
         </span>
       ) : (
         <button type="button" className="inline-html-preview" aria-label="编辑 HTML 标签" onMouseDown={(event) => event.preventDefault()} onClick={() => setEditing(true)} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(String(node.attrs.html ?? '')) }} />
@@ -104,7 +106,61 @@ export const InlineHtml = Node.create({
   parseMarkdown: tokenToJson,
   renderMarkdown: (node: JSONContent): string => sanitizeInlineHtml(String(node.attrs?.html ?? '')),
   addInputRules() { return [new InputRule({ find: HTML_INPUT_PATTERN, handler: ({ state, range, match }) => { if (!canTriggerInlineMarkdown(state, range.from)) return; const clean = sanitizeInlineHtml(match[0]); if (!clean) return; const node = this.type.create({ html: match[0] }); const tr = state.tr.replaceRangeWith(range.from, range.to, node); tr.setSelection(TextSelection.create(tr.doc, range.from + node.nodeSize)) } })] },
-  addProseMirrorPlugins() { return [new Plugin({ appendTransaction: (transactions, _oldState, state) => { const changed = transactions.filter((transaction) => transaction.docChanged); if (!changed.length) return null; const ranges = changed.flatMap((transaction) => transaction.mapping.maps.map((map) => { let from = Number.POSITIVE_INFINITY; let to = 0; map.forEach((_oldStart, _oldSize, newStart, newSize) => { from = Math.min(from, newStart); to = Math.max(to, newStart + newSize) }); return Number.isFinite(from) ? { from: Math.max(0, from - 1), to: Math.min(state.doc.content.size, to + 1) } : null }).filter((range): range is { from: number; to: number } => range !== null)); if (!ranges.length) return null; const matches: Array<{ from: number; to: number; html: string }> = []; for (const range of ranges) { state.doc.nodesBetween(range.from, range.to, (node, position) => { if (!node.isText || !node.text || isInCodeBlock(state, position)) return; for (const match of node.text.matchAll(HTML_SCAN_PATTERN)) { if (match.index !== undefined) matches.push({ from: position + match.index, to: position + match.index + match[0].length, html: match[0] }) } }); } if (!matches.length) return null; const tr = state.tr; for (const match of matches.reverse()) tr.replaceWith(match.from, match.to, this.type.create({ html: match.html })); return tr } })] },
-  addKeyboardShortcuts() { const type = this.type; const remove = (direction: 'backward' | 'forward') => ({ editor }: { editor: import('@tiptap/core').Editor }) => { const { selection } = editor.state; if (selection instanceof NodeSelection && selection.node.type === type) { editor.commands.deleteSelection(); return true } if (!selection.empty) return false; const position = direction === 'backward' ? selection.from - 1 : selection.from; const node = editor.state.doc.nodeAt(position); if (!node || node.type !== type) return false; const from = direction === 'backward' ? position - node.nodeSize + 1 : position; editor.view.dispatch(editor.state.tr.delete(from, from + node.nodeSize)); return true }; return { Backspace: remove('backward'), Delete: remove('forward') } },
+   addProseMirrorPlugins() {
+     return [new Plugin({
+       appendTransaction: (transactions, _oldState, state) => {
+         const changed = transactions.filter((transaction) => transaction.docChanged)
+         if (!changed.length) return null
+         const ranges = changed.flatMap((transaction) => transaction.mapping.maps.map((map) => {
+           let from = Number.POSITIVE_INFINITY
+           let to = 0
+           map.forEach((_oldStart, _oldSize, newStart, newSize) => {
+             from = Math.min(from, newStart)
+             to = Math.max(to, newStart + newSize)
+           })
+           return Number.isFinite(from)
+             ? { from: Math.max(0, from - 1), to: Math.min(state.doc.content.size, to + 1) }
+             : null
+         }).filter((range): range is { from: number; to: number } => range !== null))
+         if (!ranges.length) return null
+         const matches: Array<{ from: number; to: number; html: string }> = []
+         for (const range of ranges) {
+           state.doc.nodesBetween(range.from, range.to, (node, position) => {
+             if (!node.isText || !node.text || isInCodeBlock(state, position)) return
+             for (const match of node.text.matchAll(HTML_SCAN_PATTERN)) {
+               if (match.index !== undefined) {
+                 matches.push({ from: position + match.index, to: position + match.index + match[0].length, html: match[0] })
+               }
+             }
+           })
+         }
+         if (!matches.length) return null
+         const transaction = state.tr
+         for (const match of matches.reverse()) {
+           transaction.replaceWith(match.from, match.to, state.schema.nodes.inlineHtml.create({ html: match.html }))
+         }
+         return transaction
+       }
+     })]
+   },
+   addKeyboardShortcuts() {
+     const type = this.type
+     const moveAcross = (direction: 'left' | 'right') => ({ editor }: { editor: import('@tiptap/core').Editor }) => {
+       const { selection } = editor.state
+       if (selection instanceof NodeSelection && selection.node.type === type) {
+         editor.commands.setTextSelection(direction === 'left' ? selection.from : selection.to)
+         return true
+       }
+       if (!selection.empty || !(selection instanceof TextSelection)) return false
+       const position = direction === 'left' ? selection.from - 1 : selection.from
+       const node = editor.state.doc.nodeAt(position)
+       if (!node || node.type !== type) return false
+       const target = direction === 'left' ? position - node.nodeSize + 1 : position + node.nodeSize
+       editor.commands.setTextSelection(target)
+       return true
+     }
+     const remove = (direction: 'backward' | 'forward') => ({ editor }: { editor: import('@tiptap/core').Editor }) => { const { selection } = editor.state; if (selection instanceof NodeSelection && selection.node.type === type) { editor.commands.deleteSelection(); return true } if (!selection.empty) return false; const position = direction === 'backward' ? selection.from - 1 : selection.from; const node = editor.state.doc.nodeAt(position); if (!node || node.type !== type) return false; const from = direction === 'backward' ? position - node.nodeSize + 1 : position; editor.view.dispatch(editor.state.tr.delete(from, from + node.nodeSize)); return true }
+     return { ArrowLeft: moveAcross('left'), ArrowRight: moveAcross('right'), Backspace: remove('backward'), Delete: remove('forward') }
+   },
   addNodeView() { return ReactNodeViewRenderer(InlineHtmlView) }
 })

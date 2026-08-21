@@ -80,6 +80,22 @@ describe('math round-trip', () => {
     editor.destroy()
   })
 
+  it('converts italic immediately after an inline math node and keeps its node intact', () => {
+    const editor = new Editor({ extensions: buildEditorExtensions() })
+    typeInto(editor, '公式 $x^2$ *斜体*')
+
+    expect(editor.getJSON().content?.[0]).toMatchObject({
+      content: [
+        { type: 'text', text: '公式 ' },
+        { type: 'inlineMath', attrs: { latex: 'x^2' } },
+        { type: 'text', text: ' ' },
+        { type: 'inlineSyntax', attrs: { kind: 'italic', value: '斜体' } }
+      ]
+    })
+    expect(editor.getMarkdown()).toBe('公式 $x^2$ *斜体*')
+    editor.destroy()
+  })
+
   it('preserves inline math', () => {
     const source = 'Inline $E = mc^2$ math.'
     const result = toMarkdown(source)

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Editor } from '@tiptap/core'
 import { buildEditorExtensions } from '../extensions'
-import { sanitizeHtmlBlock } from '../htmlBlock'
+import { renderHtmlBlockPreview, sanitizeHtmlBlock } from '../htmlBlock'
 
 describe('raw HTML blocks', () => {
   it('preserves an HTML table block without converting it to a Tiptap table', () => {
@@ -38,6 +38,28 @@ describe('raw HTML blocks', () => {
     expect(block).not.toMatchObject({ type: 'paragraph', content: expect.anything() })
     expect(editor.getMarkdown()).toContain('- this stays HTML text')
     expect(editor.getMarkdown()).toContain('**not a Markdown paragraph**')
+    editor.destroy()
+  })
+
+  it('renders Markdown inside GitHub-style HTML containers in the preview', () => {
+    const source = `<div align="center">\n\n# GlbViewer\n\n**跨平台 GLB 预览器**\n\n![.NET](https://img.shields.io/badge/.NET-8.0-blue)\n\n</div>`
+    const preview = renderHtmlBlockPreview(source)
+
+    expect(preview).toContain('<h1>GlbViewer</h1>')
+    expect(preview).toContain('<strong>跨平台 GLB 预览器</strong>')
+    expect(preview).toContain('<img src="https://img.shields.io/badge/.NET-8.0-blue" alt=".NET">')
+    expect(preview).toContain('align="center"')
+  })
+
+  it('keeps the HTML block as a selectable node for source editing', () => {
+    const editor = new Editor({
+      extensions: buildEditorExtensions(),
+      content: '<div align="center">\n\n# GlbViewer\n\n</div>',
+      contentType: 'markdown'
+    })
+
+    expect(editor.getJSON().content?.[0]).toMatchObject({ type: 'htmlBlock' })
+    expect(editor.getJSON().content?.[0].attrs).toHaveProperty('html')
     editor.destroy()
   })
 

@@ -1,7 +1,7 @@
 import type { AnyExtension } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { buildMarkdownExtension } from './markdown'
-import { MermaidCodeBlock } from './mermaid'
+import { CodeBlockExtension } from './codeBlock'
 import { lowlight } from './lowlight'
 import { InlineMath, BlockMath } from './math'
 import { Image } from './image'
@@ -30,7 +30,7 @@ export function buildEditorExtensions(): AnyExtension[] {
     StarterKit.configure({ codeBlock: false, link: { markdownLinks: true } }),
     TaskList,
     TaskItem.configure({ nested: true }),
-    MermaidCodeBlock.configure({ lowlight, defaultLanguage: 'plaintext' }),
+    CodeBlockExtension.configure({ lowlight, defaultLanguage: 'plaintext' }),
     InlineMath.configure({ katexOptions: { throwOnError: false, displayMode: false } }),
     BlockMath.configure({ katexOptions: { throwOnError: false, displayMode: true } }),
     Image.configure({ allowBase64: true }),

@@ -723,8 +723,10 @@
 }
 
 .wysiwyg-editor .tiptap .html-preview {
+  display: block;
   position: relative;
   min-height: 64px;
+  min-width: 100%;
   background-color: var(--md-bg);
 }
 
@@ -823,7 +825,76 @@
 }
 
 .wysiwyg-editor .tiptap .html-block-preview {
+  position: relative;
   overflow-x: auto;
+}
+
+.wysiwyg-editor .tiptap .html-block-edit {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px 9px;
+  border: 1px solid var(--md-border);
+  border-radius: 4px;
+  color: var(--md-text-muted);
+  background: color-mix(in srgb, var(--md-bg) 92%, transparent);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.wysiwyg-editor .tiptap .html-block-edit:hover {
+  border-color: var(--md-accent);
+  color: var(--md-accent);
+}
+
+.wysiwyg-editor .tiptap .html-block-source {
+  border-top: 1px solid var(--md-border);
+  background: var(--md-bg-soft);
+}
+
+.wysiwyg-editor .tiptap .html-block-node[data-html-editing='false'] .html-block-source {
+  display: none;
+}
+
+.wysiwyg-editor .tiptap .html-block-source-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  color: var(--md-text-muted);
+  font: 12px/1.4 'SFMono-Regular', Consolas, monospace;
+}
+
+.wysiwyg-editor .tiptap .html-block-source-header > div {
+  display: flex;
+  gap: 6px;
+}
+
+.wysiwyg-editor .tiptap .html-block-source-header button {
+  padding: 3px 7px;
+  border: 1px solid var(--md-border);
+  border-radius: 4px;
+  color: var(--md-text-muted);
+  background: var(--md-bg);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.wysiwyg-editor .tiptap .html-block-source-editor {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 180px;
+  max-height: 360px;
+  padding: 10px;
+  border: 0;
+  border-top: 1px solid var(--md-border);
+  outline: 0;
+  resize: vertical;
+  color: var(--md-text);
+  background: var(--md-code-bg);
+  font: 13px/1.5 'SFMono-Regular', Consolas, monospace;
+  white-space: pre-wrap;
 }
 
 .wysiwyg-editor .tiptap .html-block-preview table {
@@ -844,6 +915,7 @@
 .wysiwyg-editor .tiptap .inline-html-node,
 .wysiwyg-editor .tiptap .inline-math-node,
 .wysiwyg-editor .tiptap .inline-decoration-node {
+  position: relative;
   display: inline;
 }
 
@@ -880,9 +952,9 @@
 }
 
 .wysiwyg-editor .tiptap .inline-math-input {
-  width: 12ch;
   min-width: 2ch;
-  max-width: 28ch;
+  max-width: min(80ch, calc(100vw - 32px));
+  box-sizing: border-box;
   padding: 0 4px;
   border: 1px solid var(--md-accent);
   border-radius: 4px;
@@ -890,17 +962,34 @@
   color: var(--md-text);
   background: var(--md-bg);
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-  font-size: 0.9em;
+  font-size: 1em;
 }
 
 .wysiwyg-editor .tiptap .inline-math-edit-controls {
-  display: inline-flex;
-  align-items: center;
+  position: absolute;
+  z-index: 20;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: stretch;
+  padding: 6px;
+  border: 1px solid var(--md-border);
+  border-radius: 6px;
+  background: var(--md-bg);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 18%);
+  white-space: nowrap;
   gap: 4px;
-  vertical-align: baseline;
 }
 
 .wysiwyg-editor .tiptap .inline-math-label {
+  position: absolute;
+  left: 6px;
+  bottom: calc(100% + 2px);
+  padding: 1px 4px;
+  border: 1px solid var(--md-border);
+  border-radius: 3px;
+  background: var(--md-bg);
   color: var(--md-text-muted);
   font-size: 0.75em;
   white-space: nowrap;
@@ -918,6 +1007,7 @@
 }
 
 .wysiwyg-editor .tiptap .inline-html-node {
+  position: relative;
   display: inline;
 }
 
@@ -939,22 +1029,39 @@
 }
 
 .wysiwyg-editor .tiptap .inline-html-edit-controls {
-  display: inline-flex;
-  align-items: center;
+  position: absolute;
+  z-index: 20;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: stretch;
   gap: 4px;
-  vertical-align: baseline;
+  padding: 6px;
+  border: 1px solid var(--md-border);
+  border-radius: 6px;
+  background: var(--md-bg);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 18%);
+  white-space: nowrap;
 }
 
 .wysiwyg-editor .tiptap .inline-html-label {
+  position: absolute;
+  left: 6px;
+  bottom: calc(100% + 2px);
+  padding: 1px 4px;
+  border: 1px solid var(--md-border);
+  border-radius: 3px;
+  background: var(--md-bg);
   color: var(--md-text-muted);
   font-size: 0.75em;
   white-space: nowrap;
 }
 
 .wysiwyg-editor .tiptap .inline-html-input {
-  width: 14ch;
   min-width: 3ch;
-  max-width: 32ch;
+  max-width: min(80ch, calc(100vw - 32px));
+  box-sizing: border-box;
   padding: 0 4px;
   border: 1px solid var(--md-accent);
   border-radius: 4px;
@@ -962,11 +1069,23 @@
   color: var(--md-text);
   background: var(--md-bg);
   font:
-    0.9em 'SFMono-Regular',
+    1em 'SFMono-Regular',
     Consolas,
     'Liberation Mono',
     Menlo,
     monospace;
+}
+
+.wysiwyg-editor .tiptap .inline-html-input-row,
+.wysiwyg-editor .tiptap .inline-syntax-input-row,
+.wysiwyg-editor .tiptap .inline-math-input-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wysiwyg-editor .tiptap .inline-html-edit-controls .inline-html-input {
+  display: inline-block;
 }
 
 .wysiwyg-editor .tiptap .inline-html-delete {
@@ -980,6 +1099,7 @@
 }
 
 .wysiwyg-editor .tiptap .inline-syntax-node {
+  position: relative;
   display: inline;
 }
 
@@ -1015,34 +1135,56 @@
 }
 
 .wysiwyg-editor .tiptap .inline-syntax-edit-controls {
-  display: inline-flex;
-  align-items: center;
+  position: absolute;
+  z-index: 20;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: stretch;
   gap: 4px;
-  vertical-align: baseline;
+  padding: 6px;
+  border: 1px solid var(--md-border);
+  border-radius: 6px;
+  background: var(--md-bg);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 18%);
+  white-space: nowrap;
 }
 
 .wysiwyg-editor .tiptap .inline-syntax-label {
+  position: absolute;
+  left: 6px;
+  bottom: calc(100% + 2px);
+  padding: 1px 4px;
+  border: 1px solid var(--md-border);
+  border-radius: 3px;
+  background: var(--md-bg);
   color: var(--md-text-muted);
   font-size: 0.75em;
   white-space: nowrap;
 }
 
 .wysiwyg-editor .tiptap .inline-syntax-input {
-  width: 14ch;
   min-width: 3ch;
-  max-width: 32ch;
+  max-width: min(80ch, calc(100vw - 32px));
+  box-sizing: border-box;
   padding: 0 4px;
   border: 1px solid var(--md-accent);
   border-radius: 4px;
   outline: none;
   color: var(--md-text);
   background: var(--md-bg);
+  font-size: 1em;
   font:
-    0.9em 'SFMono-Regular',
+    1em 'SFMono-Regular',
     Consolas,
     'Liberation Mono',
     Menlo,
     monospace;
+}
+
+.wysiwyg-editor .tiptap .inline-syntax-edit-controls .inline-syntax-input {
+  display: inline-block;
 }
 
 .wysiwyg-editor .tiptap .inline-syntax-delete {

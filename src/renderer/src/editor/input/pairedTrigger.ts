@@ -56,18 +56,40 @@ function findMatchAroundCursor(text: string, cursor: number, rules: PairedTrigge
       const { marker } = rule
       for (let opener = cursor - marker.length; opener >= 0; opener -= 1) {
         if (!text.startsWith(marker, opener) || isEscaped(text, opener)) continue
-        const closingStart = text.indexOf(marker, cursor)
-        if (closingStart < 0 || isEscaped(text, closingStart)) return null
         if (opener > 0 && text[opener - 1] === marker[0]) continue
-        if (closingStart > 0 && text[closingStart - 1] === marker[0]) continue
-        const content = text.slice(opener + marker.length, closingStart)
-        if (!rule.accepts(content)) return null
-        return { from: opener, to: closingStart + marker.length, content, rule }
+
+        let closingStart = text.indexOf(marker, cursor)
+        while (closingStart >= 0) {
+          if (
+            !isEscaped(text, closingStart) &&
+            (closingStart === 0 || text[closingStart - 1] !== marker[0])
+          ) {
+            const content = text.slice(opener + marker.length, closingStart)
+            if (rule.accepts(content)) {
+              return { from: opener, to: closingStart + marker.length, content, rule }
+            }
+          }
+          closingStart = text.indexOf(marker, closingStart + 1)
+        }
       }
       return null
     })
     .sort((left, right) => (right?.rule.priority ?? -1) - (left?.rule.priority ?? -1))
     .find((match): match is PairedMatch => match !== null) ?? null
+}
+
+function findMatchEndingBeforeCursor(text: string, cursor: number, rules: readonly PairedTriggerRule[]): PairedMatch | null {
+  const candidates: Array<PairedMatch & { end: number }> = []
+  for (const rule of rules) {
+    let closingStart = text.lastIndexOf(rule.marker, cursor - rule.marker.length)
+    while (closingStart >= 0) {
+      const end = closingStart + rule.marker.length
+      const match = findPairedMatch(text.slice(0, end), end, [rule])
+      if (match) candidates.push({ ...match, end })
+      closingStart = text.lastIndexOf(rule.marker, closingStart - 1)
+    }
+  }
+  return candidates.sort((left, right) => right.end - left.end)[0] ?? null
 }
 
 function convertAtCursor(editorState: EditorState, rules: readonly PairedTriggerRule[]): Transaction | null {
@@ -77,7 +99,9 @@ function convertAtCursor(editorState: EditorState, rules: readonly PairedTrigger
 function convertAtPosition(editorState: EditorState, position: number, rules: readonly PairedTriggerRule[]): Transaction | null {
   const resolved = editorState.doc.resolve(position)
   if (!resolved.parent.isTextblock) return null
-  const match = findMatchAroundCursor(resolved.parent.textContent, resolved.parentOffset, [...rules])
+  const text = resolved.parent.textContent
+  const match = findMatchAroundCursor(text, resolved.parentOffset, [...rules]) ??
+    findMatchEndingBeforeCursor(text, resolved.parentOffset, rules)
   if (!match) return null
   const from = resolved.start() + match.from
   const node = match.rule.createNode(match.content, editorState)
@@ -108,8 +132,7 @@ export function createPairedTriggerInputRule(rules: readonly PairedTriggerRule[]
       // The user may still be composing its content; completion is deferred to
       // ArrowRight, Enter, or blur.
       if (rules.some((rule) => before.endsWith(rule.marker) && after.startsWith(rule.marker))) return
-      if (findMatchAroundCursor(before + inserted + after, resolved.parentOffset + 1, [...rules])) return
-      const pairedMatch = findPairedMatch(before + inserted, resolved.parentOffset + 1, [...rules])
+       const pairedMatch = findPairedMatch(before + inserted, resolved.parentOffset + 1, [...rules])
       if (!pairedMatch) return
 
       const node = pairedMatch.rule.createNode(pairedMatch.content, state)

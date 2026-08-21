@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import type { Editor } from '@tiptap/core'
 import { buildEditorExtensions } from '../editor/extensions'
-import { useEditorStore } from '../store/editor'
 import { useI18n } from '../i18n'
 import { insertDroppedImages, insertPastedImages, isImageFile } from '../editor/image/insert'
 
@@ -29,12 +28,9 @@ const CODE_LANGUAGES = [
 
 export function WysiwygEditor({ content, onUpdate }: Props): React.JSX.Element {
   const { t } = useI18n()
-  const setDirty = useEditorStore((s) => s.setDirty)
-  const setEditor = useEditorStore((s) => s.setEditor)
   const editorRef = useRef<Editor | null>(null)
   const lastEmittedRef = useRef<string | null>(null)
   const onUpdateRef = useRef(onUpdate)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [showLanguageMenu, setShowLanguageMenu] = useState(false)
   const [languageMenuPosition, setLanguageMenuPosition] = useState({ top: 0, left: 0 })
 
@@ -71,19 +67,7 @@ export function WysiwygEditor({ content, onUpdate }: Props): React.JSX.Element {
     onUpdateRef.current = onUpdate
   }, [onUpdate])
 
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current != null) {
-        clearTimeout(debounceRef.current)
-      }
-    }
-  }, [])
-
   const flush = (editor: Editor): void => {
-    if (debounceRef.current != null) {
-      clearTimeout(debounceRef.current)
-      debounceRef.current = null
-    }
     const md = editor.getMarkdown()
     lastEmittedRef.current = md
     onUpdateRef.current(md)
@@ -95,20 +79,13 @@ export function WysiwygEditor({ content, onUpdate }: Props): React.JSX.Element {
     contentType: 'markdown',
     onCreate: ({ editor }) => {
       editorRef.current = editor
-      setEditor(editor)
       lastEmittedRef.current = editor.getMarkdown()
     },
     onUpdate: ({ editor }) => {
-      setDirty(true)
       syncLanguageMenu(editor)
-      if (debounceRef.current != null) {
-        clearTimeout(debounceRef.current)
-      }
-      debounceRef.current = setTimeout(() => {
-        const md = editor.getMarkdown()
-        lastEmittedRef.current = md
-        onUpdateRef.current(md)
-      }, 300)
+      const md = editor.getMarkdown()
+      lastEmittedRef.current = md
+      onUpdateRef.current(md)
     },
     onBlur: ({ editor }) => {
       // Flush pending markdown immediately so mode switches / saves read the
@@ -118,7 +95,6 @@ export function WysiwygEditor({ content, onUpdate }: Props): React.JSX.Element {
     },
     onDestroy: () => {
       editorRef.current = null
-      setEditor(null)
     },
     editorProps: {
       handleDrop: (_view, event, _slice, moved) => {

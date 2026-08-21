@@ -25,30 +25,33 @@ export function InlineMathNodeView({ node, updateAttributes, deleteNode }: NodeV
       {editing ? (
         <span className="inline-math-edit-controls">
           <span className="inline-math-label">公式</span>
-          <input
-            ref={inputRef}
-            className="inline-math-input"
-            value={value}
-            aria-label="编辑行内公式"
-            onChange={(event) => setValue(event.target.value)}
-            onBlur={commit}
-            onClick={(event) => event.stopPropagation()}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === 'Escape') {
-                event.preventDefault()
-                event.key === 'Escape' ? cancel() : commit()
-              }
-            }}
-          />
-          <button
-            type="button"
-            className="inline-math-delete"
-            aria-label="删除行内公式"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={deleteNode}
-          >
-            删除
-          </button>
+           <span className="inline-math-input-row">
+             <input
+               ref={inputRef}
+               className="inline-math-input"
+               style={{ width: `${Math.max(3, value.length + 1)}ch` }}
+               value={value}
+               aria-label="编辑行内公式"
+               onChange={(event) => setValue(event.target.value)}
+               onBlur={commit}
+               onClick={(event) => event.stopPropagation()}
+               onKeyDown={(event) => {
+                 if (event.key === 'Enter' || event.key === 'Escape') {
+                   event.preventDefault()
+                   event.key === 'Escape' ? cancel() : commit()
+                 }
+               }}
+             />
+             <button
+               type="button"
+               className="inline-math-delete"
+               aria-label="删除行内公式"
+               onMouseDown={(event) => event.preventDefault()}
+               onClick={deleteNode}
+             >
+               删除
+             </button>
+           </span>
         </span>
       ) : (
         <button

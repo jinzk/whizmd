@@ -39,6 +39,56 @@ describe('inline syntax nodes', () => {
     editor.destroy()
   })
 
+  it.each([
+    ['before **odd** after', 'bold'],
+    ['before ***odd*** after', 'boldItalic'],
+    ['before *odd* after', 'italic'],
+    ['before ~~odd~~ after', 'strike']
+  ])('converts a pair typed in the middle of a line: %s', (source, kind) => {
+    const editor = createEditor()
+    typeInto(editor, source)
+
+    expect(editor.getJSON().content?.[0]).toMatchObject({
+      content: [
+        { type: 'text', text: 'before ' },
+        { type: 'inlineSyntax', attrs: { kind, value: 'odd' } },
+        { type: 'text', text: ' after' }
+      ]
+    })
+    expect(editor.getMarkdown()).toBe(source)
+    editor.destroy()
+  })
+
+  it('does not leave markers visible when converting a pair after a prefix', () => {
+    const editor = createEditor('prefix **value** suffix')
+    const content = editor.getJSON().content?.[0]
+
+    expect(content).toMatchObject({
+      content: [
+        { type: 'text', text: 'prefix ' },
+        { type: 'inlineSyntax', attrs: { kind: 'bold', value: 'value' } },
+        { type: 'text', text: ' suffix' }
+      ]
+    })
+    expect(content && 'content' in content ? content.content?.some((node) => node.type === 'text' && 'text' in node && /\*\*/.test(node.text ?? '')) : false).toBe(false)
+    editor.destroy()
+  })
+
+  it('converts a pair when the cursor leaves it from the right side', () => {
+    const editor = createEditor()
+    typeInto(editor, 'before **value** after')
+    editor.commands.setTextSelection(1)
+
+    expect(editor.getJSON().content?.[0]).toMatchObject({
+      content: [
+        { type: 'text', text: 'before ' },
+        { type: 'inlineSyntax', attrs: { kind: 'bold', value: 'value' } },
+        { type: 'text', text: ' after' }
+      ]
+    })
+    editor.destroy()
+  })
+
   it('keeps markdown markers out of the node content', () => {
     const editor = createEditor('a ***mix*** b')
     let syntax: ReturnType<Editor['getJSON']>['content'][number] | undefined

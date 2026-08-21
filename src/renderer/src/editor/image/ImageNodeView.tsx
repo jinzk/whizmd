@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { NodeViewWrapper } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
-import { useEditorStore } from '../../store/editor'
+import { useDocumentStore } from '../../store/documents'
 import { dirnamePath, isAbsolutePath, resolveRelative } from '../../utils/path'
 import { referenceEntry } from '../referenceRegistry'
 import { ReferenceStatus } from '../reference/ReferenceStatus'
@@ -30,7 +30,9 @@ type ImageNodeViewProps = NodeViewProps
 
 export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
   const { node, updateAttributes, deleteNode, selected } = props
-  const docPath = useEditorStore((s) => s.docPath)
+  const docPath = useDocumentStore((state) =>
+    state.documents.find((document) => document.id === state.activeDocumentId)?.path ?? null
+  )
 
   const srcField = useNodeViewField(String(node.attrs.src ?? ''), (value) => updateAttributes({ src: value }))
   const altField = useNodeViewField(String(node.attrs.alt ?? ''), (value) => updateAttributes({ alt: value }))

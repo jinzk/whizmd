@@ -31,30 +31,33 @@ export function InlineSyntaxNodeView({ node, updateAttributes, deleteNode }: Nod
       {editing ? (
         <span className={isDecoration ? 'inline-decoration-edit-controls inline-syntax-edit-controls' : 'inline-syntax-edit-controls'}>
           <span className={isDecoration ? 'inline-decoration-label inline-syntax-label' : 'inline-syntax-label'}>{label}</span>
-          <input
-            ref={inputRef}
-            className={isDecoration ? 'inline-decoration-input inline-syntax-input' : 'inline-syntax-input'}
-            value={value}
-            aria-label={`编辑${label}`}
-            onChange={(event) => setValue(event.target.value)}
-            onBlur={commit}
-            onClick={(event) => event.stopPropagation()}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === 'Escape') {
-                event.preventDefault()
-                event.key === 'Escape' ? cancel() : commit()
-              }
-            }}
-          />
-          <button
-            type="button"
-            className={isDecoration ? 'inline-decoration-delete inline-syntax-delete' : 'inline-syntax-delete'}
-            aria-label={`删除${label}`}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={deleteNode}
-          >
-            删除
-          </button>
+           <span className="inline-syntax-input-row">
+             <input
+               ref={inputRef}
+               className={isDecoration ? 'inline-decoration-input inline-syntax-input' : 'inline-syntax-input'}
+               style={{ width: `${Math.max(3, value.length + 1)}ch` }}
+               value={value}
+               aria-label={`编辑${label}`}
+               onChange={(event) => setValue(event.target.value)}
+               onBlur={commit}
+               onClick={(event) => event.stopPropagation()}
+               onKeyDown={(event) => {
+                 if (event.key === 'Enter' || event.key === 'Escape') {
+                   event.preventDefault()
+                   event.key === 'Escape' ? cancel() : commit()
+                 }
+               }}
+             />
+             <button
+               type="button"
+               className={isDecoration ? 'inline-decoration-delete inline-syntax-delete' : 'inline-syntax-delete'}
+               aria-label={`删除${label}`}
+               onMouseDown={(event) => event.preventDefault()}
+               onClick={deleteNode}
+             >
+               删除
+             </button>
+           </span>
         </span>
       ) : (
         <button

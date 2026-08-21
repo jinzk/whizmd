@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { NodeViewWrapper, NodeViewContent } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
+import type { Node } from '@tiptap/pm/model'
 import { useTheme } from '../../hooks/useTheme'
 
 let idCounter = 0
@@ -10,17 +11,30 @@ function nextId(): number {
   return idCounter
 }
 
-// Mermaid is loaded on first use (kept out of the initial bundle) and
-// initialized only when its configuration actually changes.
-let mermaidApi: typeof import('mermaid')['default'] | null = null
-let mermaidInitKey = ''
+type CodeBlockViewType = 'html' | 'mermaid' | 'generic'
+
+function getCodeBlockViewType(node: Node): CodeBlockViewType {
+  if (node.attrs.htmlPreview === true) {
+    return 'html'
+  }
+
+  if (String(node.attrs.language ?? '').toLowerCase() === 'mermaid') {
+    return 'mermaid'
+  }
+
+  return 'generic'
+}
+
+// Mermaid is loaded on first use and initialized only when its configuration changes.
+let mermaidInstance: typeof import('mermaid')['default'] | null = null
+let mermaidConfigKey = ''
 
 async function loadMermaid(): Promise<typeof import('mermaid')['default']> {
-  if (!mermaidApi) {
+  if (!mermaidInstance) {
     const mod = await import('mermaid')
-    mermaidApi = mod.default
+    mermaidInstance = mod.default
   }
-  return mermaidApi
+  return mermaidInstance
 }
 
 function getMermaidConfig() {
@@ -62,8 +76,8 @@ function getMermaidConfig() {
   }
 }
 
-/** Default lowlight code block rendering used for non-mermaid languages. */
-function CodeBlockView({ node, deleteNode }: NodeViewProps): React.JSX.Element {
+/** Default lowlight rendering used for languages without a specialized preview. */
+function GenericCodeBlockView({ node, deleteNode }: NodeViewProps): React.JSX.Element {
   const language = String(node.attrs.language ?? '').trim() || 'plaintext'
   const copyCode = (): void => {
     void navigator.clipboard?.writeText(node.textContent)
@@ -103,50 +117,62 @@ function CodeBlockView({ node, deleteNode }: NodeViewProps): React.JSX.Element {
   )
 }
 
-function HtmlBlockView({ node, selected, editor, getPos, deleteNode }: NodeViewProps): React.JSX.Element {
-  const [editing, setEditing] = useState(selected)
-  const code = node.textContent
+function HtmlPreviewView({ node, editor, getPos, updateAttributes, deleteNode }: NodeViewProps): React.JSX.Element {
+  const [editing, setEditing] = useState(node.attrs.htmlEditing === true)
+  const htmlSource = node.textContent
+  const previewSource = htmlSource.trim()
+    ? htmlSource
+    : '<!doctype html><html><body></body></html>'
+  const sourceRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const updateEditing = (): void => {
-      const position = getPos()
-      if (position === undefined) return
-      const selection = editor.state.selection
-      setEditing(selection.from > position && selection.from < position + node.nodeSize || selected)
+    const onFocusIn = (): void => {
+      if (sourceRef.current && !sourceRef.current.contains(document.activeElement)) {
+        setEditing(false)
+      }
     }
-    updateEditing()
-    editor.on('selectionUpdate', updateEditing)
-    return () => {
-      editor.off('selectionUpdate', updateEditing)
-    }
-  }, [editor, getPos, node.nodeSize, selected])
+    document.addEventListener('focusin', onFocusIn)
+    return () => document.removeEventListener('focusin', onFocusIn)
+  }, [])
 
-  const enterEditMode = (): void => {
+  useEffect(() => {
+    if (!node.attrs.htmlEditing) return
     const position = getPos()
     if (position === undefined) return
     editor.commands.focus()
-    editor.commands.setTextSelection(position + 1)
-  }
+    editor.commands.setTextSelection(position + node.nodeSize - 1)
+    updateAttributes({ htmlEditing: false })
+  }, [editor, getPos, node.attrs.htmlEditing, node.nodeSize, updateAttributes])
 
   return (
     <NodeViewWrapper className="html-block" data-html-editing={editing ? 'true' : 'false'}>
-      <div className="html-preview" onMouseDown={enterEditMode}>
-        <iframe title="HTML 预览" sandbox="" srcDoc={code} />
+      <div className="html-preview">
+          <iframe title="HTML 预览" sandbox="" srcDoc={previewSource} />
         <button
           type="button"
           className="html-preview-edit"
           aria-label="编辑 HTML 源码"
           title="编辑 HTML 源码"
           onMouseDown={(event) => event.preventDefault()}
-          onClick={enterEditMode}
+          onClick={() => setEditing(true)}
         >
           编辑源码
         </button>
       </div>
-      <div className="html-source" aria-hidden={!editing}>
-        <div className="block-source-header html-source-header">
-          <span>HTML</span>
-          <button
+      <div
+        className="html-source"
+        ref={sourceRef}
+        aria-hidden={!editing}
+        onFocus={() => setEditing(true)}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as globalThis.Node | null)) {
+            setEditing(false)
+          }
+        }}
+      >
+           <div className="block-source-header html-source-header">
+             <span>HTML</span>
+            <button
             type="button"
             className="block-module-delete"
             aria-label="删除 HTML 模块"
@@ -168,7 +194,7 @@ function HtmlBlockView({ node, selected, editor, getPos, deleteNode }: NodeViewP
 }
 
 /**
- * Node view for `codeBlock` nodes whose language is `mermaid`. Renders the
+ * Node view for `codeBlock` nodes whose language is `mermaid`. It renders the
  * diagram preview on top and keeps the editable source (ProseMirror content)
  * below, re-rendering the preview with a 200ms debounce.
  */
@@ -178,7 +204,7 @@ function MermaidBlockView({ node, selected, editor, getPos, deleteNode }: NodeVi
   const [rendering, setRendering] = useState(false)
   const [editing, setEditing] = useState(selected)
   const renderId = useRef<number>(nextId())
-  const code = node.textContent
+  const mermaidSource = node.textContent
   const theme = useTheme()
 
   useEffect(() => {
@@ -212,7 +238,7 @@ function MermaidBlockView({ node, selected, editor, getPos, deleteNode }: NodeVi
     let cancelled = false
 
     const timer = setTimeout(async () => {
-      if (!code.trim()) {
+      if (!mermaidSource.trim()) {
         if (!cancelled) {
           setSvg(null)
           setError(null)
@@ -226,15 +252,15 @@ function MermaidBlockView({ node, selected, editor, getPos, deleteNode }: NodeVi
         const mermaid = await loadMermaid()
         const cfg = getMermaidConfig()
         const key = JSON.stringify(cfg)
-        if (key !== mermaidInitKey) {
+        if (key !== mermaidConfigKey) {
           mermaid.initialize({
             startOnLoad: false,
             securityLevel: 'strict',
             ...cfg
           })
-          mermaidInitKey = key
+          mermaidConfigKey = key
         }
-        const { svg: rendered } = await mermaid.render(`mermaid-${renderId.current}`, code)
+        const { svg: rendered } = await mermaid.render(`mermaid-${renderId.current}`, mermaidSource)
         if (!cancelled) {
           setSvg(rendered)
           setError(null)
@@ -253,7 +279,7 @@ function MermaidBlockView({ node, selected, editor, getPos, deleteNode }: NodeVi
       cancelled = true
       clearTimeout(timer)
     }
-  }, [code, theme])
+  }, [mermaidSource, theme])
 
   return (
     <NodeViewWrapper
@@ -298,10 +324,13 @@ function MermaidBlockView({ node, selected, editor, getPos, deleteNode }: NodeVi
   )
 }
 
-export function MermaidNodeView(props: NodeViewProps): React.JSX.Element {
-  const isMermaid = (props.node.attrs.language ?? '') === 'mermaid'
-  if (props.node.attrs.htmlPreview === true) {
-    return <HtmlBlockView {...props} />
+export function CodeBlockNodeView(props: NodeViewProps): React.JSX.Element {
+  switch (getCodeBlockViewType(props.node)) {
+    case 'html':
+      return <HtmlPreviewView {...props} />
+    case 'mermaid':
+      return <MermaidBlockView {...props} />
+    default:
+      return <GenericCodeBlockView {...props} />
   }
-  return isMermaid ? <MermaidBlockView {...props} /> : <CodeBlockView {...props} />
 }

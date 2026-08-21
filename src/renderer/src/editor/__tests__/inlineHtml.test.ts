@@ -84,6 +84,22 @@ describe('inline HTML', () => {
     editor.destroy()
   })
 
+  it('converts inline HTML typed in the middle of a line without leaving source text', () => {
+    const editor = createEditor('before  after')
+    editor.commands.setTextSelection(8)
+    typeInto(editor, '<strong>middle</strong>')
+
+    expect(editor.getJSON().content?.[0]).toMatchObject({
+      content: [
+        { type: 'text', text: 'before ' },
+        { type: 'inlineHtml', attrs: { html: '<strong>middle</strong>' } },
+        { type: 'text', text: ' after' }
+      ]
+    })
+    expect(editor.getMarkdown()).toBe('before <strong>middle</strong> after')
+    editor.destroy()
+  })
+
   it('works with the production editor extensions', () => {
     const editor = new Editor({ extensions: buildEditorExtensions() })
     typeInto(editor, '11 <b>1</b>')
@@ -164,6 +180,42 @@ describe('inline HTML', () => {
     const paragraph = editor.getJSON().content?.[0]
     const content = paragraph && 'content' in paragraph ? paragraph.content ?? [] : []
     expect(content.map((node) => node.type)).toEqual(['text', 'inlineHtml', 'text'])
+    editor.destroy()
+  })
+
+  it('keeps cursor navigation available on both sides of an inline HTML node', () => {
+    const editor = createEditor('before <b>1</b> after')
+    let nodePosition = 0
+    editor.state.doc.descendants((node, position) => {
+      if (node.type.name === 'inlineHtml') nodePosition = position
+    })
+
+    editor.commands.setTextSelection(nodePosition)
+    const right = new KeyboardEvent('keydown', { key: 'ArrowRight' })
+    const handledRight = editor.view.someProp('handleKeyDown', (handler) => handler(editor.view, right))
+    expect(handledRight).toBe(true)
+    expect(editor.state.selection.from).toBe(nodePosition + 1)
+
+    const left = new KeyboardEvent('keydown', { key: 'ArrowLeft' })
+    const handledLeft = editor.view.someProp('handleKeyDown', (handler) => handler(editor.view, left))
+    expect(handledLeft).toBe(true)
+    expect(editor.state.selection.from).toBe(nodePosition)
+    editor.destroy()
+  })
+
+  it('exits an inline HTML NodeSelection with arrow keys', () => {
+    const editor = createEditor('before <b>1</b> after')
+    let nodePosition = 0
+    editor.state.doc.descendants((node, position) => {
+      if (node.type.name === 'inlineHtml') nodePosition = position
+    })
+    editor.commands.setNodeSelection(nodePosition)
+
+    const right = new KeyboardEvent('keydown', { key: 'ArrowRight' })
+    const handled = editor.view.someProp('handleKeyDown', (handler) => handler(editor.view, right))
+
+    expect(handled).toBe(true)
+    expect(editor.state.selection.from).toBe(nodePosition + 1)
     editor.destroy()
   })
 })

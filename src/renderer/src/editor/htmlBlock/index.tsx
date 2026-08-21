@@ -2,16 +2,20 @@ import { Node } from '@tiptap/core'
 import type { JSONContent, MarkdownParseHelpers, MarkdownToken } from '@tiptap/core'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
+import { useEffect, useRef, useState } from 'react'
+import { marked } from 'marked'
 
 const BLOCK_TAGS = ['article', 'aside', 'details', 'div', 'figure', 'form', 'section', 'table']
+const MARKDOWN_OUTPUT_TAGS = ['blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr']
 const ALLOWED_TAGS = new Set([
-  ...BLOCK_TAGS, 'caption', 'col', 'colgroup', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr',
+  ...BLOCK_TAGS, ...MARKDOWN_OUTPUT_TAGS, 'caption', 'col', 'colgroup', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr',
   'a', 'b', 'br', 'code', 'del', 'em', 'i', 'img', 'li', 'mark', 'ol', 'p', 'pre', 's', 'span', 'strong', 'sub', 'sup', 'u', 'ul'
 ])
 const GLOBAL_ATTRIBUTES = new Set(['aria-label', 'class', 'id', 'role', 'style', 'title'])
 const TAG_ATTRIBUTES: Record<string, Set<string>> = {
   a: new Set(['href', 'target', 'rel']),
   col: new Set(['span', 'width']),
+  div: new Set(['align']),
   img: new Set(['src', 'alt', 'width', 'height']),
   td: new Set(['align', 'colspan', 'rowspan', 'valign', 'width']),
   th: new Set(['align', 'colspan', 'rowspan', 'scope', 'valign', 'width']),
@@ -49,6 +53,8 @@ export function sanitizeHtmlBlock(source: string): string {
         else if (name === 'style') {
           const style = sanitizeStyle(attribute.value)
           style ? child.setAttribute('style', style) : child.removeAttribute(attribute.name)
+        } else if (name === 'align' && !/^(?:left|center|right|justify)$/i.test(attribute.value.trim())) {
+          child.removeAttribute(attribute.name)
         } else if ((name === 'href' || name === 'src') && !isSafeUrl(attribute.value)) {
           child.removeAttribute(attribute.name)
         }
@@ -61,17 +67,90 @@ export function sanitizeHtmlBlock(source: string): string {
   return parsed.body.innerHTML.trim()
 }
 
+const MARKDOWN_CONTAINER_TAGS = new Set(['article', 'aside', 'details', 'div', 'figure', 'section'])
+
+/** GitHub-like HTML containers may contain Markdown, but the source remains untouched. */
+export function renderHtmlBlockPreview(source: string): string {
+  const parsed = new DOMParser().parseFromString(`<body>${source}</body>`, 'text/html')
+  for (const element of Array.from(parsed.body.children)) {
+    if (!MARKDOWN_CONTAINER_TAGS.has(element.tagName.toLowerCase())) continue
+    element.innerHTML = marked.parse(element.innerHTML, { gfm: true, breaks: false }) as string
+  }
+  return sanitizeHtmlBlock(parsed.body.innerHTML)
+}
+
 const BLOCK_PATTERN = new RegExp(`^(<(?:${BLOCK_TAGS.join('|')})\\b[\\s\\S]*?<\\/(?:${BLOCK_TAGS.join('|')})>\\s*(?:\\n|$)|<!--[\\s\\S]*?-->\\s*(?:\\n|$))`, 'i')
 
 function tokenToJson(token: MarkdownToken, h: MarkdownParseHelpers): JSONContent {
   return h.createNode('htmlBlock', { html: token.raw ?? '' })
 }
 
-function HtmlBlockView({ node }: NodeViewProps): React.JSX.Element {
+function HtmlBlockView({ node, selected, updateAttributes, deleteNode }: NodeViewProps): React.JSX.Element {
+  const [editing, setEditing] = useState(selected)
+  const source = String(node.attrs.html ?? '')
+  const sourceRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const onFocusIn = (): void => {
+      if (sourceRef.current && !sourceRef.current.contains(document.activeElement)) {
+        setEditing(false)
+      }
+    }
+    document.addEventListener('focusin', onFocusIn)
+    return () => document.removeEventListener('focusin', onFocusIn)
+  }, [])
+
   return (
-    <NodeViewWrapper className="html-block-node" contentEditable={false} data-html-block>
+    <NodeViewWrapper className="html-block-node" contentEditable={false} data-html-block data-html-editing={editing ? 'true' : 'false'}>
       <div className="html-block-label">HTML</div>
-      <div className="html-block-preview" dangerouslySetInnerHTML={{ __html: sanitizeHtmlBlock(String(node.attrs.html ?? '')) }} />
+      <div className="html-block-preview">
+        <div dangerouslySetInnerHTML={{ __html: renderHtmlBlockPreview(source) }} />
+        <button
+          type="button"
+          className="html-block-edit"
+          aria-label="编辑 HTML 源码"
+          title="编辑 HTML 源码"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => setEditing(true)}
+        >
+          编辑源码
+        </button>
+      </div>
+      <div
+        className="html-block-source"
+        ref={sourceRef}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as globalThis.Node | null)) {
+            setEditing(false)
+          }
+        }}
+      >
+        <div className="html-block-source-header">
+          <span>HTML</span>
+          <div>
+            <button
+              type="button"
+              className="block-module-delete"
+              aria-label="删除 HTML 模块"
+              title="删除 HTML 模块"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={deleteNode}
+            >
+              删除
+            </button>
+          </div>
+        </div>
+        <textarea
+          className="html-block-source-editor"
+          value={source}
+          aria-label="HTML 源码"
+          spellCheck={false}
+          readOnly={!editing}
+          onFocus={() => setEditing(true)}
+          onBlur={() => setEditing(false)}
+          onChange={(event) => updateAttributes({ html: event.target.value })}
+        />
+      </div>
     </NodeViewWrapper>
   )
 }

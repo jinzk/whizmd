@@ -1,9 +1,12 @@
 import { Node } from '@tiptap/core'
 import type { JSONContent, MarkdownParseHelpers, MarkdownToken } from '@tiptap/core'
-import { NodeSelection } from '@tiptap/pm/state'
+import { NodeSelection, TextSelection } from '@tiptap/pm/state'
+import { Plugin } from '@tiptap/pm/state'
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import { InlineSyntaxNodeView } from './InlineSyntaxNodeView'
 import { createPairedTriggerExtension, createPairedTriggerInputRule } from '../input/pairedTrigger'
+import { isInCodeBlock } from '../input/context'
 
 export type InlineSyntaxKind = 'italic' | 'bold' | 'boldItalic' | 'strike'
 
@@ -36,6 +39,7 @@ function renderNode(node: JSONContent): string {
 }
 
 export const InlineSyntax = Node.create({
+  priority: 200,
   name: 'inlineSyntax',
   inline: true,
   group: 'inline',
@@ -81,8 +85,69 @@ export const InlineSyntax = Node.create({
       { marker: '*', priority: 70, accepts: (content) => content.trim().length > 0 && !content.includes('\n') && !content.includes('*'), createNode: (content, state) => state?.schema.nodes.inlineSyntax.create({ kind: 'italic', value: content.trim() }) ?? null }
     ], 'inlineSyntaxCompletion')]
   },
+  addProseMirrorPlugins() {
+    return [new Plugin({
+      appendTransaction: (transactions, _oldState, state) => {
+        if (!transactions.some((transaction) => transaction.docChanged)) return null
+
+        const replacements: Array<{ from: number; to: number; node: ProseMirrorNode }> = []
+        state.doc.descendants((textNode, position) => {
+          if (!textNode.isText || !textNode.text || isInCodeBlock(state, position)) return
+          const markNames = new Set(textNode.marks.map((mark) => mark.type.name))
+          const markedKind = markNames.has('bold') && markNames.has('italic')
+            ? 'boldItalic'
+            : markNames.has('bold')
+              ? 'bold'
+              : markNames.has('italic')
+                ? 'italic'
+                : markNames.has('strike')
+                  ? 'strike'
+                  : undefined
+          if (markedKind) {
+            replacements.push({
+              from: position,
+              to: position + textNode.nodeSize,
+              node: state.schema.nodes.inlineSyntax.create({ kind: markedKind, value: textNode.text })
+            })
+            return
+          }
+          for (const match of textNode.text.matchAll(/(\*{3}|\*{2}|\*|~~)([^\n]+?)\1(?!\1)/g)) {
+            const marker = match[1]
+            const value = match[2]
+            const kind = kindFromMarker(marker)
+            if (!kind || !value.trim() || value.includes(marker[0])) continue
+            replacements.push({
+              from: position + (match.index ?? 0),
+              to: position + (match.index ?? 0) + match[0].length,
+              node: state.schema.nodes.inlineSyntax.create({ kind, value: value.trim() })
+            })
+          }
+        })
+
+        if (!replacements.length) return null
+        const transaction = state.tr
+        for (const replacement of replacements.reverse()) {
+          transaction.replaceWith(replacement.from, replacement.to, replacement.node)
+        }
+        return transaction.docChanged ? transaction : null
+      }
+    })]
+  },
   addKeyboardShortcuts() {
     const type = this.type
+    const moveAcross = (direction: 'left' | 'right') => ({ editor }: { editor: import('@tiptap/core').Editor }) => {
+      const { selection } = editor.state
+      if (selection instanceof NodeSelection && selection.node.type === type) {
+        editor.commands.setTextSelection(direction === 'left' ? selection.from : selection.to)
+        return true
+      }
+      if (!selection.empty || !(selection instanceof TextSelection)) return false
+      const position = direction === 'left' ? selection.from - 1 : selection.from
+      const node = editor.state.doc.nodeAt(position)
+      if (!node || node.type !== type) return false
+      editor.commands.setTextSelection(direction === 'left' ? position - node.nodeSize + 1 : position + node.nodeSize)
+      return true
+    }
     const remove = (direction: 'backward' | 'forward') => ({ editor }: { editor: import('@tiptap/core').Editor }) => {
       const { selection } = editor.state
       if (selection instanceof NodeSelection && selection.node.type === type) {
@@ -97,7 +162,7 @@ export const InlineSyntax = Node.create({
       editor.view.dispatch(editor.state.tr.delete(from, from + node.nodeSize))
       return true
     }
-    return { Backspace: remove('backward'), Delete: remove('forward') }
+    return { ArrowLeft: moveAcross('left'), ArrowRight: moveAcross('right'), Backspace: remove('backward'), Delete: remove('forward') }
   },
   addNodeView() {
     return ReactNodeViewRenderer(InlineSyntaxNodeView)
