@@ -5,6 +5,10 @@ import { startCompletion } from '@codemirror/autocomplete'
 import { markdown as markdownLang } from '@codemirror/lang-markdown'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { Annotation, Compartment, EditorState } from '@codemirror/state'
+import { keymap } from '@codemirror/view'
+import { indentUnit, indentOnInput } from '@codemirror/language'
+import { insertNewlineContinueMarkup, deleteMarkupBackward } from '@codemirror/lang-markdown'
+import { indentWithTab, insertTab, indentLess } from '@codemirror/commands'
 import type { EffectiveTheme } from '../hooks/useTheme'
 import { useEditorStore } from '../store/editor'
 
@@ -75,7 +79,16 @@ export function SourceEditor({ content, onUpdate, theme }: Props): React.JSX.Ele
             activateOnTyping: true,
             defaultKeymap: true
           }),
-          markdownLang(),
+           markdownLang({ addKeymap: false }),
+           indentUnit.of('  '),
+           indentOnInput(),
+           keymap.of([
+             { key: 'Enter', run: insertNewlineContinueMarkup },
+             { key: 'Backspace', run: deleteMarkupBackward },
+             indentWithTab,
+             { key: 'Shift-Tab', run: indentLess },
+             { key: 'Tab', run: insertTab }
+           ]),
          themeCompartment.of(theme === 'dark' ? oneDark : []),
          EditorView.updateListener.of((update) => {
            const isExternalSync = update.transactions.some((tr) =>

@@ -1,7 +1,7 @@
 {
-  "name": "markdownapp",
+  "name": "whizmd",
   "version": "0.1.0",
-  "description": "A Typora-like Markdown editor built with Electron + React",
+  "description": "WhizMD, a Typora-like Markdown editor built with Electron + React",
   "main": "./out/main/index.js",
   "author": "",
   "license": "MIT",
@@ -16,8 +16,8 @@
     "test": "vitest run"
   },
   "build": {
-    "appId": "com.markdownapp.app",
-    "productName": "MarkdownApp",
+    "appId": "com.whizmd.app",
+    "productName": "WhizMD",
     "directories": {
       "output": "release"
     },

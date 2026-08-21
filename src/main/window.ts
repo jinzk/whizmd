@@ -10,7 +10,7 @@ export function createMainWindow(): BrowserWindow {
     minWidth: 720,
     minHeight: 480,
     show: false,
-    title: 'Markdown App',
+    title: 'WhizMD',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

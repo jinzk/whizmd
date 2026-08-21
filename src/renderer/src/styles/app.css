@@ -243,6 +243,10 @@
   font: 12px/1.4 'SFMono-Regular', Consolas, monospace;
 }
 
+.wysiwyg-editor .tiptap .code-block-copy {
+  margin-left: auto;
+}
+
 .wysiwyg-editor .tiptap .code-block-lowlight pre {
   margin: 0;
   border-radius: 0;
