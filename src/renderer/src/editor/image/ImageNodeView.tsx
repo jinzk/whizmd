@@ -6,6 +6,7 @@ import { dirnamePath, isAbsolutePath, resolveRelative } from '../../utils/path'
 import { referenceEntry } from '../referenceRegistry'
 import { ReferenceStatus } from '../reference/ReferenceStatus'
 import { useNodeViewField } from '../nodeView/useNodeViewField'
+import { useI18n } from '../../i18n'
 
 function resolveSrc(src: string, docPath: string | null): string {
   src = src.trim()
@@ -29,6 +30,7 @@ function resolveSrc(src: string, docPath: string | null): string {
 type ImageNodeViewProps = NodeViewProps
 
 export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
+  const { t } = useI18n()
   const { node, updateAttributes, deleteNode, selected } = props
   const docPath = useDocumentStore((state) =>
     state.documents.find((document) => document.id === state.activeDocumentId)?.path ?? null
@@ -110,14 +112,14 @@ export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
           />
         ) : (
           <span className={resolvedSrc ? 'image-broken' : 'image-placeholder'}>
-            {resolvedSrc ? `无法加载图片：${src}` : '输入图片地址'}
+             {resolvedSrc ? t('imageLoadFailed', { src }) : t('enterImageAddress')}
           </span>
         )}
         {selected && resolvedSrc ? (
           <span
             className="image-resize-handle"
             onMouseDown={startResize}
-            title="拖动调整大小"
+             title={t('resizeImage')}
           />
         ) : null}
       </div>
@@ -132,31 +134,31 @@ export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
           }}
         >
           <div className="image-field">
-            <span>图片说明</span>
+             <span>{t('imageAlt')}</span>
             <input
               value={alt}
-              aria-label="图片说明"
-              placeholder="输入图片说明"
+               aria-label={t('imageAlt')}
+               placeholder={t('enterImageAlt')}
                 onChange={(event) => altField.change(event.target.value)}
                onKeyDown={altField.onKeyDown}
             />
             <button
               type="button"
               className="block-module-delete image-delete"
-              aria-label="删除图片模块"
-              title="删除图片模块"
+               aria-label={t('deleteImage')}
+               title={t('deleteImage')}
               onMouseDown={(event) => event.preventDefault()}
               onClick={deleteNode}
             >
-              删除
+               {t('delete')}
             </button>
           </div>
           <label className="image-field">
-            <span>src</span>
+             <span>{t('imageSrc')}</span>
             <input
               value={src}
-              aria-label="图片 src"
-              placeholder="输入图片地址"
+               aria-label={t('imageSrc')}
+               placeholder={t('enterImageAddress')}
               onChange={(event) => srcField.change(event.target.value)}
               onKeyDown={srcField.onKeyDown}
             />

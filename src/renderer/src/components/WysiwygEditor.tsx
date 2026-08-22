@@ -177,7 +177,7 @@ export function WysiwygEditor({ content, onUpdate }: Props): React.JSX.Element {
 
   return (
     <div className="wysiwyg-editor">
-      <EditorContent editor={editor} />
+      <EditorContent editor={editor} spellCheck={false} />
       {editor && showLanguageMenu ? (
         <div
           className="code-language-menu"

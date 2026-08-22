@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 import { canTriggerInlineMarkdown, isInCodeBlock } from '../input/context'
 import { useNodeViewField } from '../nodeView/useNodeViewField'
 import { inlineAtomKeyboardShortcuts } from '../nodeView/inlineAtomKeyboard'
+import { useI18n } from '../../i18n'
 
 const ALLOWED_TAGS = new Set(['a', 'b', 'br', 'del', 'em', 'i', 'img', 'mark', 's', 'span', 'strong', 'sub', 'sup', 'u'])
 const GLOBAL_ATTRIBUTES = new Set(['class', 'id', 'style', 'title'])
@@ -65,6 +66,7 @@ function tokenToJson(token: MarkdownToken, h: MarkdownParseHelpers): JSONContent
 }
 
 function InlineHtmlView({ node, updateAttributes, deleteNode }: NodeViewProps): React.JSX.Element {
+  const { t } = useI18n()
   const [editing, setEditing] = useState(false)
   const field = useNodeViewField(String(node.attrs.html ?? ''), (value) => updateAttributes({ html: value }))
   const value = field.value
@@ -84,12 +86,12 @@ function InlineHtmlView({ node, updateAttributes, deleteNode }: NodeViewProps): 
         <span className="inline-html-edit-controls">
            <span className="inline-html-label">HTML</span>
             <span className="inline-html-input-row">
-              <input ref={inputRef} className="inline-html-input" style={{ width: `${Math.max(3, value.length + 1)}ch` }} value={value} aria-label="编辑 HTML 标签" onChange={(event) => field.setValue(event.target.value)} onBlur={commit} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); event.key === 'Escape' ? cancel() : commit() } }} />
-              <button type="button" className="inline-html-delete" aria-label="删除 HTML 标签" onMouseDown={(event) => event.preventDefault()} onClick={deleteNode}>删除</button>
+               <input ref={inputRef} className="inline-html-input" style={{ width: `${Math.max(3, value.length + 1)}ch` }} value={value} aria-label={t('editHtmlTag')} onChange={(event) => field.setValue(event.target.value)} onBlur={commit} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); event.key === 'Escape' ? cancel() : commit() } }} />
+               <button type="button" className="inline-html-delete" aria-label={t('deleteHtmlTag')} onMouseDown={(event) => event.preventDefault()} onClick={deleteNode}>{t('delete')}</button>
             </span>
         </span>
       ) : (
-        <button type="button" className="inline-html-preview" aria-label="编辑 HTML 标签" onMouseDown={(event) => event.preventDefault()} onClick={() => setEditing(true)} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(String(node.attrs.html ?? '')) }} />
+         <button type="button" className="inline-html-preview" aria-label={t('editHtmlTag')} onMouseDown={(event) => event.preventDefault()} onClick={() => setEditing(true)} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(String(node.attrs.html ?? '')) }} />
       )}
     </NodeViewWrapper>
   )

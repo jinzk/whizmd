@@ -98,7 +98,7 @@ function validateConfig(config: AppConfig): AppConfig {
 async function dialogLanguage(): Promise<'zh-CN' | 'en-US'> {
   const config = await getConfig()
   if (config.language !== 'system') return config.language
-  return app.getLocale().toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US'
+  return /^zh(?:-|$)/i.test(app.getLocale()) ? 'zh-CN' : 'en-US'
 }
 
 async function setConfig(patch: Partial<AppConfig>): Promise<AppConfig> {
@@ -143,7 +143,7 @@ export function registerIpcHandlers(): void {
     const config = await setConfig(patch)
     await rebuildApplicationMenu(
       config.language === 'zh-CN' ||
-        (config.language === 'system' && app.getLocale().toLowerCase().startsWith('zh'))
+        (config.language === 'system' && /^zh(?:-|$)/i.test(app.getLocale()))
     )
     return config
   })

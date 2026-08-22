@@ -84,8 +84,9 @@ export function SourceEditor({ content, onUpdate, theme }: Props): React.JSX.Ele
              { key: 'Shift-Tab', run: indentLess },
              { key: 'Tab', run: insertTab }
            ]),
-         themeCompartment.of(theme === 'dark' ? oneDark : []),
-         EditorView.updateListener.of((update) => {
+          themeCompartment.of(theme === 'dark' ? oneDark : []),
+          EditorView.contentAttributes.of({ spellcheck: 'false' }),
+          EditorView.updateListener.of((update) => {
            const isExternalSync = update.transactions.some((tr) =>
              tr.annotation(externalSync)
            )

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { referenceEntry } from '../referenceRegistry'
 import type { ReferenceEntry } from '../referenceRegistry'
 import { createReferenceDefinition, jumpToReferenceDefinition } from './referenceCommands'
+import { useI18n } from '../../i18n'
 
 type ReferenceStatusProps = {
   editor: Editor
@@ -11,6 +12,7 @@ type ReferenceStatusProps = {
 }
 
 export function ReferenceStatus({ editor, id, entry }: ReferenceStatusProps): React.JSX.Element {
+  const { t } = useI18n()
   const [, refresh] = useState(0)
   useEffect(() => {
     const onTransaction = (): void => refresh((value) => value + 1)
@@ -21,18 +23,24 @@ export function ReferenceStatus({ editor, id, entry }: ReferenceStatusProps): Re
   const isDefined = entry?.definitionPosition !== null && entry?.definitionPosition !== undefined
   const isDuplicate = (entry?.duplicateDefinitionPositions.length ?? 0) > 0
   const isIncomplete = isDefined && !entry?.destination.trim()
-  const status = !entry || !isDefined ? '未定义' : isDuplicate ? `重复定义（${entry.duplicateDefinitionPositions.length + 1} 个）` : isIncomplete ? '定义未完成' : '已定义'
+  const status = !entry || !isDefined
+    ? t('undefinedReference')
+    : isDuplicate
+      ? t('duplicateReference', { count: String(entry.duplicateDefinitionPositions.length + 1) })
+      : isIncomplete
+        ? t('incompleteReference')
+        : t('definedReference')
 
   return (
     <span className={`reference-status reference-status-${!isDefined ? 'missing' : isDuplicate ? 'duplicate' : 'defined'}`}>
-      引用 {id}：{status}
+      {t('reference')} {id}: {status}
       {!isDefined ? (
         <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => createReferenceDefinition(editor, id)}>
-          创建定义
+           {t('createDefinition')}
         </button>
       ) : (
         <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => jumpToReferenceDefinition(editor, id)}>
-          跳转定义
+           {t('jumpToDefinition')}
         </button>
       )}
     </span>

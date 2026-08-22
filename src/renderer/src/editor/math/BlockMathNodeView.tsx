@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { NodeViewWrapper } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
 import katex from 'katex'
+import { useI18n } from '../../i18n'
 
 export function BlockMathNodeView({
   node,
@@ -10,6 +11,7 @@ export function BlockMathNodeView({
   selected
 }: NodeViewProps): React.JSX.Element {
   const latex = String(node.attrs.latex ?? '')
+  const { t } = useI18n()
   const [editing, setEditing] = useState(selected || latex.length === 0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -44,7 +46,7 @@ export function BlockMathNodeView({
         {preview ? (
           <div dangerouslySetInnerHTML={{ __html: preview }} />
         ) : (
-          <span className="block-math-placeholder">输入 LaTeX 公式</span>
+           <span className="block-math-placeholder">{t('enterLatex')}</span>
         )}
       </div>
       <div className="block-math-source">
@@ -53,20 +55,20 @@ export function BlockMathNodeView({
           <button
             type="button"
             className="block-module-delete"
-            aria-label="删除公式模块"
-            title="删除公式模块"
+             aria-label={t('deleteFormula')}
+             title={t('deleteFormula')}
             onMouseDown={(event) => event.preventDefault()}
             onClick={deleteNode}
           >
-            删除
+             {t('delete')}
           </button>
         </div>
         <textarea
           ref={textareaRef}
           value={latex}
           rows={Math.max(2, Math.min(8, latex.split('\n').length + 1))}
-          aria-label="LaTeX 公式源码"
-          placeholder="输入 LaTeX 公式"
+           aria-label={t('formulaSource')}
+           placeholder={t('enterLatex')}
           onFocus={() => setEditing(true)}
           onChange={(event) => updateAttributes({ latex: event.target.value })}
           onBlur={() => setEditing(false)}

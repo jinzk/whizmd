@@ -2,9 +2,11 @@ import { NodeViewContent, NodeViewWrapper } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
 import { useState } from 'react'
 import { useNodeViewField } from './nodeView/useNodeViewField'
+import { useI18n } from '../i18n'
 
 export function DefinitionListNodeView({ node, updateAttributes, deleteNode }: NodeViewProps): React.JSX.Element {
   const [editing, setEditing] = useState(false)
+  const { t } = useI18n()
   const { value: term, setValue: setTerm } = useNodeViewField(String(node.attrs.term ?? ''), (next) => updateAttributes({ term: next }))
 
   const commit = (): void => {
@@ -21,7 +23,7 @@ export function DefinitionListNodeView({ node, updateAttributes, deleteNode }: N
           <input
             autoFocus
             value={term}
-            aria-label="编辑术语"
+             aria-label={t('editTerm')}
             onChange={(event) => setTerm(event.target.value)}
             onBlur={commit}
             onKeyDown={(event) => {
@@ -31,7 +33,7 @@ export function DefinitionListNodeView({ node, updateAttributes, deleteNode }: N
           />
         ) : (
           <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => setEditing(true)}>
-            {node.attrs.term || '未命名术语'}
+             {node.attrs.term || t('unnamedTerm')}
           </button>
         )}
       </dt>

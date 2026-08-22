@@ -3,6 +3,7 @@ import { NodeViewWrapper, NodeViewContent } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
 import type { Node } from '@tiptap/pm/model'
 import { useTheme } from '../../hooks/useTheme'
+import { useI18n } from '../../i18n'
 import { GenericCodeBlockView } from './GenericCodeBlockView'
 import { getMermaidConfig, initializeMermaid, loadMermaid, nextMermaidId } from './mermaid'
 
@@ -22,6 +23,7 @@ function MermaidBlockView({ node, selected, editor, getPos, deleteNode }: NodeVi
   const renderId = useRef<number>(nextMermaidId(mermaidCounter))
   const mermaidSource = node.textContent
   const theme = useTheme()
+  const { t } = useI18n()
 
   useEffect(() => {
     const updateEditing = (): void => {
@@ -59,10 +61,10 @@ function MermaidBlockView({ node, selected, editor, getPos, deleteNode }: NodeVi
 
   return <NodeViewWrapper className="mermaid-block" data-mermaid-rendered={svg ? '1' : '0'} data-mermaid-editing={editing ? 'true' : 'false'}>
     <div className="mermaid-preview" onMouseDown={enterEditMode}>
-      {svg ? <div className="mermaid-svg" dangerouslySetInnerHTML={{ __html: svg }} /> : error ? <div className="mermaid-error" title={error}>图表渲染失败，请检查语法</div> : rendering ? <div className="mermaid-loading">渲染中…</div> : <div className="mermaid-empty">Mermaid 图表</div>}
+       {svg ? <div className="mermaid-svg" dangerouslySetInnerHTML={{ __html: svg }} /> : error ? <div className="mermaid-error" title={error}>{t('mermaidRenderFailed')}</div> : rendering ? <div className="mermaid-loading">{t('mermaidRendering')}</div> : <div className="mermaid-empty">{t('mermaidDiagram')}</div>}
     </div>
     <div className="mermaid-source" aria-hidden={!editing}>
-      <div className="block-source-header mermaid-source-header"><span>Mermaid</span><button type="button" className="block-module-delete" aria-label="删除 Mermaid 模块" title="删除 Mermaid 模块" onMouseDown={(event) => event.preventDefault()} onClick={deleteNode}>删除</button></div>
+       <div className="block-source-header mermaid-source-header"><span>Mermaid</span><button type="button" className="block-module-delete" aria-label={t('deleteMermaid')} title={t('deleteMermaid')} onMouseDown={(event) => event.preventDefault()} onClick={deleteNode}>{t('delete')}</button></div>
       <pre><code><NodeViewContent /></code></pre>
     </div>
   </NodeViewWrapper>

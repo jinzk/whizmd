@@ -5,8 +5,10 @@ import { useState } from 'react'
 import { deleteReferenceDefinition, renameReferenceDefinition } from './reference/referenceCommands'
 import { referenceEntry } from './referenceRegistry'
 import { useNodeViewField } from './nodeView/useNodeViewField'
+import { useI18n } from '../i18n'
 
 export function ReferenceDefinitionNodeView({ node, editor, getPos, selected, updateAttributes }: NodeViewProps): React.JSX.Element {
+  const { t } = useI18n()
   const destinationRef = useRef<HTMLInputElement>(null)
   const [id, setId] = useState(String(node.attrs.id ?? ''))
   const destinationField = useNodeViewField(String(node.attrs.destination ?? ''), (value) => updateAttributes({ destination: value }))
@@ -27,19 +29,19 @@ export function ReferenceDefinitionNodeView({ node, editor, getPos, selected, up
   const commitId = (): void => {
     const nextId = id.trim()
     if (!nextId) {
-      setIdError('ID 不能为空')
+       setIdError(t('referenceIdEmpty'))
       return
     }
     const position = getPos()
     if (typeof position !== 'number' || !renameReferenceDefinition(editor, position, nextId)) {
       setId(String(node.attrs.id ?? ''))
-      setIdError('引用 ID 已存在或无效')
+       setIdError(t('referenceIdInvalid'))
     }
   }
 
   return (
     <NodeViewWrapper as="div" className="reference-definition-node">
-      <strong className="reference-definition-label">引用定义</strong>
+       <strong className="reference-definition-label">{t('referenceDefinition')}</strong>
        <label>
          ID
          <input value={id} onChange={(event) => { setId(event.target.value); setIdError('') }} onBlur={commitId} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); commitId() } if (event.key === 'Escape') { event.preventDefault(); setId(String(node.attrs.id ?? '')); setIdError('') } }} />
@@ -47,22 +49,22 @@ export function ReferenceDefinitionNodeView({ node, editor, getPos, selected, up
       </label>
       <label>
         地址
-         <input ref={destinationRef} aria-label="引用地址" value={destinationField.value} onChange={(event) => destinationField.change(event.target.value)} onKeyDown={destinationField.onKeyDown} />
+         <input ref={destinationRef} aria-label={t('referenceAddress')} value={destinationField.value} onChange={(event) => destinationField.change(event.target.value)} onKeyDown={destinationField.onKeyDown} />
       </label>
-      <label>
-        标题
+         <label>
+         {t('referenceTitle')}
          <input value={titleField.value} onChange={(event) => titleField.change(event.target.value)} onKeyDown={titleField.onKeyDown} />
       </label>
        {confirmDelete ? (
          <span>
-           <span>该定义仍被引用，删除后引用将变为未定义。</span>
-           <button type="button" onClick={() => { const position = getPos(); if (typeof position === 'number') deleteReferenceDefinition(editor, position, true) }}>仍然删除</button>
-           <button type="button" onClick={() => setConfirmDelete(false)}>取消</button>
+            <span>{t('referenceStillUsed')}</span>
+            <button type="button" onClick={() => { const position = getPos(); if (typeof position === 'number') deleteReferenceDefinition(editor, position, true) }}>{t('forceDelete')}</button>
+            <button type="button" onClick={() => setConfirmDelete(false)}>{t('cancel')}</button>
          </span>
        ) : <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => {
          if (entry?.usages.length) setConfirmDelete(true)
          else { const position = getPos(); if (typeof position === 'number') deleteReferenceDefinition(editor, position, true) }
-       }}>删除</button>}
+        }}>{t('deleteReferenceDefinition')}</button>}
     </NodeViewWrapper>
   )
 }

@@ -369,6 +369,47 @@
 
 .wysiwyg-editor .tiptap .code-block-copy {
   margin-left: auto;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--md-text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  opacity: 0.72;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease,
+    border-color 120ms ease,
+    opacity 120ms ease;
+}
+
+.wysiwyg-editor .tiptap .code-block-copy:hover,
+.wysiwyg-editor .tiptap .code-block-copy:focus-visible {
+  border-color: var(--md-border);
+  background: var(--md-bg);
+  color: var(--md-text);
+  opacity: 1;
+}
+
+.wysiwyg-editor .tiptap .code-block-header > .block-module-delete {
+  padding: 3px 6px;
+  border-color: transparent;
+  color: var(--md-text-muted);
+  opacity: 0.62;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease,
+    border-color 120ms ease,
+    opacity 120ms ease;
+}
+
+.wysiwyg-editor .tiptap .code-block-header > .block-module-delete:hover,
+.wysiwyg-editor .tiptap .code-block-header > .block-module-delete:focus-visible {
+  border-color: var(--md-error);
+  background: transparent;
+  color: var(--md-error);
+  opacity: 1;
 }
 
 .wysiwyg-editor .tiptap .code-block-lowlight pre {

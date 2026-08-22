@@ -2,8 +2,10 @@ import { NodeViewWrapper } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
 import { useEffect, useRef, useState } from 'react'
 import { renderHtmlBlockPreview } from './preview'
+import { useI18n } from '../../i18n'
 
 export function HtmlBlockNodeView({ node, updateAttributes, deleteNode }: NodeViewProps): React.JSX.Element {
+  const { t } = useI18n()
   const [editing, setEditing] = useState(node.attrs.htmlEditing === true)
   const source = String(node.attrs.html ?? '')
   const sourceRef = useRef<HTMLDivElement>(null)
@@ -43,15 +45,15 @@ export function HtmlBlockNodeView({ node, updateAttributes, deleteNode }: NodeVi
       <div className="html-block-label">HTML</div>
       <div className="html-block-preview">
         <div dangerouslySetInnerHTML={{ __html: renderHtmlBlockPreview(source) }} />
-        {!editing ? <button type="button" className="html-block-edit" aria-label="编辑 HTML 源码" title="编辑 HTML 源码" onMouseDown={(event) => event.preventDefault()} onClick={() => updateAttributes({ htmlEditing: true })}>编辑源码</button> : null}
+        {!editing ? <button type="button" className="html-block-edit" aria-label={t('editHtmlSource')} title={t('editHtmlSource')} onMouseDown={(event) => event.preventDefault()} onClick={() => updateAttributes({ htmlEditing: true })}>{t('editHtmlSource')}</button> : null}
       </div>
       <div className="html-block-source" ref={sourceRef} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as globalThis.Node | null)) { setEditing(false); updateAttributes({ htmlEditing: false }) } }}>
-        <div className="html-block-source-header"><span>HTML</span><button type="button" className="block-module-delete" aria-label="删除 HTML 模块" title="删除 HTML 模块" onMouseDown={(event) => event.preventDefault()} onClick={deleteNode}>删除</button></div>
+        <div className="html-block-source-header"><span>HTML</span><button type="button" className="block-module-delete" aria-label={t('deleteHtmlModule')} title={t('deleteHtmlModule')} onMouseDown={(event) => event.preventDefault()} onClick={deleteNode}>{t('delete')}</button></div>
         <textarea
           ref={textareaRef}
           className="html-block-source-editor"
           value={source}
-          aria-label="HTML 源码"
+          aria-label={t('htmlSource')}
           spellCheck={false}
           readOnly={!editing}
           onFocus={() => setEditing(true)}

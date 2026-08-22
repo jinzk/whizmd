@@ -2,8 +2,10 @@ import katex from 'katex'
 import { NodeViewWrapper } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
 import { useInlineAtomEditor } from '../nodeView/useInlineAtomEditor'
+import { useI18n } from '../../i18n'
 
 export function InlineMathNodeView({ node, updateAttributes, deleteNode }: NodeViewProps): React.JSX.Element {
+  const { t } = useI18n()
   const { editing, setEditing, value, setValue, inputRef, commit, cancel } = useInlineAtomEditor({
     value: String(node.attrs.latex ?? ''),
     onCommit: (latex) => updateAttributes({ latex }),
@@ -24,14 +26,14 @@ export function InlineMathNodeView({ node, updateAttributes, deleteNode }: NodeV
     <NodeViewWrapper as="span" className="inline-math-node" data-editing={editing ? 'true' : 'false'}>
       {editing ? (
         <span className="inline-math-edit-controls">
-          <span className="inline-math-label">公式</span>
+           <span className="inline-math-label">{t('inlineMath')}</span>
            <span className="inline-math-input-row">
              <input
                ref={inputRef}
                className="inline-math-input"
                style={{ width: `${Math.max(3, value.length + 1)}ch` }}
                value={value}
-               aria-label="编辑行内公式"
+                aria-label={t('editInlineMath')}
                onChange={(event) => setValue(event.target.value)}
                onBlur={commit}
                onClick={(event) => event.stopPropagation()}
@@ -45,11 +47,11 @@ export function InlineMathNodeView({ node, updateAttributes, deleteNode }: NodeV
              <button
                type="button"
                className="inline-math-delete"
-               aria-label="删除行内公式"
+                aria-label={t('deleteInlineMath')}
                onMouseDown={(event) => event.preventDefault()}
                onClick={deleteNode}
              >
-               删除
+                {t('delete')}
              </button>
            </span>
         </span>
@@ -57,7 +59,7 @@ export function InlineMathNodeView({ node, updateAttributes, deleteNode }: NodeV
         <button
           type="button"
           className="inline-math-preview"
-          aria-label={`编辑公式 ${String(node.attrs.latex ?? '')}`}
+           aria-label={`${t('editInlineMath')} ${String(node.attrs.latex ?? '')}`}
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => setEditing(true)}
           dangerouslySetInnerHTML={{ __html: preview || String(node.attrs.latex ?? '') }}

@@ -1,19 +1,22 @@
 import { NodeViewWrapper } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
 import { useInlineAtomEditor } from '../nodeView/useInlineAtomEditor'
+import { useI18n } from '../../i18n'
 
-const LABELS: Record<string, string> = {
-  italic: '斜体',
-  bold: '粗体',
-  boldItalic: '粗斜体',
-  strike: '删除线',
-  highlight: '高亮',
-  superscript: '上标',
-  subscript: '下标'
-}
+const LABEL_KEYS = {
+  italic: 'inlineItalic',
+  bold: 'inlineBold',
+  boldItalic: 'inlineBoldItalic',
+  strike: 'inlineStrike',
+  highlight: 'inlineHighlight',
+  superscript: 'inlineSuperscript',
+  subscript: 'inlineSubscript'
+} as const
 
 export function InlineSyntaxNodeView({ node, updateAttributes, deleteNode }: NodeViewProps): React.JSX.Element {
-  const label = LABELS[String(node.attrs.kind)] ?? '行内格式'
+  const { t } = useI18n()
+  const labelKey = LABEL_KEYS[String(node.attrs.kind) as keyof typeof LABEL_KEYS]
+  const label = labelKey ? t(labelKey) : t('inlineFormat')
   const isDecoration = node.type.name === 'inlineDecoration'
   const nodeClass = isDecoration ? 'inline-decoration-node inline-syntax-node' : 'inline-syntax-node'
   const previewClass = isDecoration ? 'inline-decoration-preview inline-syntax-preview' : 'inline-syntax-preview'
@@ -37,7 +40,7 @@ export function InlineSyntaxNodeView({ node, updateAttributes, deleteNode }: Nod
                className={isDecoration ? 'inline-decoration-input inline-syntax-input' : 'inline-syntax-input'}
                style={{ width: `${Math.max(3, value.length + 1)}ch` }}
                value={value}
-               aria-label={`编辑${label}`}
+                aria-label={t('editInlineFormat', { label })}
                onChange={(event) => setValue(event.target.value)}
                onBlur={commit}
                onClick={(event) => event.stopPropagation()}
@@ -51,11 +54,11 @@ export function InlineSyntaxNodeView({ node, updateAttributes, deleteNode }: Nod
              <button
                type="button"
                className={isDecoration ? 'inline-decoration-delete inline-syntax-delete' : 'inline-syntax-delete'}
-               aria-label={`删除${label}`}
+                aria-label={t('deleteInlineFormat', { label })}
                onMouseDown={(event) => event.preventDefault()}
                onClick={deleteNode}
              >
-               删除
+                {t('delete')}
              </button>
            </span>
         </span>
@@ -63,7 +66,7 @@ export function InlineSyntaxNodeView({ node, updateAttributes, deleteNode }: Nod
         <button
           type="button"
           className={previewClass}
-          aria-label={`编辑${label}`}
+           aria-label={t('editInlineFormat', { label })}
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => setEditing(true)}
         >

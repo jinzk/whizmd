@@ -1,5 +1,6 @@
 import { NodeViewContent, NodeViewWrapper } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
+import { useI18n } from '../i18n'
 
 function findFirstReference(editor: NodeViewProps['editor'], id: string): number | null {
   let result: number | null = null
@@ -10,6 +11,7 @@ function findFirstReference(editor: NodeViewProps['editor'], id: string): number
 }
 
 export function FootnoteDefinitionNodeView({ node, editor, deleteNode }: NodeViewProps): React.JSX.Element {
+  const { t } = useI18n()
   const jumpToReference = (): void => {
     const position = findFirstReference(editor, String(node.attrs.id))
     if (position !== null) editor.commands.setNodeSelection(position)
@@ -19,9 +21,9 @@ export function FootnoteDefinitionNodeView({ node, editor, deleteNode }: NodeVie
   return (
     <NodeViewWrapper as="aside" className="footnote-definition-node">
       <header className="footnote-definition-header">
-        <strong>脚注 {node.attrs.id}</strong>
-        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={jumpToReference}>返回引用</button>
-        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={deleteNode}>删除</button>
+        <strong>{t('footnote')} {node.attrs.id}</strong>
+        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={jumpToReference}>{t('footnoteBack')}</button>
+        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={deleteNode}>{t('delete')}</button>
       </header>
       <NodeViewContent className="footnote-definition-content" />
     </NodeViewWrapper>

@@ -27,7 +27,7 @@ async function getInitialMenu(): Promise<void> {
   const config = await getConfig()
   rebuildApplicationMenu(
     config.language === 'zh-CN' ||
-      (config.language === 'system' && app.getLocale().toLowerCase().startsWith('zh'))
+      (config.language === 'system' && /^zh(?:-|$)/i.test(app.getLocale()))
   )
 }
 

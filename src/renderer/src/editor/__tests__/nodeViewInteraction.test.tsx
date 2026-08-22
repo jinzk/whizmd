@@ -86,7 +86,7 @@ describe('NodeView DOM interactions', () => {
     await event(() => fireEvent.blur(syntaxInput))
     expect(json(editor).content?.[0].content?.[0].attrs?.value).toBe('strong')
 
-    await event(() => fireEvent.click(screen.getByRole('button', { name: '编辑公式 x' })))
+    await event(() => fireEvent.click(screen.getByRole('button', { name: '编辑行内公式 x' })))
     const mathInput = screen.getByRole('textbox', { name: '编辑行内公式' })
     await event(() => fireEvent.change(mathInput, { target: { value: 'x^2' } }))
     await event(() => fireEvent.keyDown(mathInput, { key: 'Enter' }))
@@ -245,7 +245,7 @@ describe('NodeView DOM interactions', () => {
       { type: 'referenceDefinition', attrs: { id: 'docs', destination: 'url', title: null } }
     ], [...baseExtensions, LinkNode, ReferenceDefinition])
 
-    await event(() => fireEvent.click(screen.getAllByRole('button', { name: '删除' })[0]))
+    await event(() => fireEvent.click(screen.getByRole('button', { name: '删除引用定义' })))
     expect(screen.getByText('该定义仍被引用，删除后引用将变为未定义。')).toBeInTheDocument()
     await event(() => fireEvent.click(screen.getByRole('button', { name: '仍然删除' })))
     expect(json(editor).content?.some((node: JSONContent) => node.type === 'referenceDefinition')).toBe(false)
