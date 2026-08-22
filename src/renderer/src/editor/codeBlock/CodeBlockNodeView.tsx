@@ -7,7 +7,7 @@ import { useI18n } from '../../i18n'
 import { GenericCodeBlockView } from './GenericCodeBlockView'
 import { getMermaidConfig, initializeMermaid, loadMermaid, nextMermaidId } from './mermaid'
 
-let mermaidCounter = { value: 0 }
+const mermaidCounter = { value: 0 }
 
 type CodeBlockViewType = 'mermaid' | 'generic'
 export function getCodeBlockViewType(node: Node): CodeBlockViewType {

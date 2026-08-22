@@ -12,15 +12,16 @@ export function InlineMathNodeView({ node, updateAttributes, deleteNode }: NodeV
     onDelete: deleteNode
   })
 
-  let preview = ''
-  try {
-    preview = katex.renderToString(String(node.attrs.latex ?? ''), {
-      throwOnError: false,
-      displayMode: false
-    })
-  } catch {
-    preview = ''
-  }
+  const preview = (() => {
+    try {
+      return katex.renderToString(String(node.attrs.latex ?? ''), {
+        throwOnError: false,
+        displayMode: false
+      })
+    } catch {
+      return ''
+    }
+  })()
 
   return (
     <NodeViewWrapper as="span" className="inline-math-node" data-editing={editing ? 'true' : 'false'}>
@@ -40,7 +41,8 @@ export function InlineMathNodeView({ node, updateAttributes, deleteNode }: NodeV
                onKeyDown={(event) => {
                  if (event.key === 'Enter' || event.key === 'Escape') {
                    event.preventDefault()
-                   event.key === 'Escape' ? cancel() : commit()
+                    if (event.key === 'Escape') cancel()
+                    else commit()
                  }
                }}
              />

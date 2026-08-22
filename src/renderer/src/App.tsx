@@ -5,32 +5,13 @@ import { SourceEditor } from './components/SourceEditor'
 import { FileSidebar } from './components/FileSidebar'
 import { buildExportHtml } from './export/buildHtml'
 import { useTheme } from './hooks/useTheme'
-import type { AppConfig, LanguageMode, MenuCommand, ThemeMode } from '@shared/types'
+import type { AppConfig, MenuCommand } from '@shared/types'
 import { useI18n } from './i18n'
 import { useDocumentActions } from './hooks/useDocumentActions'
-
-function ToolbarIcon({ type }: { type: 'new' | 'save' }): React.JSX.Element {
-  return type === 'new' ? (
-    <svg className="toolbar-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-      <path d="M4 2.75h7l4.25 4.25v10.25H4z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M11 2.75V7h4.25M10 10v5M7.5 12.5h5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  ) : (
-    <svg className="toolbar-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-      <path d="M3.25 3.25h11l2.5 2.5v11H3.25z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M6 3.5v5h7v-5M6.25 16.75v-4.5h7.5v4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function SettingsIcon(): React.JSX.Element {
-  return (
-    <svg className="toolbar-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-      <path d="M8.3 2.8h3.4l.45 1.85c.38.16.74.37 1.06.62l1.8-.63 1.7 2.95-1.35 1.34c.04.22.06.45.06.68s-.02.46-.06.68l1.35 1.34-1.7 2.95-1.8-.63c-.32.25-.68.46-1.06.62l-.45 1.85H8.3l-.45-1.85a5.8 5.8 0 0 1-1.06-.62l-1.8.63-1.7-2.95 1.35-1.34A4 4 0 0 1 4.58 9.6c0-.23.02-.46.06-.68L3.29 7.59l1.7-2.95 1.8.63c.32-.25.68-.46 1.06-.62z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-      <circle cx="10" cy="9.6" r="2.1" fill="none" stroke="currentColor" strokeWidth="1.2" />
-    </svg>
-  )
-}
+import { AppToolbar } from './components/AppToolbar'
+import { DocumentStatusBar } from './components/DocumentStatusBar'
+import { SettingsDialog } from './components/SettingsDialog'
+import { Dialog } from './components/Dialog'
 
 export function App(): React.JSX.Element {
   const mode = useEditorStore((s) => s.mode)
@@ -69,8 +50,6 @@ export function App(): React.JSX.Element {
     const title = fileName?.replace(/\.(md|markdown|txt)$/i, '') || t('untitledDocument')
     void window.markdownApp.window.setTitle(title)
   }, [docPath, t])
-
-  const enterMode = useCallback((target: 'wysiwyg' | 'source'): void => setMode(target), [setMode])
 
   const openSettings = useCallback((): void => {
     if (!config) return
@@ -172,43 +151,16 @@ export function App(): React.JSX.Element {
 
   return (
     <div className="app">
-      <header className="toolbar">
-        <div className="toolbar-left">
-          <button type="button" onClick={newFile}>
-            <ToolbarIcon type="new" />
-            {t('newFile')}
-          </button>
-          <button type="button" onClick={() => void save()} disabled={saveStatus === 'saving'}>
-            <ToolbarIcon type="save" />
-            {saveStatus === 'saving' ? t('saving') : t('save')}
-          </button>
-          <span className="toolbar-sep" />
-          <div className="mode-switch" role="group" aria-label={t('editMode')}>
-            <button
-              type="button"
-              className={mode === 'wysiwyg' ? 'active' : ''}
-              onClick={() => enterMode('wysiwyg')}
-            >
-              {t('edit')}
-            </button>
-            <button
-              type="button"
-              className={mode === 'source' ? 'active' : ''}
-              onClick={() => enterMode('source')}
-            >
-              {t('source')}
-            </button>
-          </div>
-        </div>
-        <div className="toolbar-right">
-          <div className="doc-title" title={docPath ?? t('untitledDocument')}>
-            {hasUnsavedChanges ? '• ' : ''}{exportTitle(docPath)}
-          </div>
-          <button type="button" className="toolbar-settings-button" aria-label={t('settings')} title={t('settings')} onClick={openSettings}>
-            <SettingsIcon />
-          </button>
-        </div>
-      </header>
+      <AppToolbar
+        mode={mode}
+        docTitle={exportTitle(docPath)}
+        dirty={hasUnsavedChanges}
+        saveStatus={saveStatus}
+        onNew={newFile}
+        onSave={() => void save()}
+        onModeChange={setMode}
+        onSettings={openSettings}
+      />
 
       <div className="main-layout">
         <FileSidebar
@@ -247,104 +199,26 @@ export function App(): React.JSX.Element {
           ) : null}
         </main>
       </div>
-      <footer className="status-bar" aria-label={t('documentStatus')}>
-        <span className="status-mode">{mode === 'wysiwyg' ? t('edit') : t('source')}</span>
-        <span>{t('lineCount', { count: String(lineCount) })}</span>
-        <span>{t('characterCount', { count: String(characterCount) })}</span>
-        <span className="status-save" data-status={activeDocument?.dirty ? 'dirty' : saveStatus}>
-          {activeDocument?.dirty
-            ? t('unsavedChanges')
-            : saveStatus === 'saving'
-              ? t('saving')
-              : saveStatus === 'error'
-                ? t('saveError')
-                : t('saved')}
-        </span>
-      </footer>
-      {settingsOpen && settingsDraft ? (
-        <div className="app-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeSettings() }}>
-          <div className="app-dialog settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-            <h2 id="settings-title">{t('settings')}</h2>
-            <div className="settings-form">
-              <label>
-                <span>{t('theme')}</span>
-                <select value={settingsDraft.themeMode} onChange={(event) => setSettingsDraft({ ...settingsDraft, themeMode: event.target.value as ThemeMode })}>
-                  <option value="system">{t('systemTheme')}</option>
-                  <option value="light">{t('lightTheme')}</option>
-                  <option value="dark">{t('darkTheme')}</option>
-                </select>
-              </label>
-              <label>
-                <span>{t('language')}</span>
-                <select value={settingsDraft.language} onChange={(event) => setSettingsDraft({ ...settingsDraft, language: event.target.value as LanguageMode })}>
-                  <option value="system">{t('system')}</option>
-                  <option value="zh-CN">{t('chinese')}</option>
-                  <option value="en-US">{t('english')}</option>
-                </select>
-              </label>
-              <label>
-                <span>{t('assetsDirectory')}</span>
-                <input value={settingsDraft.assetsDir} onChange={(event) => setSettingsDraft({ ...settingsDraft, assetsDir: event.target.value })} placeholder="assets" />
-                <small>{t('assetsDirectoryHint')}</small>
-              </label>
-              <label>
-                <span>{t('imagePathStrategy')}</span>
-                <select value={settingsDraft.imagePathStrategy} onChange={(event) => setSettingsDraft({ ...settingsDraft, imagePathStrategy: event.target.value as AppConfig['imagePathStrategy'] })}>
-                  <option value="relative">{t('relativePath')}</option>
-                  <option value="absolute">{t('absolutePath')}</option>
-                </select>
-              </label>
-            </div>
-            <div className="app-dialog-actions">
-              <button type="button" onClick={closeSettings}>{t('cancel')}</button>
-              <button type="button" className="app-dialog-primary" onClick={() => void applySettings()}>{t('apply')}</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <DocumentStatusBar mode={mode} dirty={Boolean(activeDocument?.dirty)} saveStatus={saveStatus} lineCount={lineCount} characterCount={characterCount} />
+      {settingsOpen && settingsDraft ? <SettingsDialog config={settingsDraft} onChange={setSettingsDraft} onApply={applySettings} onClose={closeSettings} /> : null}
       {closeDialogOpen ? (
-        <div className="app-dialog-backdrop" role="presentation">
-          <div
-            className="app-dialog"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="close-dialog-title"
-          >
-            <h2 id="close-dialog-title">{t('closeWindow')}</h2>
-            <p>{t(closeHasUnsavedChanges ? 'closeUnsavedMessage' : 'closeMessage')}</p>
-            <div className="app-dialog-actions">
-              <button type="button" onClick={() => setCloseDialogOpen(false)}>
-                {t('cancel')}
-              </button>
-              <button
-                type="button"
-                className="app-dialog-danger"
-                onClick={() => void window.markdownApp.window.confirmClose()}
-              >
-                {t('continueClose')}
-              </button>
-            </div>
+        <Dialog title={t('closeWindow')} titleId="close-dialog-title" role="alertdialog" onBackdropClick={() => setCloseDialogOpen(false)}>
+          <p>{t(closeHasUnsavedChanges ? 'closeUnsavedMessage' : 'closeMessage')}</p>
+          <div className="app-dialog-actions">
+            <button type="button" onClick={() => setCloseDialogOpen(false)}>{t('cancel')}</button>
+            <button type="button" className="app-dialog-danger" onClick={() => void window.markdownApp.window.confirmClose()}>{t('continueClose')}</button>
           </div>
-        </div>
+        </Dialog>
       ) : null}
       {documentCloseDialogOpen ? (
-        <div className="app-dialog-backdrop" role="presentation">
-          <div className="app-dialog" role="alertdialog" aria-modal="true">
-            <h2>{t('closeFile')}</h2>
-            <p>{t('closeDocumentMessage')}</p>
-            <div className="app-dialog-actions">
-              <button type="button" onClick={() => setDocumentCloseDialogOpen(false)}>
-                {t('cancel')}
-              </button>
-              <button type="button" onClick={() => void saveAndCloseDocument()}>
-                {t('saveAndClose')}
-              </button>
-              <button type="button" className="app-dialog-danger" onClick={removeCurrentDocument}>
-                {t('discardChanges')}
-              </button>
-            </div>
+        <Dialog title={t('closeFile')} role="alertdialog" onBackdropClick={() => setDocumentCloseDialogOpen(false)}>
+          <p>{t('closeDocumentMessage')}</p>
+          <div className="app-dialog-actions">
+            <button type="button" onClick={() => setDocumentCloseDialogOpen(false)}>{t('cancel')}</button>
+            <button type="button" onClick={() => void saveAndCloseDocument()}>{t('saveAndClose')}</button>
+            <button type="button" className="app-dialog-danger" onClick={removeCurrentDocument}>{t('discardChanges')}</button>
           </div>
-        </div>
+        </Dialog>
       ) : null}
     </div>
   )

@@ -58,7 +58,7 @@ export const InlineSyntax = Node.create({
     name: 'inlineSyntax',
     level: 'inline',
     start: (src: string): number => {
-      const match = src.match(/(?<![\*~])(\*{1,3}|~~)(?=\S)/)
+       const match = src.match(/(?<![*~])(\*{1,3}|~~)(?=\S)/)
       return match?.index ?? -1
     },
     tokenize(src: string): MarkdownToken | undefined {

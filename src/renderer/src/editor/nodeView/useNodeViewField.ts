@@ -4,6 +4,8 @@ export function useNodeViewField(source: string, onCommit: (value: string) => vo
   const [value, setValue] = useState(source)
 
   useEffect(() => {
+    // NodeView attributes are the source of truth after external transactions.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setValue(source)
   }, [source])
 

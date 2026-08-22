@@ -2,3 +2,6 @@
 @import './source-editor.css';
 @import './media.css';
 @import './tables.css';
+
+/* Application chrome is kept in editor.css for now; these imports define the
+   stable split points for future toolbar, dialog, sidebar, and status styles. */

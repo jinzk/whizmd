@@ -23,6 +23,8 @@ export function ReferenceDefinitionNodeView({ node, editor, getPos, selected, up
   }, [selected, destinationField.value])
 
   useEffect(() => {
+    // Follow reference IDs changed by another editor transaction.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setId(String(node.attrs.id ?? ''))
   }, [node.attrs.id])
 

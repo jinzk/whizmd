@@ -13,7 +13,11 @@ export function HtmlBlockNodeView({ node, updateAttributes, deleteNode }: NodeVi
   const selectionRef = useRef<{ start: number; end: number } | null>(null)
   const lastSelectionRef = useRef<{ start: number; end: number } | null>(null)
 
-  useEffect(() => setEditing(node.attrs.htmlEditing === true), [node.attrs.htmlEditing])
+  useEffect(() => {
+    // Follow attributes changed by another editor transaction.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEditing(node.attrs.htmlEditing === true)
+  }, [node.attrs.htmlEditing])
 
   useEffect(() => {
     if (!editing) return

@@ -47,7 +47,8 @@ export function InlineSyntaxNodeView({ node, updateAttributes, deleteNode }: Nod
                onKeyDown={(event) => {
                  if (event.key === 'Enter' || event.key === 'Escape') {
                    event.preventDefault()
-                   event.key === 'Escape' ? cancel() : commit()
+                    if (event.key === 'Escape') cancel()
+                    else commit()
                  }
                }}
              />

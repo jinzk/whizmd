@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { useDocumentStore } from '../store/documents'
-import type { FileNode } from '@shared/types'
+import { useFileOperations } from './useFileOperations'
 
 type Translator = (key: 'saveFailed' | 'openFailed', values?: Record<string, string>) => string
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
@@ -14,8 +14,6 @@ export function useDocumentActions(t: Translator, requestDocumentClose: () => vo
   const replaceDocuments = useDocumentStore((state) => state.replaceDocuments)
   const activeDocument = documents.find((file) => file.id === activeDocumentId) ?? documents[0]
   const hasUnsavedChanges = documents.some((file) => file.dirty)
-  const [rootDir, setRootDir] = useState<string | null>(null)
-  const [fileTree, setFileTree] = useState<FileNode | null>(null)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const saveInFlightRef = useRef<Promise<void> | null>(null)
 
@@ -23,6 +21,22 @@ export function useDocumentActions(t: Translator, requestDocumentClose: () => vo
     updateDocument(activeDocumentId, { content, dirty: true })
     setSaveStatus('idle')
   }, [activeDocumentId, updateDocument])
+
+  const openFile = useCallback(async (path: string): Promise<void> => {
+    const state = useDocumentStore.getState()
+    const existing = state.documents.find((file) => file.path === path)
+    if (existing?.id === state.activeDocumentId) return
+    try {
+      const next = existing ?? { id: `file-${Date.now()}`, path, content: await window.markdownApp.file.read(path), dirty: false }
+      if (!existing) addDocument(next)
+      setActiveDocument(next.id)
+    } catch (error) {
+      console.error('Failed to open document', error)
+      window.alert(t('openFailed', { error: error instanceof Error ? error.message : String(error) }))
+    }
+  }, [addDocument, setActiveDocument, t])
+
+  const { rootDir, fileTree, setFileTree, openFolder, openFileDialog } = useFileOperations(openFile)
 
   const save = useCallback(async (): Promise<void> => {
     if (saveInFlightRef.current) return saveInFlightRef.current
@@ -53,33 +67,7 @@ export function useDocumentActions(t: Translator, requestDocumentClose: () => vo
     } finally {
       if (saveInFlightRef.current === operation) saveInFlightRef.current = null
     }
-  }, [rootDir, t, updateDocument])
-
-  const openFile = useCallback(async (path: string): Promise<void> => {
-    const state = useDocumentStore.getState()
-    const existing = state.documents.find((file) => file.path === path)
-    if (existing?.id === state.activeDocumentId) return
-    try {
-      const next = existing ?? { id: `file-${Date.now()}`, path, content: await window.markdownApp.file.read(path), dirty: false }
-      if (!existing) addDocument(next)
-      setActiveDocument(next.id)
-    } catch (error) {
-      console.error('Failed to open document', error)
-      window.alert(t('openFailed', { error: error instanceof Error ? error.message : String(error) }))
-    }
-  }, [addDocument, setActiveDocument, t])
-
-  const openFolder = useCallback(async (): Promise<void> => {
-    const directory = await window.markdownApp.file.openDirectoryDialog()
-    if (!directory) return
-    setRootDir(directory)
-    setFileTree(await window.markdownApp.dir.scan(directory))
-  }, [])
-
-  const openFileDialog = useCallback(async (): Promise<void> => {
-    const path = await window.markdownApp.file.openDialog()
-    if (path) await openFile(path)
-  }, [openFile])
+  }, [rootDir, setFileTree, t, updateDocument])
 
   const newFile = useCallback((): void => {
     const id = `untitled-${Date.now()}`
@@ -102,7 +90,7 @@ export function useDocumentActions(t: Translator, requestDocumentClose: () => vo
       const id = `untitled-${Date.now()}`
       replaceDocuments([{ id, path: null, content: '', dirty: false }], id)
     }
-  }, [newFile, onDocumentClosed, replaceDocuments])
+  }, [onDocumentClosed, replaceDocuments])
 
   const closeDocument = useCallback((id: string): void => {
     const state = useDocumentStore.getState()

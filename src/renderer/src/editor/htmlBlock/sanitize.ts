@@ -45,7 +45,8 @@ export function sanitizeHtmlBlock(source: string): string {
         if (!allowed || name.startsWith('on')) child.removeAttribute(attribute.name)
         else if (name === 'style') {
           const style = sanitizeStyle(attribute.value)
-          style ? child.setAttribute('style', style) : child.removeAttribute(attribute.name)
+           if (style) child.setAttribute('style', style)
+           else child.removeAttribute(attribute.name)
         } else if (name === 'align' && !/^(?:left|center|right|justify)$/i.test(attribute.value.trim())) child.removeAttribute(attribute.name)
         else if ((name === 'href' || name === 'src') && !isSafeUrl(attribute.value)) child.removeAttribute(attribute.name)
       }

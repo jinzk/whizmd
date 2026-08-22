@@ -12,6 +12,8 @@ export function useInlineAtomEditor({ value: sourceValue, onCommit, onDelete }: 
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
+    // Reset the draft when the atom changes outside the active edit session.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!editing) setValue(sourceValue)
   }, [editing, sourceValue])
 

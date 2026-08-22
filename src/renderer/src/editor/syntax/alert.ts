@@ -1,12 +1,12 @@
 import { InputRule, Node } from '@tiptap/core'
-import type { JSONContent, MarkdownParseHelpers, MarkdownToken } from '@tiptap/core'
+import type { JSONContent, MarkdownToken } from '@tiptap/core'
 import { TextSelection } from '@tiptap/pm/state'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import { MarkdownAlertNodeView } from '../MarkdownAlertNodeView'
 
 const ALERT = /^>[ \t]*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*\n((?:>[ \t]?.*(?:\n|$))*)/i
 
-function alertToken(token: MarkdownToken, _h: MarkdownParseHelpers): JSONContent {
+function alertToken(token: MarkdownToken): JSONContent {
   return {
     type: 'markdownAlert',
     attrs: { kind: String(token.kind ?? 'NOTE').toUpperCase() },

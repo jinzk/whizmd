@@ -46,7 +46,8 @@ export function sanitizeInlineHtml(source: string): string {
         if (!allowed || name.startsWith('on')) child.removeAttribute(attribute.name)
         else if (name === 'style') {
           const style = sanitizeStyle(attribute.value)
-          style ? child.setAttribute('style', style) : child.removeAttribute('style')
+           if (style) child.setAttribute('style', style)
+           else child.removeAttribute('style')
         } else if ((name === 'href' || name === 'src') && !isSafeUrl(attribute.value)) child.removeAttribute(attribute.name)
       }
       if (tag === 'a') child.setAttribute('rel', 'noopener noreferrer nofollow')
@@ -86,7 +87,22 @@ function InlineHtmlView({ node, updateAttributes, deleteNode }: NodeViewProps): 
         <span className="inline-html-edit-controls">
            <span className="inline-html-label">HTML</span>
             <span className="inline-html-input-row">
-               <input ref={inputRef} className="inline-html-input" style={{ width: `${Math.max(3, value.length + 1)}ch` }} value={value} aria-label={t('editHtmlTag')} onChange={(event) => field.setValue(event.target.value)} onBlur={commit} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); event.key === 'Escape' ? cancel() : commit() } }} />
+               <input
+                 ref={inputRef}
+                 className="inline-html-input"
+                 style={{ width: `${Math.max(3, value.length + 1)}ch` }}
+                 value={value}
+                 aria-label={t('editHtmlTag')}
+                 onChange={(event) => field.setValue(event.target.value)}
+                 onBlur={commit}
+                 onClick={(event) => event.stopPropagation()}
+                 onKeyDown={(event) => {
+                   if (event.key !== 'Enter' && event.key !== 'Escape') return
+                   event.preventDefault()
+                   if (event.key === 'Escape') cancel()
+                   else commit()
+                 }}
+               />
                <button type="button" className="inline-html-delete" aria-label={t('deleteHtmlTag')} onMouseDown={(event) => event.preventDefault()} onClick={deleteNode}>{t('delete')}</button>
             </span>
         </span>
