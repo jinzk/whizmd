@@ -12,6 +12,20 @@ import { useDocumentActions } from './hooks/useDocumentActions'
 
 const THEME_CYCLE: ThemeMode[] = ['system', 'light', 'dark']
 
+function ToolbarIcon({ type }: { type: 'new' | 'save' }): React.JSX.Element {
+  return type === 'new' ? (
+    <svg className="toolbar-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+      <path d="M4 2.75h7l4.25 4.25v10.25H4z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M11 2.75V7h4.25M10 10v5M7.5 12.5h5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ) : (
+    <svg className="toolbar-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+      <path d="M3.25 3.25h11l2.5 2.5v11H3.25z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M6 3.5v5h7v-5M6.25 16.75v-4.5h7.5v4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export function App(): React.JSX.Element {
   const mode = useEditorStore((s) => s.mode)
   const setMode = useEditorStore((s) => s.setMode)
@@ -154,9 +168,11 @@ export function App(): React.JSX.Element {
       <header className="toolbar">
         <div className="toolbar-left">
           <button type="button" onClick={newFile}>
+            <ToolbarIcon type="new" />
             {t('newFile')}
           </button>
           <button type="button" onClick={() => void save()}>
+            <ToolbarIcon type="save" />
             {t('save')}
           </button>
           <span className="toolbar-sep" />

@@ -1,4 +1,4 @@
-import { BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, nativeImage, shell } from 'electron'
 import { join } from 'node:path'
 import { IpcChannels } from '../shared/ipc'
 
@@ -8,6 +8,11 @@ let closeRequestPending = false
 let closeRequestReady = false
 
 export function createMainWindow(): BrowserWindow {
+  const iconPath = join(app.getAppPath(), process.platform === 'darwin' ? 'build/icon.svg' : 'build/icon.png')
+  if (process.platform === 'darwin' && app.dock) {
+    app.dock.setIcon(nativeImage.createFromPath(iconPath))
+  }
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -15,6 +20,7 @@ export function createMainWindow(): BrowserWindow {
     minHeight: 480,
     show: false,
     title: 'WhizMD',
+    icon: iconPath,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

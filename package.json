@@ -27,9 +27,12 @@
     "files": [
       "out/**/*",
       "HELP.md",
-      "HELP_CN.md"
+      "HELP_CN.md",
+      "build/icon.svg",
+      "build/icon.png"
     ],
     "win": {
+      "icon": "build/icon.svg",
       "target": [
         "nsis",
         "zip"
@@ -39,6 +42,14 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true
+    },
+    "mac": {
+      "icon": "build/icon.svg",
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "icon": "build/icon.svg",
+      "category": "Office"
     }
   },
   "dependencies": {
