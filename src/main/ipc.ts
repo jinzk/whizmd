@@ -6,7 +6,7 @@ import type { AppConfig, FileNode, ExportPayload, ImportImageResult, DirectorySc
 import { addRecentFile, addRecentFolder, clearRecent, getRecent, removeRecentFile, removeRecentFolder } from './recentFiles'
 import { allowMediaDirectory, allowMediaFile } from './protocol'
 import { rebuildApplicationMenu } from './menu'
-import { confirmMainWindowClose, markCloseRequestReady } from './window'
+import { setMainWindowDirty } from './window'
 
 const SKIPPED_DIRS = new Set([
   'node_modules',
@@ -204,15 +204,10 @@ export function registerIpcHandlers(): void {
     }
     BrowserWindow.fromWebContents(event.sender)?.setTitle(`${title} - WhizMD`)
   })
-  ipcMain.handle(IpcChannels.windowCloseConfirm, (event) => {
-    if (BrowserWindow.fromWebContents(event.sender)) {
-      confirmMainWindowClose()
-    }
+  ipcMain.handle(IpcChannels.windowSetDirty, (event, dirty: unknown) => {
+    if (typeof dirty !== 'boolean') throw new Error('Invalid dirty state')
+    setMainWindowDirty(BrowserWindow.fromWebContents(event.sender), dirty)
   })
-  ipcMain.handle(IpcChannels.windowCloseReady, () => {
-    markCloseRequestReady()
-  })
-
   ipcMain.handle(IpcChannels.dialogOpenFile, async () => {
     const chinese = (await dialogLanguage()) === 'zh-CN'
     const result = await dialog.showOpenDialog({

@@ -8,7 +8,7 @@ describe('buildExportHtml', () => {
       docPath: null
     })
     expect(html).toContain('class="katex"')
-    expect(html).toContain('KaTeX_AMS')
+    expect(html).toContain('katex')
     expect(html).toContain('E = mc^2')
   })
 

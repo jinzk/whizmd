@@ -21,13 +21,9 @@ function createApi(overrides: Partial<MarkdownAppApi['file']> = {}): MarkdownApp
     help: { open: vi.fn(async () => null) },
     window: {
       setTitle: vi.fn(),
+      setDirty: vi.fn(),
       onMenuCommand: vi.fn(() => vi.fn()),
       onRecentMenuTarget: vi.fn(() => vi.fn()),
-      onCloseRequest: vi.fn(() => vi.fn()),
-      readyForCloseRequests: vi.fn(),
-      confirmClose: vi.fn(),
-      openSettings: vi.fn(),
-      closeSettings: vi.fn()
     },
     file: {
       openDialog: vi.fn(async () => null),

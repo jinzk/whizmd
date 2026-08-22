@@ -1,8 +1,8 @@
-import katex from 'katex'
 import { NodeViewWrapper } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
 import { useInlineAtomEditor } from '../nodeView/useInlineAtomEditor'
 import { useI18n } from '../../i18n'
+import { katex } from './katex'
 
 export function InlineMathNodeView({ node, updateAttributes, deleteNode }: NodeViewProps): React.JSX.Element {
   const { t } = useI18n()
@@ -12,16 +12,7 @@ export function InlineMathNodeView({ node, updateAttributes, deleteNode }: NodeV
     onDelete: deleteNode
   })
 
-  const preview = (() => {
-    try {
-      return katex.renderToString(String(node.attrs.latex ?? ''), {
-        throwOnError: false,
-        displayMode: false
-      })
-    } catch {
-      return ''
-    }
-  })()
+  const preview = katex.renderToString(String(node.attrs.latex ?? ''), { throwOnError: false, displayMode: false })
 
   return (
     <NodeViewWrapper as="span" className="inline-math-node" data-editing={editing ? 'true' : 'false'}>

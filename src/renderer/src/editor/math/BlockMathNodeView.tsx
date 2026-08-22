@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { NodeViewWrapper } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
-import katex from 'katex'
 import { useI18n } from '../../i18n'
+import { katex } from './katex'
 
 export function BlockMathNodeView({
   node,
@@ -21,13 +21,7 @@ export function BlockMathNodeView({
     }
   }, [editing, latex.length])
 
-  const preview = (() => {
-    try {
-      return katex.renderToString(latex, { displayMode: true, throwOnError: false })
-    } catch {
-      return ''
-    }
-  })()
+  const preview = katex.renderToString(latex, { displayMode: true, throwOnError: false })
 
   return (
     <NodeViewWrapper

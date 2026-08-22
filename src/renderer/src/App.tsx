@@ -23,8 +23,6 @@ export function App(): React.JSX.Element {
   const theme = useTheme()
   const { t } = useI18n()
 
-  const [closeDialogOpen, setCloseDialogOpen] = useState(false)
-  const [closeHasUnsavedChanges, setCloseHasUnsavedChanges] = useState(false)
   const [documentCloseDialogOpen, setDocumentCloseDialogOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsDraft, setSettingsDraft] = useState<AppConfig | null>(null)
@@ -35,7 +33,7 @@ export function App(): React.JSX.Element {
   const requestDocumentClose = useCallback(() => setDocumentCloseDialogOpen(true), [])
   const showMarkdownOnly = config?.showMarkdownOnly ?? true
   const notify = useCallback((message: string, type: AppNotice['type'] = 'error', action?: AppNotice['action']): void => setNotices((current) => [...current.filter((notice) => notice.message !== message), { id: `${Date.now()}-${Math.random()}`, type, message, action }].slice(-4)), [])
-  const { documents: openedFiles, activeDocumentId, activeDocument, hasUnsavedChanges, rootDir, fileTree, treeStatus, handleUpdate, save, saveAllDocuments, saveStatus, openFile, openFolder, openFolderPath, openFileDialog, refresh, newFile, selectDocument, closeCurrentDocument, closeDocument, removeCurrentDocument, saveAndCloseDocument } = useDocumentActions(t, requestDocumentClose, () => setDocumentCloseDialogOpen(false), notify, showMarkdownOnly)
+  const { documents: openedFiles, activeDocumentId, activeDocument, hasUnsavedChanges, rootDir, fileTree, treeStatus, handleUpdate, save, saveStatus, openFile, openFolder, openFolderPath, openFileDialog, refresh, newFile, selectDocument, closeCurrentDocument, closeDocument, removeCurrentDocument, saveAndCloseDocument } = useDocumentActions(t, requestDocumentClose, () => setDocumentCloseDialogOpen(false), notify, showMarkdownOnly)
   const docPath = activeDocument?.path ?? null
   const documentContent = activeDocument?.content ?? ''
   const lineCount = documentContent ? documentContent.split(/\r?\n/).length : 1
@@ -71,12 +69,7 @@ export function App(): React.JSX.Element {
   }, [docPath])
 
   useEffect(() => {
-    const removeListener = window.markdownApp.window.onCloseRequest(() => {
-      setCloseHasUnsavedChanges(hasUnsavedChanges)
-      setCloseDialogOpen(true)
-    })
-    void window.markdownApp.window.readyForCloseRequests()
-    return removeListener
+    void window.markdownApp.window.setDirty(hasUnsavedChanges)
   }, [hasUnsavedChanges])
 
   useEffect(() => {
@@ -281,18 +274,6 @@ export function App(): React.JSX.Element {
       <DocumentStatusBar mode={mode} dirty={Boolean(activeDocument?.dirty)} autoSave={Boolean(config?.autoSave)} saveStatus={saveStatus} lineCount={lineCount} characterCount={characterCount} />
       <Toast notices={notices} onClose={(id) => setNotices((current) => current.filter((notice) => notice.id !== id))} />
       {settingsOpen && settingsDraft && config ? <SettingsDialog config={settingsDraft} originalConfig={config} onChange={setSettingsDraft} onApply={applySettings} onClose={closeSettings} /> : null}
-      {closeDialogOpen ? (
-        <Dialog title={t('closeWindow')} titleId="close-dialog-title" role="alertdialog" onBackdropClick={() => setCloseDialogOpen(false)}>
-          <p>{t(closeHasUnsavedChanges ? 'closeUnsavedMessage' : 'closeMessage')}</p>
-          <div className="app-dialog-actions">
-            <button type="button" onClick={() => setCloseDialogOpen(false)}>{t('cancel')}</button>
-            {closeHasUnsavedChanges ? <>
-              <button type="button" onClick={() => void saveAllDocuments().then((saved) => { if (saved) window.markdownApp.window.confirmClose() })}>{saveStatus === 'saving' ? t('saving') : t('saveAllAndClose')}</button>
-              <button type="button" className="app-dialog-danger" onClick={() => void window.markdownApp.window.confirmClose()}>{t('discardAndClose')}</button>
-            </> : <button type="button" className="app-dialog-danger" onClick={() => void window.markdownApp.window.confirmClose()}>{t('continueClose')}</button>}
-          </div>
-        </Dialog>
-      ) : null}
       {documentCloseDialogOpen ? (
         <Dialog title={t('closeFile')} role="alertdialog" onBackdropClick={() => setDocumentCloseDialogOpen(false)}>
           <p>{t('closeDocumentMessage')}</p>

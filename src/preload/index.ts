@@ -20,6 +20,7 @@ const api: MarkdownAppApi = {
   },
   window: {
     setTitle: (title) => ipcRenderer.invoke(IpcChannels.windowSetTitle, title),
+    setDirty: (dirty) => ipcRenderer.invoke(IpcChannels.windowSetDirty, dirty),
     onMenuCommand: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, command: MenuCommand): void =>
         listener(command)
@@ -31,13 +32,6 @@ const api: MarkdownAppApi = {
       ipcRenderer.on(IpcChannels.menuOpenRecent, handler)
       return () => ipcRenderer.removeListener(IpcChannels.menuOpenRecent, handler)
     },
-    onCloseRequest: (listener) => {
-      const handler = (): void => listener()
-      ipcRenderer.on(IpcChannels.windowCloseRequest, handler)
-      return () => ipcRenderer.removeListener(IpcChannels.windowCloseRequest, handler)
-    },
-    readyForCloseRequests: () => ipcRenderer.invoke(IpcChannels.windowCloseReady),
-    confirmClose: () => ipcRenderer.invoke(IpcChannels.windowCloseConfirm)
   },
   file: {
     openDialog: () => ipcRenderer.invoke(IpcChannels.dialogOpenFile),

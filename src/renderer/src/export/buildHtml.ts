@@ -1,7 +1,6 @@
 import { marked } from 'marked'
-import katex from 'katex'
-import katexCss from 'katex/dist/katex.min.css?raw'
 import hljsCss from 'highlight.js/styles/github.min.css?raw'
+import { katex } from '../editor/math/katex'
 import { isAbsolutePath, dirnamePath, resolveRelative } from '../utils/path'
 import { sanitizeInlineHtml } from '../editor/inlineHtml'
 
@@ -36,7 +35,7 @@ function escapeHtml(input: string): string {
     .replace(/'/g, '&#39;')
 }
 
-function renderInlineMath(latex: string): string {
+async function renderInlineMath(latex: string): Promise<string> {
   try {
     return katex.renderToString(latex, { throwOnError: false, displayMode: false })
   } catch {
@@ -44,7 +43,7 @@ function renderInlineMath(latex: string): string {
   }
 }
 
-function renderBlockMath(latex: string): string {
+async function renderBlockMath(latex: string): Promise<string> {
   try {
     const html = katex.renderToString(latex, { throwOnError: false, displayMode: true })
     return `<div class="math-block">${html}</div>`
@@ -171,8 +170,10 @@ export async function buildExportHtml(content: string, options: BuildOptions): P
     }
   )
 
+  const blockMath: string[] = []
   md = md.replace(BLOCK_MATH_RE, (_m, _delimiter, fenced, single) => {
-    return `\n${renderBlockMath((fenced ?? single ?? '').trim())}\n`
+    const index = blockMath.push((fenced ?? single ?? '').trim()) - 1
+    return `\n@@@MATHBLOCK${index}@@@\n`
   })
 
   md = md.replace(IMAGE_MARKDOWN_RE, (_m, alt, src, title, width) => {
@@ -190,10 +191,13 @@ export async function buildExportHtml(content: string, options: BuildOptions): P
   renderer.html = (html) => escapeHtml(typeof html === 'string' ? html : html.raw)
   let body = marked.parse(md, { gfm: true, breaks: false, renderer }) as string
 
-  inlineMath.forEach((latex, i) => {
+  for (const [i, latex] of inlineMath.entries()) {
     const token = `@@MATHINLINE${i}@@`
-    body = body.split(token).join(renderInlineMath(latex))
-  })
+    body = body.split(token).join(await renderInlineMath(latex))
+  }
+  for (const [i, latex] of blockMath.entries()) {
+    body = body.split(`@@@MATHBLOCK${i}@@@`).join(await renderBlockMath(latex))
+  }
 
   inlineCodes.forEach((text, i) => {
     const token = `@@INLINECODE${i}@@`
@@ -218,14 +222,15 @@ export async function buildExportHtml(content: string, options: BuildOptions): P
     body = body.split(image.token).join(renderImageTag(image, resolved))
   }
 
+  const katexCss = inlineMath.length || blockMath.length ? (await import('katex/dist/katex.min.css?raw')).default : ''
   return `<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${escapeHtml(options.title)}</title>
-    <style>${katexCss}</style>
-    <style>${hljsCss}</style>
+     ${katexCss ? `<style>${katexCss}</style>` : ''}
+     <style>${hljsCss}</style>
     <style>
       body {
         max-width: 860px;

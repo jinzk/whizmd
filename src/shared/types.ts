@@ -84,11 +84,9 @@ export interface MarkdownAppApi {
   }
   window: {
     setTitle: (title: string) => Promise<void>
+    setDirty: (dirty: boolean) => Promise<void>
     onMenuCommand: (listener: (command: MenuCommand) => void) => () => void
     onRecentMenuTarget: (listener: (target: RecentMenuTarget) => void) => () => void
-    onCloseRequest: (listener: () => void) => () => void
-    readyForCloseRequests: () => Promise<void>
-    confirmClose: () => Promise<void>
   }
   file: {
     openDialog: () => Promise<string | null>

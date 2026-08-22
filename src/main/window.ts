@@ -1,11 +1,10 @@
-import { app, BrowserWindow, nativeImage, shell } from 'electron'
+import { app, BrowserWindow, dialog, nativeImage, shell } from 'electron'
 import { join } from 'node:path'
-import { IpcChannels } from '../shared/ipc'
 
 let mainWindow: BrowserWindow | null = null
+let mainWindowDirty = false
 let closeConfirmed = false
-let closeRequestPending = false
-let closeRequestReady = false
+let closePromptOpen = false
 
 export function createMainWindow(): BrowserWindow {
   const iconPath = join(app.getAppPath(), process.platform === 'darwin' ? 'build/icon.svg' : 'build/icon.png')
@@ -35,15 +34,26 @@ export function createMainWindow(): BrowserWindow {
   })
 
   mainWindow.on('close', (event) => {
-    if (closeConfirmed) {
-      return
-    }
+    if (closeConfirmed || !mainWindowDirty || closePromptOpen) return
     event.preventDefault()
-    closeRequestPending = true
-    if (closeRequestReady) {
-      closeRequestPending = false
-      mainWindow?.webContents.send(IpcChannels.windowCloseRequest)
-    }
+    const window = mainWindow
+    if (!window) return
+    closePromptOpen = true
+    void dialog.showMessageBox(window, {
+      type: 'warning',
+      title: 'WhizMD',
+      message: 'There are unsaved changes.',
+      detail: 'Do you want to close the window without saving?',
+      buttons: ['Cancel', 'Close without saving'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true
+    }).then(({ response }) => {
+      closePromptOpen = false
+      if (response !== 1 || mainWindow !== window) return
+      closeConfirmed = true
+      window.close()
+    }).catch(() => { closePromptOpen = false })
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -59,9 +69,9 @@ export function createMainWindow(): BrowserWindow {
 
   mainWindow.on('closed', () => {
     mainWindow = null
+    mainWindowDirty = false
     closeConfirmed = false
-    closeRequestPending = false
-    closeRequestReady = false
+    closePromptOpen = false
   })
 
   return mainWindow
@@ -71,16 +81,6 @@ export function getMainWindow(): BrowserWindow | null {
   return mainWindow
 }
 
-export function confirmMainWindowClose(): void {
-  if (!mainWindow) return
-  closeConfirmed = true
-  mainWindow.close()
-}
-
-export function markCloseRequestReady(): void {
-  closeRequestReady = true
-  if (closeRequestPending && mainWindow) {
-    closeRequestPending = false
-    mainWindow.webContents.send(IpcChannels.windowCloseRequest)
-  }
+export function setMainWindowDirty(window: BrowserWindow | null, dirty: boolean): void {
+  if (window === mainWindow) mainWindowDirty = dirty
 }
