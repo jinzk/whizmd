@@ -10,6 +10,7 @@ interface Props {
   openedFiles: Array<{ id: string; path: string | null; dirty: boolean }>
   onOpenFile: (path: string) => void
   onSelectDocument: (id: string) => void
+  onCloseDocument: (id: string) => void
 }
 
 function fileName(path: string): string {
@@ -76,7 +77,8 @@ export function FileSidebar({
   activeDocumentId,
   openedFiles,
   onOpenFile,
-  onSelectDocument
+  onSelectDocument,
+  onCloseDocument
 }: Props): React.JSX.Element {
   const { t } = useI18n()
   return (
@@ -88,21 +90,31 @@ export function FileSidebar({
             const active = file.id === activeDocumentId
             const label = file.path ? fileName(file.path) : t('untitledDocument')
             return (
-              <button
-                key={file.id}
-                type="button"
-                className={`file-item ${active ? 'active' : ''}`}
-                onClick={() => {
-                  if (file.path) {
-                    onOpenFile(file.path)
-                  } else {
-                    onSelectDocument(file.id)
-                  }
-                }}
-              >
-                {file.dirty ? '*' : ''}
-                {label}
-              </button>
+              <div key={file.id} className={`file-row ${active ? 'active' : ''}`}>
+                <button
+                  type="button"
+                  className="file-item"
+                  onClick={() => {
+                    if (file.path) onOpenFile(file.path)
+                    else onSelectDocument(file.id)
+                  }}
+                  title={label}
+                >
+                  {file.dirty ? <span className="file-dirty" aria-label={t('unsavedChanges')}>●</span> : null}
+                  {label}
+                </button>
+                <button
+                  type="button"
+                  className="file-close"
+                  aria-label={`${t('closeFile')}: ${label}`}
+                  title={t('closeFile')}
+                  onClick={() => {
+                    onCloseDocument(file.id)
+                  }}
+                >
+                  ×
+                </button>
+              </div>
             )
           })
         ) : (
@@ -112,7 +124,7 @@ export function FileSidebar({
       {rootDir ? (
         <section className="sidebar-section sidebar-folder-tree">
           <div className="sidebar-section-title">{t('folder')}</div>
-          <div className="sidebar-header">{rootDir}</div>
+          <div className="sidebar-header" title={rootDir}>{rootDir}</div>
           {root ? (
             <TreeNode node={root} depth={0} activePath={activePath} onOpenFile={onOpenFile} />
           ) : null}
