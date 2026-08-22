@@ -1,0 +1,13 @@
+/* Mermaid preview and source panel. */
+.wysiwyg-editor .tiptap .mermaid-block { border: 1px solid var(--md-border); border-radius: 6px; margin: .75em 0; overflow: hidden; }
+.wysiwyg-editor .tiptap .mermaid-preview { display: flex; justify-content: center; overflow-x: auto; min-height: 40px; padding: 16px; background: var(--md-bg); }
+.wysiwyg-editor .tiptap .mermaid-svg svg { max-width: 100%; height: auto; }
+.wysiwyg-editor .tiptap .mermaid-error { color: var(--md-error); font-size: 13px; align-self: center; }
+.wysiwyg-editor .tiptap .mermaid-loading, .wysiwyg-editor .tiptap .mermaid-empty { color: var(--md-text-muted); font-size: 13px; align-self: center; }
+.wysiwyg-editor .tiptap .mermaid-source { margin: 0; border-top: 1px solid var(--md-border); background: var(--md-bg-soft); max-height: 240px; overflow-y: auto; }
+.wysiwyg-editor .tiptap .mermaid-source-header { color: var(--md-text-muted); font: 12px/1.4 'SFMono-Regular', Consolas, monospace; }
+.wysiwyg-editor .tiptap .mermaid-source > pre { margin: 0; border-radius: 0; }
+.wysiwyg-editor .tiptap .mermaid-source code { background: none; padding: 0; }
+.wysiwyg-editor .tiptap .mermaid-block[data-mermaid-editing='false'] .mermaid-source { display: none; }
+/* Mermaid editor source details. */
+.wysiwyg-editor .tiptap .mermaid-source-header { color: var(--md-text-muted); font: 12px/1.4 'SFMono-Regular', Consolas, monospace; }

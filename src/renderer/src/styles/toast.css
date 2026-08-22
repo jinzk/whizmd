@@ -1,0 +1,17 @@
+.app-toast-stack { position: fixed; right: 18px; bottom: 42px; z-index: 120; display: grid; gap: 8px; max-width: min(420px, calc(100vw - 36px)); }
+.app-toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 220px;
+  padding: 10px 12px;
+  border: 1px solid var(--md-border);
+  border-radius: 8px;
+  background: var(--md-bg);
+  color: var(--md-text);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+}
+
+.app-toast button { border: 0; background: transparent; color: var(--md-text-muted); cursor: pointer; font-size: 17px; }
+.app-toast-error { border-color: var(--md-error); }

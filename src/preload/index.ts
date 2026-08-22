@@ -1,11 +1,19 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { IpcChannels } from '../shared/ipc'
-import type { MarkdownAppApi, MenuCommand } from '../shared/types'
+import type { MarkdownAppApi, MenuCommand, RecentMenuTarget } from '../shared/types'
 
 const api: MarkdownAppApi = {
   config: {
     get: () => ipcRenderer.invoke(IpcChannels.appConfigGet),
     set: (patch) => ipcRenderer.invoke(IpcChannels.appConfigSet, patch)
+  },
+  recent: {
+    list: () => ipcRenderer.invoke(IpcChannels.recentList),
+    addFile: (filePath) => ipcRenderer.invoke(IpcChannels.recentAdd, filePath),
+    addFolder: (folderPath) => ipcRenderer.invoke(IpcChannels.recentAddFolder, folderPath),
+    removeFile: (filePath) => ipcRenderer.invoke(IpcChannels.recentRemove, filePath),
+    removeFolder: (folderPath) => ipcRenderer.invoke(IpcChannels.recentRemoveFolder, folderPath)
+    ,clear: () => ipcRenderer.invoke(IpcChannels.recentClear)
   },
   help: {
     open: () => ipcRenderer.invoke(IpcChannels.helpOpen)
@@ -17,6 +25,11 @@ const api: MarkdownAppApi = {
         listener(command)
       ipcRenderer.on(IpcChannels.menuCommand, handler)
       return () => ipcRenderer.removeListener(IpcChannels.menuCommand, handler)
+    },
+    onRecentMenuTarget: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, target: RecentMenuTarget): void => listener(target)
+      ipcRenderer.on(IpcChannels.menuOpenRecent, handler)
+      return () => ipcRenderer.removeListener(IpcChannels.menuOpenRecent, handler)
     },
     onCloseRequest: (listener) => {
       const handler = (): void => listener()
@@ -32,6 +45,8 @@ const api: MarkdownAppApi = {
     openDirectoryDialog: () => ipcRenderer.invoke(IpcChannels.dialogOpenDirectory),
     saveFileDialog: (defaultPath) => ipcRenderer.invoke(IpcChannels.dialogSaveFile, defaultPath),
     read: (filePath) => ipcRenderer.invoke(IpcChannels.fileRead, filePath),
+    openRecent: (filePath) => ipcRenderer.invoke(IpcChannels.fileOpenRecent, filePath),
+    openRecentFolder: (folderPath) => ipcRenderer.invoke(IpcChannels.fileOpenRecentFolder, folderPath),
     write: (filePath, content) => ipcRenderer.invoke(IpcChannels.fileWrite, filePath, content),
     importImage: (sourcePath, docPath) =>
       ipcRenderer.invoke(IpcChannels.fileImportImage, sourcePath, docPath),
@@ -39,7 +54,8 @@ const api: MarkdownAppApi = {
       ipcRenderer.invoke(IpcChannels.fileSaveImageBlob, payload, docPath)
   },
   dir: {
-    scan: (dirPath) => ipcRenderer.invoke(IpcChannels.dirScan, dirPath)
+    scan: (dirPath, markdownOnly, requestId) => ipcRenderer.invoke(IpcChannels.dirScan, dirPath, markdownOnly, requestId),
+    cancelScan: (requestId) => ipcRenderer.send(IpcChannels.dirScanCancel, requestId)
   },
   exportHtml: (payload) => ipcRenderer.invoke(IpcChannels.exportHtml, payload),
   exportPdf: (payload) => ipcRenderer.invoke(IpcChannels.exportPdf, payload),

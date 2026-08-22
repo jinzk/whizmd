@@ -1,7 +1,19 @@
-@import './editor.css';
+/* Flat application style entrypoint. Domain files do not import each other. */
+@import './layout.css';
+@import './toolbar.css';
+@import './sidebar.css';
+@import './dialogs.css';
+@import './status-bar.css';
+@import './toast.css';
 @import './source-editor.css';
+@import './wysiwyg.css';
+@import './code-block.css';
+@import './diagrams.css';
+@import './math.css';
+@import './html.css';
+@import './inline.css';
+@import './references.css';
 @import './media.css';
+@import './alert-block.css';
+@import './editor-elements.css';
 @import './tables.css';
-
-/* Application chrome is kept in editor.css for now; these imports define the
-   stable split points for future toolbar, dialog, sidebar, and status styles. */

@@ -1,0 +1,2 @@
+.wysiwyg-editor .tiptap [data-markdown-alert], .wysiwyg-editor .tiptap .markdown-alert-node { margin: 8px 0; padding: 8px 12px; border-left: 4px solid var(--md-accent); background: var(--md-bg-soft); }
+.wysiwyg-editor .tiptap [data-markdown-alert] p, .wysiwyg-editor .tiptap .markdown-alert-node p { margin: 4px 0 0; }

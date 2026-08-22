@@ -1,0 +1,17 @@
+/* Raw HTML block preview and source editor. */
+.wysiwyg-editor .tiptap .html-block, .wysiwyg-editor .tiptap .html-block-node { margin: .75em 0; overflow: hidden; border: 1px solid var(--md-border); border-radius: 6px; }
+.wysiwyg-editor .tiptap .html-preview, .wysiwyg-editor .tiptap .html-block-preview { position: relative; display: block; min-height: 64px; min-width: 100%; overflow-x: auto; background: var(--md-bg); }
+.wysiwyg-editor .tiptap .html-preview iframe { display: block; width: 100%; min-height: 160px; border: 0; background: #fff; }
+.wysiwyg-editor .tiptap .html-preview-edit, .wysiwyg-editor .tiptap .html-block-edit { position: absolute; top: 8px; right: 8px; padding: 4px 9px; border: 1px solid var(--md-border); border-radius: 4px; color: var(--md-text-muted); background: color-mix(in srgb, var(--md-bg) 92%, transparent); font-size: 12px; cursor: pointer; }
+.wysiwyg-editor .tiptap .html-preview-edit:hover, .wysiwyg-editor .tiptap .html-block-edit:hover { border-color: var(--md-accent); color: var(--md-accent); }
+.wysiwyg-editor .tiptap .html-block[data-html-editing='true'] .html-preview-edit, .wysiwyg-editor .tiptap .html-block-node[data-html-editing='true'] .html-block-edit { display: none; }
+.wysiwyg-editor .tiptap .html-source, .wysiwyg-editor .tiptap .html-block-source { max-height: 360px; overflow-y: auto; border-top: 1px solid var(--md-border); background: var(--md-bg-soft); }
+.wysiwyg-editor .tiptap .html-block[data-html-editing='false'] .html-source, .wysiwyg-editor .tiptap .html-block-node[data-html-editing='false'] .html-block-source { display: none; }
+.wysiwyg-editor .tiptap .html-block-preview table { border-collapse: collapse; }
+.wysiwyg-editor .tiptap .html-block-preview th, .wysiwyg-editor .tiptap .html-block-preview td { border: 1px solid var(--md-border); padding: .35em .55em; }
+/* HTML source syntax and editing controls. */
+.wysiwyg-editor .tiptap .html-source-header { color: var(--md-text-muted); font: 12px/1.4 'SFMono-Regular', Consolas, monospace; }
+.wysiwyg-editor .tiptap .html-source > pre { margin: 0; border-radius: 0; background: var(--md-code-bg); white-space: pre-wrap; overflow-wrap: anywhere; }
+.wysiwyg-editor .tiptap .html-source code { background: none; color: var(--md-text); font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 13px; }
+.wysiwyg-editor .tiptap .html-source code .hljs-tag, .wysiwyg-editor .tiptap .html-source code .hljs-name, .wysiwyg-editor .tiptap .html-source code .hljs-attr { color: var(--md-accent); }
+.wysiwyg-editor .tiptap .html-source code .hljs-string { color: var(--md-success, #1a7f37); }

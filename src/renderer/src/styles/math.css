@@ -1,0 +1,11 @@
+/* Block and inline mathematics presentation. */
+.wysiwyg-editor .tiptap .tiptap-mathematics-render { cursor: pointer; }
+.wysiwyg-editor .tiptap .block-math-inner { overflow-x: auto; text-align: center; padding: 4px 0; }
+.wysiwyg-editor .tiptap .block-math-module { margin: .75em 0; border: 1px solid var(--md-border); border-radius: 6px; overflow: hidden; background: var(--md-bg); }
+.wysiwyg-editor .tiptap .block-math-preview { min-height: 56px; padding: 14px 16px; display: flex; align-items: center; justify-content: center; overflow-x: auto; cursor: text; }
+.wysiwyg-editor .tiptap .block-math-placeholder { color: var(--md-text-muted); font-size: 13px; }
+.wysiwyg-editor .tiptap .block-math-source { display: none; border-top: 1px solid var(--md-border); background: var(--md-bg-soft); }
+.wysiwyg-editor .tiptap .block-math-module[data-math-editing='true'] .block-math-source { display: block; }
+.wysiwyg-editor .tiptap .block-math-source textarea { display: block; width: 100%; min-height: 56px; padding: 10px 12px; border: 0; outline: 0; resize: vertical; background: transparent; color: var(--md-text); font: 13px/1.5 'SFMono-Regular', Consolas, monospace; }
+.wysiwyg-editor .tiptap .block-math-source-header { color: var(--md-text-muted); font: 12px/1.4 'SFMono-Regular', Consolas, monospace; }
+.wysiwyg-editor .tiptap .inline-math-error, .wysiwyg-editor .tiptap .block-math-error { color: var(--md-error); }

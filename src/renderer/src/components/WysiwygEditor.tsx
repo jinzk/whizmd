@@ -8,6 +8,7 @@ import { insertDroppedImages, insertPastedImages, isImageFile } from '../editor/
 interface Props {
   content: string
   onUpdate: (markdown: string) => void
+  spellCheck?: boolean
 }
 
 const CODE_LANGUAGES = [
@@ -26,7 +27,7 @@ const CODE_LANGUAGES = [
   ['plaintext', '纯文本']
 ] as const
 
-export function WysiwygEditor({ content, onUpdate }: Props): React.JSX.Element {
+export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props): React.JSX.Element {
   const { t } = useI18n()
   const editorRef = useRef<Editor | null>(null)
   const lastEmittedRef = useRef<string | null>(null)
@@ -177,7 +178,7 @@ export function WysiwygEditor({ content, onUpdate }: Props): React.JSX.Element {
 
   return (
     <div className="wysiwyg-editor">
-      <EditorContent editor={editor} spellCheck={false} />
+       <EditorContent editor={editor} spellCheck={spellCheck} />
       {editor && showLanguageMenu ? (
         <div
           className="code-language-menu"

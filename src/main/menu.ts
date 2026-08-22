@@ -1,9 +1,11 @@
 import { app, dialog, Menu } from 'electron'
+import { basename } from 'node:path'
 import type { MenuCommand } from '../shared/types'
 import { IpcChannels } from '../shared/ipc'
 import { getMainWindow } from './window'
+import { getRecent } from './recentFiles'
 
-export function rebuildApplicationMenu(chinese: boolean): void {
+export async function rebuildApplicationMenu(chinese: boolean): Promise<void> {
   const label = chinese
     ? {
         file: '文件',
@@ -24,7 +26,8 @@ export function rebuildApplicationMenu(chinese: boolean): void {
         selectAll: '全选',
         help: '帮助',
         guide: '功能介绍',
-        about: '关于'
+         about: '关于'
+         ,recentFiles: '最近文件', recentFolders: '最近文件夹', noRecent: '没有最近项目', clearRecent: '清空最近记录'
       }
     : {
         file: 'File',
@@ -45,12 +48,21 @@ export function rebuildApplicationMenu(chinese: boolean): void {
         selectAll: 'Select All',
         help: 'Help',
         guide: 'User Guide',
-        about: 'About'
+         about: 'About'
+         ,recentFiles: 'Recent Files', recentFolders: 'Recent Folders', noRecent: 'No Recent Items', clearRecent: 'Clear Recent'
       }
   const send = (command: MenuCommand): void => {
     getMainWindow()?.webContents.send(IpcChannels.menuCommand, command)
   }
 
+  const recent = await getRecent()
+  const recentSubmenu = [
+    { label: label.recentFiles, submenu: recent.files.length ? recent.files.map((path) => ({ label: basename(path), toolTip: path, click: () => getMainWindow()?.webContents.send(IpcChannels.menuOpenRecent, { kind: 'file', path }) })) : [{ label: label.noRecent, enabled: false }] },
+    { label: label.recentFolders, submenu: recent.folders.length ? recent.folders.map((path) => ({ label: basename(path), toolTip: path, click: () => getMainWindow()?.webContents.send(IpcChannels.menuOpenRecent, { kind: 'folder', path }) })) : [{ label: label.noRecent, enabled: false }] },
+    { type: 'separator' as const },
+    { label: label.clearRecent, click: () => sendRecentClear() }
+  ]
+  const sendRecentClear = (): void => { getMainWindow()?.webContents.send(IpcChannels.menuOpenRecent, { kind: 'clear', path: '' }) }
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       {
@@ -59,6 +71,7 @@ export function rebuildApplicationMenu(chinese: boolean): void {
           { label: label.newFile, accelerator: 'CmdOrCtrl+N', click: () => send('new-file') },
           { label: label.openFolder, click: () => send('open-folder') },
           { label: label.openFile, accelerator: 'CmdOrCtrl+O', click: () => send('open-file') },
+          { label: label.recentFiles, submenu: recentSubmenu },
           { label: label.closeFile, accelerator: 'CmdOrCtrl+W', click: () => send('close-file') },
           { type: 'separator' },
           { label: label.save, accelerator: 'CmdOrCtrl+S', click: () => send('save') },

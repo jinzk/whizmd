@@ -1,0 +1,23 @@
+/* Dialog and settings styles are isolated from editor layout styles. */
+.app-dialog-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, 0.35); }
+.app-dialog { width: min(420px, calc(100vw - 32px)); padding: 22px; border: 1px solid var(--md-border); border-radius: 10px; background: var(--md-bg); color: var(--md-text); box-shadow: 0 16px 48px rgba(0, 0, 0, 0.24); }
+.app-dialog h2 { margin: 0 0 10px; font-size: 17px; }
+.app-dialog p { margin: 0; color: var(--md-text-muted); line-height: 1.5; }
+.app-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
+.app-dialog-actions button { padding: 7px 14px; border: 1px solid var(--md-border); border-radius: 6px; background: var(--md-bg-soft); color: var(--md-text); cursor: pointer; }
+.app-dialog-actions .app-dialog-danger, .app-dialog-actions .app-dialog-primary { border-color: var(--md-accent); background: var(--md-accent); color: var(--md-accent-text); }
+.settings-dialog { width: min(520px, calc(100vw - 32px)); }
+.settings-form { display: grid; gap: 16px; margin-top: 18px; }
+.settings-tabs { display: flex; gap: 4px; margin-top: 16px; border-bottom: 1px solid var(--md-border); }
+.settings-tabs button { padding: 7px 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--md-text-muted); cursor: pointer; font: inherit; font-size: 13px; }
+.settings-tabs button.active { border-bottom-color: var(--md-accent); color: var(--md-accent); font-weight: 600; }
+.settings-form label { display: grid; gap: 6px; color: var(--md-text); font-size: 13px; font-weight: 600; }
+.settings-form label.settings-checkbox { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.settings-form label.settings-checkbox input[type='checkbox'] { width: 16px; height: 16px; margin: 0; flex: 0 0 auto; accent-color: var(--md-accent); }
+.settings-form input, .settings-form select { width: 100%; padding: 8px 10px; border: 1px solid var(--md-border); border-radius: 6px; background: var(--md-bg); color: var(--md-text); font: inherit; }
+.settings-form small { color: var(--md-text-muted); font-size: 11px; font-weight: 400; }
+.settings-error { color: var(--md-error) !important; }
+.settings-form input[aria-invalid='true'] { border-color: var(--md-error); }
+.settings-discard-confirm { margin-top: 14px; padding: 10px; border: 1px solid var(--md-border); border-radius: 6px; background: var(--md-bg-soft); }
+.settings-discard-confirm p { margin: 0 0 8px; color: var(--md-text-muted); font-size: 13px; }
+.settings-discard-confirm button { margin-right: 8px; padding: 5px 9px; border: 1px solid var(--md-border); border-radius: 5px; background: var(--md-bg); color: var(--md-text); cursor: pointer; }

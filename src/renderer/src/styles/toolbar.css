@@ -1,0 +1,30 @@
+.toolbar { position: relative; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--md-border); background-color: var(--md-bg-soft); flex-shrink: 0; min-width: 0; }
+.toolbar button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border: 1px solid var(--md-border); border-radius: 6px; background-color: var(--md-bg); cursor: pointer; font-size: 13px; color: var(--md-text); transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease; }
+.toolbar button:hover { background-color: var(--md-bg-hover); }
+.toolbar button:disabled { cursor: wait; opacity: 0.7; }
+.toolbar-settings-button { width: 34px; justify-content: center; padding-inline: 7px !important; }
+.toolbar button:focus-visible, .file-item:focus-visible, .dir-label:focus-visible, .app-dialog button:focus-visible { outline: 2px solid var(--md-accent); outline-offset: 2px; }
+.toolbar-icon { width: 15px; height: 15px; flex: 0 0 auto; }
+.toolbar button.active { background-color: var(--md-accent); border-color: var(--md-accent); color: var(--md-accent-text); }
+.mode-switch { display: inline-flex; align-items: stretch; }
+.mode-switch button { border-radius: 0; }
+.mode-switch button:first-child { border-radius: 6px 0 0 6px; }
+.mode-switch button:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
+.toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 8px; }
+.toolbar-sep { width: 1px; height: 18px; background-color: var(--md-border); margin: 0 2px; }
+.toolbar-right { margin-left: auto; }
+.doc-title { flex: 0 1 420px; font-size: 13px; color: var(--md-text-muted); max-width: 420px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+
+@media (max-width: 720px) {
+  .toolbar { flex-wrap: wrap; padding: 6px 8px; }
+  .toolbar-left, .toolbar-right { gap: 6px; }
+  .toolbar-right { margin-left: 0; width: 100%; justify-content: flex-end; }
+  .toolbar button { padding: 6px 9px; }
+  .doc-title { margin-right: auto; max-width: 45vw; text-align: left; }
+}
+@media (max-width: 520px) {
+  .toolbar-left { width: 100%; }
+  .toolbar-left > button:first-child, .toolbar-left > button:nth-child(2) { flex: 1; }
+  .toolbar-sep { display: none; }
+  .doc-title { max-width: 38vw; }
+}

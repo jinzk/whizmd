@@ -1,0 +1,18 @@
+/* Reference, footnote, and definition NodeViews. */
+.wysiwyg-editor .tiptap .reference-definition-node, .wysiwyg-editor .tiptap .footnote-definition-node, .wysiwyg-editor .tiptap .definition-list-node { margin: .75em 0; padding: 10px; border: 1px solid var(--md-border); border-radius: 6px; background: var(--md-bg-soft); }
+.wysiwyg-editor .tiptap .reference-definition-label, .wysiwyg-editor .tiptap .footnote-definition-label { color: var(--md-text-muted); font-size: 12px; }
+.wysiwyg-editor .tiptap [data-footnote-reference] { color: var(--md-accent); font-size: .8em; vertical-align: super; }
+.wysiwyg-editor .tiptap .footnote-reference-node button { padding: 0 2px; border: 0; color: var(--md-accent); background: transparent; font: inherit; cursor: pointer; }
+.wysiwyg-editor .tiptap .footnote-definition-node { margin: 8px 0; padding: 8px 12px; border-left: 3px solid var(--md-accent); background: var(--md-bg-soft); }
+.wysiwyg-editor .tiptap .footnote-definition-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.wysiwyg-editor .tiptap .footnote-definition-header button { padding: 2px 6px; border: 1px solid var(--md-border); border-radius: 3px; color: var(--md-text-muted); background: var(--md-bg); cursor: pointer; }
+.wysiwyg-editor .tiptap .definition-list-item-node { margin: 8px 0; padding-left: 16px; border-left: 3px solid var(--md-border); }
+.wysiwyg-editor .tiptap .definition-list-term { font-weight: 600; }
+.wysiwyg-editor .tiptap .definition-list-term button { padding: 0; border: 0; color: inherit; background: transparent; font: inherit; cursor: pointer; }
+.wysiwyg-editor .tiptap .definition-list-term input { min-width: 12ch; padding: 2px 4px; border: 1px solid var(--md-accent); border-radius: 3px; outline: none; color: var(--md-text); background: var(--md-bg); font: inherit; }
+.wysiwyg-editor .tiptap .definition-list-definition { margin: 2px 0 0; }
+.wysiwyg-editor .tiptap .reference-definition-node { display: flex; align-items: center; gap: 6px; margin: 8px 0; padding: 8px; border: 1px solid var(--md-border); border-radius: 4px; background: var(--md-bg-soft); }
+.wysiwyg-editor .tiptap .reference-definition-node label { display: inline-flex; align-items: center; gap: 3px; color: var(--md-text-muted); font-size: .8em; }
+.wysiwyg-editor .tiptap .reference-definition-node input { min-width: 8ch; max-width: 32ch; padding: 2px 4px; border: 1px solid var(--md-border); border-radius: 3px; color: var(--md-text); background: var(--md-bg); }
+.wysiwyg-editor .tiptap .reference-status { color: var(--md-text-muted); font-size: .8em; }
+.wysiwyg-editor .tiptap .reference-status button { margin-left: 4px; padding: 2px 5px; border: 1px solid var(--md-border); border-radius: 3px; color: var(--md-text-muted); background: var(--md-bg); cursor: pointer; }

@@ -8,9 +8,10 @@ interface Props {
   saveStatus: SaveStatus
   lineCount: number
   characterCount: number
+  autoSave: boolean
 }
 
-export function DocumentStatusBar({ mode, dirty, saveStatus, lineCount, characterCount }: Props): React.JSX.Element {
+export function DocumentStatusBar({ mode, dirty, saveStatus, lineCount, characterCount, autoSave }: Props): React.JSX.Element {
   const { t } = useI18n()
   return (
     <footer className="status-bar" aria-label={t('documentStatus')}>
@@ -18,7 +19,7 @@ export function DocumentStatusBar({ mode, dirty, saveStatus, lineCount, characte
       <span>{t('lineCount', { count: String(lineCount) })}</span>
       <span>{t('characterCount', { count: String(characterCount) })}</span>
       <span className="status-save" data-status={dirty ? 'dirty' : saveStatus}>
-        {dirty ? t('unsavedChanges') : saveStatus === 'saving' ? t('saving') : saveStatus === 'error' ? t('saveError') : t('saved')}
+        {dirty && autoSave && saveStatus === 'idle' ? t('autoSavePending') : dirty ? t('unsavedChanges') : saveStatus === 'saving' ? t('saving') : saveStatus === 'error' ? t('saveError') : t('saved')}
       </span>
     </footer>
   )

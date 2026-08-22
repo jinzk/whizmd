@@ -5,7 +5,7 @@ import { useFileOperations } from './useFileOperations'
 type Translator = (key: 'saveFailed' | 'openFailed', values?: Record<string, string>) => string
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
-export function useDocumentActions(t: Translator, requestDocumentClose: () => void, onDocumentClosed: () => void) {
+export function useDocumentActions(t: Translator, requestDocumentClose: () => void, onDocumentClosed: () => void, onError?: (message: string) => void, markdownOnly = true) {
   const documents = useDocumentStore((state) => state.documents)
   const activeDocumentId = useDocumentStore((state) => state.activeDocumentId)
   const addDocument = useDocumentStore((state) => state.addDocument)
@@ -30,13 +30,16 @@ export function useDocumentActions(t: Translator, requestDocumentClose: () => vo
       const next = existing ?? { id: `file-${Date.now()}`, path, content: await window.markdownApp.file.read(path), dirty: false }
       if (!existing) addDocument(next)
       setActiveDocument(next.id)
+      void window.markdownApp.recent?.addFile(path)
     } catch (error) {
       console.error('Failed to open document', error)
-      window.alert(t('openFailed', { error: error instanceof Error ? error.message : String(error) }))
+      const message = t('openFailed', { error: error instanceof Error ? error.message : String(error) })
+      if (onError) onError(message)
+      else window.alert(message)
     }
-  }, [addDocument, setActiveDocument, t])
+  }, [addDocument, onError, setActiveDocument, t])
 
-  const { rootDir, fileTree, setFileTree, openFolder, openFileDialog } = useFileOperations(openFile)
+  const { rootDir, fileTree, setFileTree, treeStatus, openFolder, openFolderPath, openFileDialog, refresh } = useFileOperations(openFile, markdownOnly)
 
   const save = useCallback(async (): Promise<void> => {
     if (saveInFlightRef.current) return saveInFlightRef.current
@@ -57,17 +60,22 @@ export function useDocumentActions(t: Translator, requestDocumentClose: () => vo
       await window.markdownApp.file.write(target, document.content)
       updateDocument(document.id, { path: target, dirty: false })
       setSaveStatus('saved')
-      if (rootDir) setFileTree(await window.markdownApp.dir.scan(rootDir))
+       if (rootDir) {
+         const result = await window.markdownApp.dir.scan(rootDir)
+         setFileTree('tree' in result ? result.tree : null)
+       }
     })()
     saveInFlightRef.current = operation
     try { await operation } catch (error) {
       console.error('Failed to save document', error)
       setSaveStatus('error')
-      window.alert(t('saveFailed', { error: error instanceof Error ? error.message : String(error) }))
+      const message = t('saveFailed', { error: error instanceof Error ? error.message : String(error) })
+      if (onError) onError(message)
+      else window.alert(message)
     } finally {
       if (saveInFlightRef.current === operation) saveInFlightRef.current = null
     }
-  }, [rootDir, setFileTree, t, updateDocument])
+  }, [onError, rootDir, setFileTree, t, updateDocument])
 
   const newFile = useCallback((): void => {
     const id = `untitled-${Date.now()}`
@@ -110,5 +118,21 @@ export function useDocumentActions(t: Translator, requestDocumentClose: () => vo
     if (!useDocumentStore.getState().documents.find((file) => file.id === activeDocumentId)?.dirty) removeCurrentDocument()
   }, [activeDocumentId, removeCurrentDocument, save])
 
-  return { documents, activeDocumentId, activeDocument, hasUnsavedChanges, rootDir, fileTree, handleUpdate, save, saveStatus, openFile, openFolder, openFileDialog, newFile, selectDocument, closeCurrentDocument, closeDocument, removeCurrentDocument, saveAndCloseDocument }
+  const saveAllDocuments = useCallback(async (): Promise<boolean> => {
+    const state = useDocumentStore.getState()
+    const originalId = state.activeDocumentId
+    const dirtyIds = state.documents.filter((file) => file.dirty).map((file) => file.id)
+    for (const id of dirtyIds) {
+      setActiveDocument(id)
+      await save()
+      if (useDocumentStore.getState().documents.find((file) => file.id === id)?.dirty) {
+        setActiveDocument(originalId)
+        return false
+      }
+    }
+    setActiveDocument(originalId)
+    return true
+  }, [save, setActiveDocument])
+
+  return { documents, activeDocumentId, activeDocument, hasUnsavedChanges, rootDir, fileTree, treeStatus, handleUpdate, save, saveAllDocuments, saveStatus, openFile, openFolder, openFolderPath, openFileDialog, refresh, newFile, selectDocument, closeCurrentDocument, closeDocument, removeCurrentDocument, saveAndCloseDocument }
 }

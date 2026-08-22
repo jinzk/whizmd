@@ -2,7 +2,8 @@ import { app, dialog, ipcMain, BrowserWindow } from 'electron'
 import { promises as fs, existsSync } from 'node:fs'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { IpcChannels } from '../shared/ipc'
-import type { AppConfig, FileNode, ExportPayload, ImportImageResult } from '../shared/types'
+import type { AppConfig, FileNode, ExportPayload, ImportImageResult, DirectoryScanResult } from '../shared/types'
+import { addRecentFile, addRecentFolder, clearRecent, getRecent, removeRecentFile, removeRecentFolder } from './recentFiles'
 import { allowMediaDirectory, allowMediaFile } from './protocol'
 import { rebuildApplicationMenu } from './menu'
 import { confirmMainWindowClose, markCloseRequestReady } from './window'
@@ -21,12 +22,19 @@ const MARKDOWN_EXTENSIONS = new Set(['.md', '.markdown', '.txt'])
 const MAX_SCAN_DEPTH = 8
 const allowedFileRoots = new Set<string>()
 const allowedFiles = new Set<string>()
+const cancelledScans = new Set<string>()
 
 const DEFAULT_CONFIG: AppConfig = {
   themeMode: 'system',
   language: 'system',
   assetsDir: 'assets',
-  imagePathStrategy: 'relative'
+  imagePathStrategy: 'relative',
+  autoSave: false,
+  autoSaveDelay: 1000,
+  editorFontSize: 16,
+  editorContentWidth: 800,
+  spellCheck: false,
+  showMarkdownOnly: true
 }
 
 let configCache: AppConfig | null = null
@@ -58,6 +66,7 @@ function isAllowedFile(filePath: string): boolean {
 function configFilePath(): string {
   return join(app.getPath('userData'), 'config.json')
 }
+
 
 async function getConfig(): Promise<AppConfig> {
   if (configCache) {
@@ -92,6 +101,12 @@ function validateConfig(config: AppConfig): AppConfig {
   if (!['relative', 'absolute'].includes(config.imagePathStrategy)) {
     config.imagePathStrategy = DEFAULT_CONFIG.imagePathStrategy
   }
+  if (![500, 1000, 3000].includes(config.autoSaveDelay)) config.autoSaveDelay = DEFAULT_CONFIG.autoSaveDelay
+  if (![14, 16, 18].includes(config.editorFontSize)) config.editorFontSize = DEFAULT_CONFIG.editorFontSize
+  if (![680, 800, 960].includes(config.editorContentWidth)) config.editorContentWidth = DEFAULT_CONFIG.editorContentWidth
+  if (typeof config.autoSave !== 'boolean') config.autoSave = DEFAULT_CONFIG.autoSave
+  if (typeof config.spellCheck !== 'boolean') config.spellCheck = DEFAULT_CONFIG.spellCheck
+  if (typeof config.showMarkdownOnly !== 'boolean') config.showMarkdownOnly = DEFAULT_CONFIG.showMarkdownOnly
   return config
 }
 
@@ -133,6 +148,12 @@ async function setConfig(patch: Partial<AppConfig>): Promise<AppConfig> {
   ) {
     throw new Error('Invalid image path strategy')
   }
+  if (patch.autoSave !== undefined && typeof patch.autoSave !== 'boolean') throw new Error('Invalid auto-save setting')
+  if (patch.spellCheck !== undefined && typeof patch.spellCheck !== 'boolean') throw new Error('Invalid spell-check setting')
+  if (patch.showMarkdownOnly !== undefined && typeof patch.showMarkdownOnly !== 'boolean') throw new Error('Invalid file filter setting')
+  if (patch.autoSaveDelay !== undefined && ![500, 1000, 3000].includes(patch.autoSaveDelay)) throw new Error('Invalid auto-save delay')
+  if (patch.editorFontSize !== undefined && ![14, 16, 18].includes(patch.editorFontSize)) throw new Error('Invalid editor font size')
+  if (patch.editorContentWidth !== undefined && ![680, 800, 960].includes(patch.editorContentWidth)) throw new Error('Invalid editor content width')
   const next = { ...(await getConfig()), ...patch }
   configCache = next
   await fs.writeFile(configFilePath(), JSON.stringify(next, null, 2), 'utf-8')
@@ -148,6 +169,26 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle(IpcChannels.appConfigGet, () => getConfig())
+  ipcMain.handle(IpcChannels.recentList, () => getRecent())
+  ipcMain.handle(IpcChannels.recentAdd, (_event, filePath: unknown) => {
+    if (typeof filePath !== 'string' || !filePath.trim()) throw new Error('Invalid recent file')
+    return addRecentFile(filePath)
+  })
+  ipcMain.handle(IpcChannels.recentClear, async () => {
+    return clearRecent()
+  })
+  ipcMain.handle(IpcChannels.recentRemove, (_event, filePath: unknown) => {
+    if (typeof filePath !== 'string') throw new Error('Invalid recent file')
+    return removeRecentFile(filePath)
+  })
+  ipcMain.handle(IpcChannels.recentRemoveFolder, (_event, folderPath: unknown) => {
+    if (typeof folderPath !== 'string') throw new Error('Invalid recent folder')
+    return removeRecentFolder(folderPath)
+  })
+  ipcMain.handle(IpcChannels.recentAddFolder, (_event, folderPath: unknown) => {
+    if (typeof folderPath !== 'string' || !folderPath.trim()) throw new Error('Invalid recent folder')
+    return addRecentFolder(folderPath)
+  })
   ipcMain.handle(IpcChannels.helpOpen, () => helpDocumentPath())
   ipcMain.handle(IpcChannels.appConfigSet, async (_e, patch: Partial<AppConfig>) => {
     const config = await setConfig(patch)
@@ -218,6 +259,12 @@ export function registerIpcHandlers(): void {
     if (!isAllowedFile(filePath)) {
       throw new Error('fileRead path was not selected by the user')
     }
+    return fs.readFile(filePath, 'utf-8')
+  })
+  ipcMain.handle(IpcChannels.fileOpenRecent, async (_e, filePath: string) => {
+    if (typeof filePath !== 'string' || !filePath.trim() || !existsSync(filePath)) throw new Error('Recent file does not exist')
+    allowFile(filePath)
+    allowDirectory(dirname(filePath))
     return fs.readFile(filePath, 'utf-8')
   })
 
@@ -349,14 +396,20 @@ export function registerIpcHandlers(): void {
     return result.filePath
   })
 
-  ipcMain.handle(IpcChannels.dirScan, async (_e, dirPath: string): Promise<FileNode | null> => {
+  ipcMain.on(IpcChannels.dirScanCancel, (_event, requestId: unknown) => {
+    if (typeof requestId === 'string') cancelledScans.add(requestId)
+  })
+  ipcMain.handle(IpcChannels.dirScan, async (_e, dirPath: string, markdownOnly = true, requestId?: string): Promise<DirectoryScanResult> => {
     if (typeof dirPath !== 'string') {
-      return null
+      return { status: 'error', message: 'Invalid directory path' }
     }
     if (!isAllowedFile(dirPath)) {
-      return null
+      return { status: 'error', message: 'Directory was not selected by the user' }
     }
-    return scanDirectory(dirPath)
+    const tree = await scanDirectory(dirPath, 0, markdownOnly, requestId)
+    if (requestId) cancelledScans.delete(requestId)
+    if (!tree) return { status: 'error', message: 'Unable to scan directory' }
+    return { status: tree.children.length ? 'success' : 'empty', tree }
   })
 
   ipcMain.handle(
@@ -430,7 +483,7 @@ export function registerIpcHandlers(): void {
 
 export { getConfig }
 
-async function scanDirectory(dirPath: string, depth = 0): Promise<FileNode | null> {
+async function scanDirectory(dirPath: string, depth = 0, markdownOnly = true, requestId?: string): Promise<FileNode | null> {
   let entries
   try {
     entries = await fs.readdir(dirPath, { withFileTypes: true })
@@ -440,6 +493,7 @@ async function scanDirectory(dirPath: string, depth = 0): Promise<FileNode | nul
 
   const children: FileNode[] = []
   for (const entry of entries) {
+    if (requestId && cancelledScans.has(requestId)) return null
     if (entry.name.startsWith('.')) {
       continue
     }
@@ -448,11 +502,11 @@ async function scanDirectory(dirPath: string, depth = 0): Promise<FileNode | nul
       if (SKIPPED_DIRS.has(entry.name) || depth >= MAX_SCAN_DEPTH) {
         continue
       }
-      const node = await scanDirectory(fullPath, depth + 1)
+      const node = await scanDirectory(fullPath, depth + 1, markdownOnly, requestId)
       if (node && node.children.length > 0) {
         children.push(node)
       }
-    } else if (entry.isFile() && MARKDOWN_EXTENSIONS.has(extname(entry.name).toLowerCase())) {
+    } else if (entry.isFile() && (!markdownOnly || MARKDOWN_EXTENSIONS.has(extname(entry.name).toLowerCase()))) {
       children.push({ name: entry.name, path: fullPath, isDirectory: false, children: [] })
     }
   }

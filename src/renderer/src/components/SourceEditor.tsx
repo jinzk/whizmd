@@ -51,9 +51,10 @@ interface Props {
   content: string
   onUpdate: (markdown: string) => void
   theme: EffectiveTheme
+  spellCheck?: boolean
 }
 
-export function SourceEditor({ content, onUpdate, theme }: Props): React.JSX.Element {
+export function SourceEditor({ content, onUpdate, theme, spellCheck = false }: Props): React.JSX.Element {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const onUpdateRef = useRef(onUpdate)
@@ -85,7 +86,7 @@ export function SourceEditor({ content, onUpdate, theme }: Props): React.JSX.Ele
              { key: 'Tab', run: insertTab }
            ]),
           themeCompartment.of(theme === 'dark' ? oneDark : []),
-          EditorView.contentAttributes.of({ spellcheck: 'false' }),
+           EditorView.contentAttributes.of({ spellcheck: String(spellCheck) }),
           EditorView.updateListener.of((update) => {
            const isExternalSync = update.transactions.some((tr) =>
              tr.annotation(externalSync)

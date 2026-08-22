@@ -1,0 +1,20 @@
+/* Inline NodeViews: links, inline HTML, math, and formatting atoms. */
+.wysiwyg-editor .tiptap .link-node { display: inline-block; margin: 0 2px; }
+.wysiwyg-editor .tiptap .inline-html-node, .wysiwyg-editor .tiptap .inline-math-node, .wysiwyg-editor .tiptap .inline-decoration-node { position: relative; display: inline; }
+.wysiwyg-editor .tiptap .inline-decoration-preview, .wysiwyg-editor .tiptap .inline-math-preview { padding: 0 2px; border: 0; border-radius: 4px; color: inherit; background: transparent; font: inherit; line-height: inherit; cursor: pointer; }
+.wysiwyg-editor .tiptap .inline-decoration-preview:hover, .wysiwyg-editor .tiptap .inline-math-preview:hover { background: var(--md-code-bg); }
+.wysiwyg-editor .tiptap .inline-syntax-preview { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.wysiwyg-editor .tiptap .inline-syntax-preview:hover { background: var(--md-code-bg); }
+.wysiwyg-editor .tiptap .syntax-source-mark::before { content: attr(data-syntax-open); }
+.wysiwyg-editor .tiptap .syntax-source-mark::after { content: attr(data-syntax-close); }
+.wysiwyg-editor .tiptap .link-fields { display: inline-flex; min-width: 360px; flex-direction: column; vertical-align: middle; border: 1px solid var(--md-border); border-radius: 6px; background: var(--md-code-bg); }
+.wysiwyg-editor .tiptap .link-field { display: flex; align-items: center; gap: 12px; min-height: 36px; padding: 0 12px; border-bottom: 1px solid var(--md-border); }
+.wysiwyg-editor .tiptap .link-field:last-child { border-bottom: 0; }
+.wysiwyg-editor .tiptap .link-field > span { flex: 0 0 64px; color: var(--md-text-muted); font-size: 12px; }
+.wysiwyg-editor .tiptap .link-field input { flex: 1; min-width: 0; padding: 6px 0; border: 0; outline: none; background: transparent; color: var(--md-text); font-size: 13px; }
+.wysiwyg-editor .tiptap .link-delete { flex: 0 0 auto; margin-left: auto; }
+.wysiwyg-editor .tiptap .link-final { color: var(--md-accent); text-decoration: underline; cursor: pointer; }
+.wysiwyg-editor .tiptap .link-final-wrap { display: inline-flex; position: relative; align-items: center; }
+.wysiwyg-editor .tiptap .link-open-button { display: none; position: absolute; top: 50%; left: calc(100% + 4px); width: 18px; height: 18px; align-items: center; justify-content: center; border: 1px solid var(--md-border); border-radius: 4px; background: var(--md-bg); color: var(--md-accent); font-size: 13px; line-height: 1; text-decoration: none; transform: translateY(-50%); box-shadow: 0 2px 6px rgba(0,0,0,.12); }
+.wysiwyg-editor .tiptap .link-final-wrap:hover .link-open-button, .wysiwyg-editor .tiptap .link-open-button:focus-visible { display: inline-flex; }
+.wysiwyg-editor .tiptap .link-open-button:hover { background: var(--md-bg-hover); }

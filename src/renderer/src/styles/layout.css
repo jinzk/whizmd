@@ -1,0 +1,11 @@
+.app { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.main-layout { flex: 1; min-height: 0; display: flex; }
+.editor-area { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.empty-document-hint { position: absolute; inset: 50% auto auto 50%; z-index: 2; display: flex; width: min(360px, calc(100% - 32px)); transform: translate(-50%, -50%); flex-direction: column; align-items: center; gap: 8px; color: var(--md-text-muted); pointer-events: none; text-align: center; }
+.empty-document-hint strong { color: var(--md-text); font-size: 18px; }
+.empty-document-hint span { font-size: 13px; }
+.empty-document-hint div { display: flex; gap: 8px; margin-top: 8px; pointer-events: auto; }
+.empty-document-hint button { padding: 6px 12px; border: 1px solid var(--md-border); border-radius: 6px; background: var(--md-bg); color: var(--md-text); cursor: pointer; }
+.empty-document-hint button:hover { background: var(--md-bg-hover); }
+
+@media (max-width: 720px) { .wysiwyg-editor { padding: 16px 12px; } }

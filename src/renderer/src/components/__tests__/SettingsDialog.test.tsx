@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { SettingsDialog } from '../SettingsDialog'
 import type { AppConfig } from '@shared/types'
@@ -7,7 +7,7 @@ const config: AppConfig = {
   themeMode: 'system',
   language: 'zh-CN',
   assetsDir: 'assets',
-  imagePathStrategy: 'relative'
+  imagePathStrategy: 'relative', autoSave: false, autoSaveDelay: 1000, editorFontSize: 16, editorContentWidth: 800, spellCheck: false, showMarkdownOnly: true
 }
 
 describe('SettingsDialog', () => {
@@ -15,18 +15,29 @@ describe('SettingsDialog', () => {
     const onChange = vi.fn()
     const onApply = vi.fn().mockResolvedValue(undefined)
 
-    render(<SettingsDialog config={config} onChange={onChange} onApply={onApply} onClose={vi.fn()} />)
+    render(<SettingsDialog config={config} originalConfig={config} onChange={onChange} onApply={onApply} onClose={vi.fn()} />)
     fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'dark' } })
     expect(onChange).toHaveBeenCalledWith({ ...config, themeMode: 'dark' })
 
-    fireEvent.click(screen.getByRole('button', { name: '应用' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '应用' }))
+    })
     expect(onApply).toHaveBeenCalledWith(config)
   })
 
   it('closes when cancel is pressed', () => {
     const onClose = vi.fn()
-    render(<SettingsDialog config={config} onChange={vi.fn()} onApply={vi.fn()} onClose={onClose} />)
+    render(<SettingsDialog config={config} originalConfig={config} onChange={vi.fn()} onApply={vi.fn()} onClose={onClose} />)
     fireEvent.click(screen.getByRole('button', { name: '取消' }))
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('asks before discarding changed settings', () => {
+    const onClose = vi.fn()
+    render(<SettingsDialog config={{ ...config, themeMode: 'dark' }} originalConfig={config} onChange={vi.fn()} onApply={vi.fn()} onClose={onClose} />)
+    fireEvent.click(screen.getByRole('button', { name: '取消' }))
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '放弃修改' }))
     expect(onClose).toHaveBeenCalledOnce()
   })
 })

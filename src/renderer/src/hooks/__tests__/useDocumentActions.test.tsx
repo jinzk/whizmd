@@ -17,14 +17,17 @@ const fileTree: FileNode = {
 
 function createApi(overrides: Partial<MarkdownAppApi['file']> = {}): MarkdownAppApi {
   return {
-    config: { get: vi.fn(), set: vi.fn() },
+    config: { get: vi.fn(), set: vi.fn(), onChanged: vi.fn(() => vi.fn()) },
     help: { open: vi.fn(async () => null) },
     window: {
       setTitle: vi.fn(),
       onMenuCommand: vi.fn(() => vi.fn()),
+      onRecentMenuTarget: vi.fn(() => vi.fn()),
       onCloseRequest: vi.fn(() => vi.fn()),
       readyForCloseRequests: vi.fn(),
-      confirmClose: vi.fn()
+      confirmClose: vi.fn(),
+      openSettings: vi.fn(),
+      closeSettings: vi.fn()
     },
     file: {
       openDialog: vi.fn(async () => null),
@@ -37,7 +40,7 @@ function createApi(overrides: Partial<MarkdownAppApi['file']> = {}): MarkdownApp
       saveImageBlob: vi.fn(),
       ...overrides
     },
-    dir: { scan: vi.fn(async () => null) },
+    dir: { scan: vi.fn(async () => ({ status: 'empty', tree: fileTree })), cancelScan: vi.fn() },
     exportHtml: vi.fn(),
     exportPdf: vi.fn(),
     getPathForFile: vi.fn(),
@@ -72,10 +75,10 @@ describe('useDocumentActions', () => {
   it('saves an untitled document and refreshes the folder tree', async () => {
     const saveFileDialog = vi.fn(async () => 'C:/notes.md')
     const write = vi.fn(async () => 'C:/notes.md')
-    const scan = vi.fn(async () => fileTree)
+    const scan = vi.fn(async () => ({ status: 'success' as const, tree: fileTree }))
     window.markdownApp = {
       ...createApi({ saveFileDialog, write, openDirectoryDialog: vi.fn(async () => 'C:/notes') }),
-      dir: { scan }
+       dir: { scan, cancelScan: vi.fn() }
     }
     useDocumentStore.getState().updateDocument('untitled-1', { content: '# Saved', dirty: true })
     const { result } = renderHook(() => useDocumentActions(translate, vi.fn(), vi.fn()))
@@ -196,5 +199,24 @@ describe('useDocumentActions', () => {
     expect(alert).toHaveBeenNthCalledWith(2, 'saveFailed: write failed')
     expect(consoleError).toHaveBeenCalledTimes(2)
     expect(useDocumentStore.getState().documents[0]).toMatchObject({ path: 'C:/draft.md', content: 'draft', dirty: true })
+  })
+
+  it('saves every dirty document before reporting close success', async () => {
+    const write = vi.fn(async (path: string) => path)
+    window.markdownApp = createApi({ write })
+    act(() => {
+      useDocumentStore.getState().replaceDocuments([
+        { id: 'one', path: 'C:/one.md', content: 'one', dirty: true },
+        { id: 'two', path: 'C:/two.md', content: 'two', dirty: true }
+      ], 'one')
+    })
+    const { result } = renderHook(() => useDocumentActions(translate, vi.fn(), vi.fn()))
+
+    let saved = false
+    await act(async () => { saved = await result.current.saveAllDocuments() })
+
+    expect(saved).toBe(true)
+    expect(write).toHaveBeenCalledTimes(2)
+    expect(useDocumentStore.getState().documents.every((document) => !document.dirty)).toBe(true)
   })
 })
