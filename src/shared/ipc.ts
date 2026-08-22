@@ -4,6 +4,7 @@ export const IpcChannels = {
   helpOpen: 'help:open',
   windowSetTitle: 'window:set-title',
   windowSetDirty: 'window:set-dirty',
+  windowSetLanguage: 'window:set-language',
   menuCommand: 'menu:command',
   menuOpenRecent: 'menu:open-recent',
   fileOpenRecentFolder: 'file:open-recent-folder',

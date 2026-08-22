@@ -85,6 +85,7 @@ export interface MarkdownAppApi {
   window: {
     setTitle: (title: string) => Promise<void>
     setDirty: (dirty: boolean) => Promise<void>
+    setLanguage: (language: LanguageMode) => Promise<void>
     onMenuCommand: (listener: (command: MenuCommand) => void) => () => void
     onRecentMenuTarget: (listener: (target: RecentMenuTarget) => void) => () => void
   }

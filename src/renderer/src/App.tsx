@@ -73,6 +73,10 @@ export function App(): React.JSX.Element {
   }, [hasUnsavedChanges])
 
   useEffect(() => {
+    if (config) void window.markdownApp.window.setLanguage(config.language)
+  }, [config])
+
+  useEffect(() => {
     const fileName = docPath?.split(/[\\/]/).pop()
     const title = fileName?.replace(/\.(md|markdown|txt)$/i, '') || t('untitledDocument')
     void window.markdownApp.window.setTitle(title)

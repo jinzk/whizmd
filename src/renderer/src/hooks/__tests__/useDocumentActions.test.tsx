@@ -22,6 +22,7 @@ function createApi(overrides: Partial<MarkdownAppApi['file']> = {}): MarkdownApp
     window: {
       setTitle: vi.fn(),
       setDirty: vi.fn(),
+      setLanguage: vi.fn(),
       onMenuCommand: vi.fn(() => vi.fn()),
       onRecentMenuTarget: vi.fn(() => vi.fn()),
     },

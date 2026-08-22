@@ -6,7 +6,7 @@ import type { AppConfig, FileNode, ExportPayload, ImportImageResult, DirectorySc
 import { addRecentFile, addRecentFolder, clearRecent, getRecent, removeRecentFile, removeRecentFolder } from './recentFiles'
 import { allowMediaDirectory, allowMediaFile } from './protocol'
 import { rebuildApplicationMenu } from './menu'
-import { setMainWindowDirty } from './window'
+import { setMainWindowDirty, setMainWindowLanguage } from './window'
 
 const SKIPPED_DIRS = new Set([
   'node_modules',
@@ -207,6 +207,10 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IpcChannels.windowSetDirty, (event, dirty: unknown) => {
     if (typeof dirty !== 'boolean') throw new Error('Invalid dirty state')
     setMainWindowDirty(BrowserWindow.fromWebContents(event.sender), dirty)
+  })
+  ipcMain.handle(IpcChannels.windowSetLanguage, (event, language: unknown) => {
+    if (language !== 'system' && language !== 'zh-CN' && language !== 'en-US') throw new Error('Invalid language')
+    setMainWindowLanguage(BrowserWindow.fromWebContents(event.sender), language)
   })
   ipcMain.handle(IpcChannels.dialogOpenFile, async () => {
     const chinese = (await dialogLanguage()) === 'zh-CN'

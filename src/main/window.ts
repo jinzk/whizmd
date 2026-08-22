@@ -1,8 +1,10 @@
 import { app, BrowserWindow, dialog, nativeImage, shell } from 'electron'
 import { join } from 'node:path'
+import type { LanguageMode } from '../shared/types'
 
 let mainWindow: BrowserWindow | null = null
 let mainWindowDirty = false
+let mainWindowLanguage: LanguageMode = 'system'
 let closeConfirmed = false
 let closePromptOpen = false
 
@@ -42,9 +44,9 @@ export function createMainWindow(): BrowserWindow {
     void dialog.showMessageBox(window, {
       type: 'warning',
       title: 'WhizMD',
-      message: 'There are unsaved changes.',
-      detail: 'Do you want to close the window without saving?',
-      buttons: ['Cancel', 'Close without saving'],
+      message: mainWindowLanguage === 'zh-CN' ? '有未保存的修改。' : 'There are unsaved changes.',
+      detail: mainWindowLanguage === 'zh-CN' ? '确定要放弃修改并关闭窗口吗？' : 'Do you want to close the window without saving?',
+      buttons: mainWindowLanguage === 'zh-CN' ? ['取消', '放弃修改并关闭'] : ['Cancel', 'Close without saving'],
       defaultId: 0,
       cancelId: 0,
       noLink: true
@@ -70,6 +72,7 @@ export function createMainWindow(): BrowserWindow {
   mainWindow.on('closed', () => {
     mainWindow = null
     mainWindowDirty = false
+    mainWindowLanguage = 'system'
     closeConfirmed = false
     closePromptOpen = false
   })
@@ -83,4 +86,10 @@ export function getMainWindow(): BrowserWindow | null {
 
 export function setMainWindowDirty(window: BrowserWindow | null, dirty: boolean): void {
   if (window === mainWindow) mainWindowDirty = dirty
+}
+
+export function setMainWindowLanguage(window: BrowserWindow | null, language: LanguageMode): void {
+  if (window === mainWindow) mainWindowLanguage = language === 'system'
+    ? (/^zh(?:-|$)/i.test(app.getLocale()) ? 'zh-CN' : 'en-US')
+    : language
 }

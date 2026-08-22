@@ -21,6 +21,7 @@ const api: MarkdownAppApi = {
   window: {
     setTitle: (title) => ipcRenderer.invoke(IpcChannels.windowSetTitle, title),
     setDirty: (dirty) => ipcRenderer.invoke(IpcChannels.windowSetDirty, dirty),
+    setLanguage: (language) => ipcRenderer.invoke(IpcChannels.windowSetLanguage, language),
     onMenuCommand: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, command: MenuCommand): void =>
         listener(command)
