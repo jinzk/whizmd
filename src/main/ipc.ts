@@ -101,6 +101,15 @@ async function dialogLanguage(): Promise<'zh-CN' | 'en-US'> {
   return /^zh(?:-|$)/i.test(app.getLocale()) ? 'zh-CN' : 'en-US'
 }
 
+async function helpDocumentPath(): Promise<string | null> {
+  const chinese = (await dialogLanguage()) === 'zh-CN'
+  const filePath = join(app.getAppPath(), chinese ? 'HELP_CN.md' : 'HELP.md')
+  if (!existsSync(filePath)) return null
+  allowFile(filePath)
+  allowDirectory(dirname(filePath))
+  return filePath
+}
+
 async function setConfig(patch: Partial<AppConfig>): Promise<AppConfig> {
   if (patch.assetsDir !== undefined) {
     if (
@@ -139,6 +148,7 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle(IpcChannels.appConfigGet, () => getConfig())
+  ipcMain.handle(IpcChannels.helpOpen, () => helpDocumentPath())
   ipcMain.handle(IpcChannels.appConfigSet, async (_e, patch: Partial<AppConfig>) => {
     const config = await setConfig(patch)
     await rebuildApplicationMenu(

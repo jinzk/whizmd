@@ -1,7 +1,14 @@
 export type ThemeMode = 'light' | 'dark' | 'system'
 export type LanguageMode = 'system' | 'zh-CN' | 'en-US'
 export type MenuCommand =
-  'new-file' | 'open-folder' | 'open-file' | 'close-file' | 'save' | 'export-html' | 'export-pdf'
+  | 'new-file'
+  | 'open-folder'
+  | 'open-file'
+  | 'close-file'
+  | 'save'
+  | 'export-html'
+  | 'export-pdf'
+  | 'open-help'
 
 export interface AppConfig {
   themeMode: ThemeMode
@@ -45,6 +52,9 @@ export interface MarkdownAppApi {
   config: {
     get: () => Promise<AppConfig>
     set: (patch: Partial<AppConfig>) => Promise<AppConfig>
+  }
+  help: {
+    open: () => Promise<string | null>
   }
   window: {
     setTitle: (title: string) => Promise<void>

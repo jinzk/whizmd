@@ -118,10 +118,13 @@ export function App(): React.JSX.Element {
       'close-file': closeCurrentDocument,
       save: () => void save(),
       'export-html': () => void exportDocument('html'),
-      'export-pdf': () => void exportDocument('pdf')
+      'export-pdf': () => void exportDocument('pdf'),
+      'open-help': () => void window.markdownApp.help.open().then((path) => {
+        if (path) void openFile(path)
+      })
     }
     return window.markdownApp.window.onMenuCommand((command) => actions[command]())
-  }, [closeCurrentDocument, exportDocument, newFile, openFileDialog, openFolder, save])
+  }, [closeCurrentDocument, exportDocument, newFile, openFile, openFileDialog, openFolder, save])
 
   // Global shortcuts: Ctrl/Cmd+S save, Ctrl/Cmd+O open.
   useEffect(() => {

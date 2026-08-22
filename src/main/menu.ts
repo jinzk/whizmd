@@ -1,4 +1,4 @@
-import { Menu } from 'electron'
+import { app, dialog, Menu } from 'electron'
 import type { MenuCommand } from '../shared/types'
 import { IpcChannels } from '../shared/ipc'
 import { getMainWindow } from './window'
@@ -21,7 +21,10 @@ export function rebuildApplicationMenu(chinese: boolean): void {
         cut: '剪切',
         copy: '复制',
         paste: '粘贴',
-        selectAll: '全选'
+        selectAll: '全选',
+        help: '帮助',
+        guide: '功能介绍',
+        about: '关于'
       }
     : {
         file: 'File',
@@ -39,7 +42,10 @@ export function rebuildApplicationMenu(chinese: boolean): void {
         cut: 'Cut',
         copy: 'Copy',
         paste: 'Paste',
-        selectAll: 'Select All'
+        selectAll: 'Select All',
+        help: 'Help',
+        guide: 'User Guide',
+        about: 'About'
       }
   const send = (command: MenuCommand): void => {
     getMainWindow()?.webContents.send(IpcChannels.menuCommand, command)
@@ -73,6 +79,25 @@ export function rebuildApplicationMenu(chinese: boolean): void {
           { label: label.copy, role: 'copy', accelerator: 'CmdOrCtrl+C' },
           { label: label.paste, role: 'paste', accelerator: 'CmdOrCtrl+V' },
           { label: label.selectAll, role: 'selectAll', accelerator: 'CmdOrCtrl+A' }
+        ]
+      },
+      {
+        label: label.help,
+        submenu: [
+          { label: label.guide, click: () => send('open-help') },
+          {
+            label: label.about,
+            click: () => {
+              void dialog.showMessageBox({
+                type: 'info',
+                title: label.about,
+                message: 'WhizMD',
+                detail: chinese
+                  ? `桌面 Markdown 编辑器\n版本 ${app.getVersion()}`
+                  : `Desktop Markdown editor\nVersion ${app.getVersion()}`
+              })
+            }
+          }
         ]
       }
     ])

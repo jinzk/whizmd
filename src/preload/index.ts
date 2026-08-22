@@ -7,6 +7,9 @@ const api: MarkdownAppApi = {
     get: () => ipcRenderer.invoke(IpcChannels.appConfigGet),
     set: (patch) => ipcRenderer.invoke(IpcChannels.appConfigSet, patch)
   },
+  help: {
+    open: () => ipcRenderer.invoke(IpcChannels.helpOpen)
+  },
   window: {
     setTitle: (title) => ipcRenderer.invoke(IpcChannels.windowSetTitle, title),
     onMenuCommand: (listener) => {

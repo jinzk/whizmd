@@ -1,6 +1,7 @@
 export const IpcChannels = {
   appConfigGet: 'config:get',
   appConfigSet: 'config:set',
+  helpOpen: 'help:open',
   windowSetTitle: 'window:set-title',
   menuCommand: 'menu:command',
   windowCloseRequest: 'window:close-request',

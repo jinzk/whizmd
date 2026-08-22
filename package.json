@@ -22,7 +22,9 @@
       "output": "release"
     },
     "files": [
-      "out/**/*"
+      "out/**/*",
+      "HELP.md",
+      "HELP_CN.md"
     ],
     "win": {
       "target": [

@@ -18,6 +18,7 @@ const fileTree: FileNode = {
 function createApi(overrides: Partial<MarkdownAppApi['file']> = {}): MarkdownAppApi {
   return {
     config: { get: vi.fn(), set: vi.fn() },
+    help: { open: vi.fn(async () => null) },
     window: {
       setTitle: vi.fn(),
       onMenuCommand: vi.fn(() => vi.fn()),
