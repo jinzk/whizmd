@@ -137,11 +137,66 @@ describe('NodeView DOM interactions', () => {
   })
 
   it('hides the HTML source edit button while an HTML block is being edited', async () => {
-    await mount([{ type: 'htmlBlock', attrs: { html: '<section>content</section>' } }], [...baseExtensions, HtmlBlock])
+    await mount([{ type: 'htmlBlock', attrs: { html: '<section>content</section>', htmlEditing: true } }], [...baseExtensions, HtmlBlock])
 
     const block = document.querySelector('[data-html-block]')
     expect(block).toHaveAttribute('data-html-editing', 'true')
     expect(screen.queryByRole('button', { name: '编辑 HTML 源码' })).not.toBeInTheDocument()
+  })
+
+  it('focuses the source editor and places the caret at the end for a new HTML block', async () => {
+    const editor = await mount([{ type: 'htmlBlock', attrs: { html: '<', htmlEditing: true } }], [...baseExtensions, HtmlBlock])
+    const source = screen.getByRole('textbox', { name: 'HTML 源码' }) as HTMLTextAreaElement
+    await act(async () => {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    })
+
+    expect(source).toHaveFocus()
+    expect(source.selectionStart).toBe(source.value.length)
+    expect(source.selectionEnd).toBe(source.value.length)
+    expect(editor.getJSON().content?.[0]).toMatchObject({ type: 'htmlBlock', attrs: { html: '<' } })
+  })
+
+  it('updates the stored HTML source without leaving edit mode', async () => {
+    const editor = await mount([{ type: 'htmlBlock', attrs: { html: '<div>old</div>', htmlEditing: true } }], [...baseExtensions, HtmlBlock])
+    const source = screen.getByRole('textbox', { name: 'HTML 源码' })
+
+    await event(() => fireEvent.change(source, { target: { value: '<div>new</div>' } }))
+
+    expect(json(editor).content?.[0]).toMatchObject({ type: 'htmlBlock', attrs: { html: '<div>new</div>', htmlEditing: true } })
+    expect(document.querySelector('[data-html-block]')).toHaveAttribute('data-html-editing', 'true')
+  })
+
+  it('preserves the caret when inserting into the middle of HTML source', async () => {
+    const editor = await mount([{ type: 'htmlBlock', attrs: { html: '<div>abcd</div>', htmlEditing: true } }], [...baseExtensions, HtmlBlock])
+    const source = screen.getByRole('textbox', { name: 'HTML 源码' }) as HTMLTextAreaElement
+    source.focus()
+    source.setSelectionRange(7, 7)
+    fireEvent.select(source)
+
+    await event(() => fireEvent.change(source, { target: { value: '<div>abXcd</div>' } }))
+    await act(async () => {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    })
+
+    expect(source.value).toBe('<div>abXcd</div>')
+    expect(source.selectionStart).toBe(8)
+    expect(source.selectionEnd).toBe(8)
+    expect(editor.getJSON().content?.[0]?.attrs?.html).toBe('<div>abXcd</div>')
+  })
+
+  it('returns to preview mode only after focus leaves the source container', async () => {
+    await mount([{ type: 'htmlBlock', attrs: { html: '<div>content</div>', htmlEditing: true } }], [...baseExtensions, HtmlBlock])
+    const source = screen.getByRole('textbox', { name: 'HTML 源码' })
+    const deleteButton = screen.getByRole('button', { name: '删除 HTML 模块' })
+    const block = document.querySelector('[data-html-block]')
+
+    await event(() => fireEvent.blur(source, { relatedTarget: deleteButton }))
+    expect(block).toHaveAttribute('data-html-editing', 'true')
+
+    await event(() => fireEvent.blur(source, { relatedTarget: document.body }))
+    expect(block).toHaveAttribute('data-html-editing', 'false')
+    expect(screen.getByRole('button', { name: '编辑 HTML 源码' })).toBeInTheDocument()
   })
 
   it('activates footnote references and renders the definition NodeView controls', async () => {

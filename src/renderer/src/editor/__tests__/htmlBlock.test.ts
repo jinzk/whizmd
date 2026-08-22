@@ -51,6 +51,15 @@ describe('raw HTML blocks', () => {
     expect(preview).toContain('align="center"')
   })
 
+  it('keeps inline Markdown nested in the source HTML container', () => {
+    const preview = renderHtmlBlockPreview('<div>\n*d*\n</div>')
+    const parsed = new DOMParser().parseFromString(preview, 'text/html')
+
+    expect(parsed.body.children).toHaveLength(1)
+    expect(parsed.body.firstElementChild?.tagName).toBe('DIV')
+    expect(parsed.body.firstElementChild?.querySelector('em')?.textContent).toBe('d')
+  })
+
   it('keeps the HTML block as a selectable node for source editing', () => {
     const editor = new Editor({
       extensions: buildEditorExtensions(),

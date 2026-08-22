@@ -1,17 +1,20 @@
 import { describe, it, expect } from 'vitest'
 import { Editor } from '@tiptap/core'
+import { NodeSelection } from '@tiptap/pm/state'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
 import { CodeBlockExtension } from '../codeBlock'
 import { lowlight } from '../lowlight'
 import { typeInto } from './helpers'
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
+import { HtmlBlock } from '../htmlBlock'
 
 function createEditor(md: string): Editor {
   const editor = new Editor({
     extensions: [
       StarterKit.configure({ codeBlock: false }),
       CodeBlockExtension.configure({ lowlight, defaultLanguage: 'plaintext' }),
+      HtmlBlock,
       Markdown.configure({ indentation: { style: 'space', size: 2 } })
     ]
   })
@@ -49,39 +52,36 @@ describe('code block language round-trip', () => {
     editor.destroy()
   })
 
-  it('turns a leading less-than sign into an HTML code block', () => {
+  it('turns a leading less-than sign into the unified HTML block', () => {
     const editor = createEditor('')
     typeInto(editor, '<')
     expect(editor.getJSON().content?.[0]).toMatchObject({
-      type: 'codeBlock',
-      attrs: { language: 'html', htmlPreview: true, htmlEditing: true }
+      type: 'htmlBlock',
+      attrs: { html: '<' }
     })
-    expect(editor.state.selection.from).toBe(2)
+    expect(editor.state.selection instanceof NodeSelection && editor.state.selection.node.type.name).toBe('htmlBlock')
     editor.destroy()
   })
 
-  it('keeps accepting HTML source after a leading less-than sign', () => {
+  it('creates the unified HTML block from a leading less-than sign', () => {
     const editor = createEditor('')
-    typeInto(editor, '<div><b></b></div>')
+    typeInto(editor, '<')
     expect(editor.getJSON().content?.[0]).toMatchObject({
-      type: 'codeBlock',
-      attrs: { language: 'html', htmlPreview: true, htmlEditing: true },
-      content: [{ type: 'text', text: '<div><b></b></div>' }]
+      type: 'htmlBlock',
+      attrs: { html: '<' }
     })
     editor.destroy()
   })
 
-  it('marks HTML input blocks for a visible preview NodeView', () => {
+  it('uses the unified HTML block for typed HTML preview content', () => {
     const editor = createEditor('')
-    typeInto(editor, '<div>preview</div>')
+    typeInto(editor, '<')
 
     const node = editor.getJSON().content?.[0]
     expect(node).toMatchObject({
-      type: 'codeBlock',
-      attrs: { language: 'html', htmlPreview: true, htmlEditing: true },
-      content: [{ type: 'text', text: '<div>preview</div>' }]
+      type: 'htmlBlock',
+      attrs: { html: '<' },
     })
-    expect(node?.attrs?.htmlPreview).toBe(true)
     editor.destroy()
   })
 

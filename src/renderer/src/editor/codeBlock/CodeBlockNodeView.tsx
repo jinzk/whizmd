@@ -4,14 +4,12 @@ import type { NodeViewProps } from '@tiptap/react'
 import type { Node } from '@tiptap/pm/model'
 import { useTheme } from '../../hooks/useTheme'
 import { GenericCodeBlockView } from './GenericCodeBlockView'
-import { HtmlPreviewView } from './HtmlPreviewView'
 import { getMermaidConfig, initializeMermaid, loadMermaid, nextMermaidId } from './mermaid'
 
 let mermaidCounter = { value: 0 }
 
-type CodeBlockViewType = 'html' | 'mermaid' | 'generic'
+type CodeBlockViewType = 'mermaid' | 'generic'
 export function getCodeBlockViewType(node: Node): CodeBlockViewType {
-  if (node.attrs.htmlPreview === true) return 'html'
   if (String(node.attrs.language ?? '').toLowerCase() === 'mermaid') return 'mermaid'
   return 'generic'
 }
@@ -72,7 +70,6 @@ function MermaidBlockView({ node, selected, editor, getPos, deleteNode }: NodeVi
 
 export function CodeBlockNodeView(props: NodeViewProps): React.JSX.Element {
   switch (getCodeBlockViewType(props.node)) {
-    case 'html': return <HtmlPreviewView {...props} />
     case 'mermaid': return <MermaidBlockView {...props} />
     default: return <GenericCodeBlockView {...props} />
   }
