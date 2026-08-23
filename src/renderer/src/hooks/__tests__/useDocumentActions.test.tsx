@@ -69,6 +69,18 @@ describe('useDocumentActions', () => {
     expect(useDocumentStore.getState().activeDocumentId).toMatch(/^file-/)
   })
 
+  it('activates a newly created document without changing the previous document', () => {
+    const { result } = renderHook(() => useDocumentActions(translate, vi.fn(), vi.fn()))
+
+    act(() => result.current.newFile())
+
+    const state = useDocumentStore.getState()
+    expect(state.documents).toHaveLength(2)
+    expect(state.documents[0]).toEqual(initialDocument)
+    expect(state.documents[1]).toMatchObject({ path: null, content: '', dirty: false })
+    expect(state.activeDocumentId).toBe(state.documents[1].id)
+  })
+
   it('saves an untitled document and refreshes the folder tree', async () => {
     const saveFileDialog = vi.fn(async () => 'C:/notes.md')
     const write = vi.fn(async () => 'C:/notes.md')

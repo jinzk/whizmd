@@ -10,3 +10,5 @@
 .wysiwyg-editor .tiptap li[data-type='taskItem'] > label input { accent-color: var(--md-accent); cursor: pointer; }
 .wysiwyg-editor .tiptap blockquote { border-left: 3px solid var(--md-border); margin: 0; padding-left: 12px; color: var(--md-text-muted); }
 .wysiwyg-editor .tiptap a { color: var(--md-accent); }
+.wysiwyg-editor .tiptap .editor-line-active { position: relative; margin-left: -14px; padding-left: 11px; border-left: 3px solid var(--md-accent); border-radius: 0 6px 6px 0; background: linear-gradient(90deg, var(--md-active-line), transparent 88%); transition: background-color 120ms ease; }
+.wysiwyg-editor:focus-within .tiptap .editor-line-active { background: linear-gradient(90deg, color-mix(in srgb, var(--md-accent) 12%, transparent), transparent 92%); }

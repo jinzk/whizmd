@@ -109,6 +109,17 @@ describe('inline HTML', () => {
     editor.destroy()
   })
 
+  it('renders inline HTML after existing inline nodes', () => {
+    const editor = new Editor({ extensions: buildEditorExtensions() })
+    typeInto(editor, '$a$ <b>d</b> ==x==')
+    const content = editor.getJSON().content?.[0]
+    const nodes = content && 'content' in content ? content.content ?? [] : []
+    expect(nodes.some((node) => node.type === 'inlineMath')).toBe(true)
+    expect(nodes.some((node) => node.type === 'inlineHtml')).toBe(true)
+    expect(nodes.some((node) => node.type === 'inlineDecoration')).toBe(true)
+    editor.destroy()
+  })
+
   it('converts typed inline HTML inside a table cell', () => {
     const editor = createEditor('| Content |\n| --- |\n| start |')
     let cellTextPosition = 0

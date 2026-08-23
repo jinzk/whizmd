@@ -44,24 +44,10 @@ export const InlineMath = BaseInlineMath.extend({
   parseMarkdown: inlineTokenToJson,
   renderMarkdown: (node: JSONContent): string => `$${node.attrs?.latex ?? ''}$`,
   addInputRules() {
-    return [createPairedTriggerInputRule([
-      {
-        marker: '$',
-        priority: 100,
-        accepts: (content) => content.length > 0 && !/^\s|\s$/.test(content) && !content.includes('\n') && !content.includes('$'),
-        createNode: (content, state) => state?.schema.nodes.inlineMath.create({ latex: content.trim() }) ?? null
-      }
-    ])]
+    return [createPairedTriggerInputRule([{ marker: '$', priority: 100, accepts: (content) => content.length > 0 && !/^\s|\s$/.test(content) && !content.includes('\n') && !content.includes('$'), createNode: (content, state) => state?.schema.nodes.inlineMath.create({ latex: content.trim() }) ?? null }])]
   },
   addExtensions() {
-    return [createPairedTriggerExtension([
-      {
-        marker: '$',
-        priority: 100,
-        accepts: (content) => content.length > 0 && !/^\s|\s$/.test(content) && !content.includes('\n') && !content.includes('$'),
-        createNode: (content, state) => state?.schema.nodes.inlineMath.create({ latex: content.trim() }) ?? null
-      }
-    ], 'inlineMathCompletion')]
+    return [createPairedTriggerExtension([{ marker: '$', priority: 100, accepts: (content) => content.length > 0 && !/^\s|\s$/.test(content) && !content.includes('\n') && !content.includes('$'), createNode: (content, state) => state?.schema.nodes.inlineMath.create({ latex: content.trim() }) ?? null }], 'inlineMathTransactionCompletion')]
   },
   addKeyboardShortcuts() {
     return inlineAtomKeyboardShortcuts(this.type)

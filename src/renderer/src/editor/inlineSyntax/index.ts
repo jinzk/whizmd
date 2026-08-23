@@ -83,7 +83,7 @@ export const InlineSyntax = Node.create({
       { marker: '**', priority: 90, accepts: (content) => content.trim().length > 0 && !content.includes('\n') && !content.includes('*'), createNode: (content, state) => state?.schema.nodes.inlineSyntax.create({ kind: 'bold', value: content.trim() }) ?? null },
       { marker: '~~', priority: 80, accepts: (content) => content.trim().length > 0 && !content.includes('\n') && !content.includes('~'), createNode: (content, state) => state?.schema.nodes.inlineSyntax.create({ kind: 'strike', value: content.trim() }) ?? null },
       { marker: '*', priority: 70, accepts: (content) => content.trim().length > 0 && !content.includes('\n') && !content.includes('*'), createNode: (content, state) => state?.schema.nodes.inlineSyntax.create({ kind: 'italic', value: content.trim() }) ?? null }
-    ], 'inlineSyntaxCompletion')]
+    ], 'inlineSyntaxTransactionCompletion')]
   },
   addProseMirrorPlugins() {
     return [new Plugin({

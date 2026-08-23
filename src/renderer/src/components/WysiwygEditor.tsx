@@ -30,6 +30,7 @@ const CODE_LANGUAGES = [
 export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props): React.JSX.Element {
   const { t } = useI18n()
   const editorRef = useRef<Editor | null>(null)
+  const [extensions] = useState(buildEditorExtensions)
   const lastEmittedRef = useRef<string | null>(null)
   const onUpdateRef = useRef(onUpdate)
   const [showLanguageMenu, setShowLanguageMenu] = useState(false)
@@ -68,16 +69,11 @@ export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props):
     onUpdateRef.current = onUpdate
   }, [onUpdate])
 
-  const flush = (editor: Editor): void => {
-    const md = editor.getMarkdown()
-    lastEmittedRef.current = md
-    onUpdateRef.current(md)
-  }
-
   const editor = useEditor({
-    extensions: buildEditorExtensions(),
+    extensions,
     content,
     contentType: 'markdown',
+    autofocus: 'start',
     onCreate: ({ editor }) => {
       editorRef.current = editor
       lastEmittedRef.current = editor.getMarkdown()
@@ -85,15 +81,11 @@ export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props):
     onUpdate: ({ editor }) => {
       syncLanguageMenu(editor)
       const md = editor.getMarkdown()
+      if (md === lastEmittedRef.current) return
       lastEmittedRef.current = md
       onUpdateRef.current(md)
     },
-    onBlur: ({ editor }) => {
-      // Flush pending markdown immediately so mode switches / saves read the
-      // latest text even before the debounce fires.
-      flush(editor)
-      setShowLanguageMenu(false)
-    },
+    onBlur: () => setShowLanguageMenu(false),
     onDestroy: () => {
       editorRef.current = null
     },
@@ -167,14 +159,6 @@ export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props):
     lastEmittedRef.current = content
     editor.commands.setContent(content, { emitUpdate: false, contentType: 'markdown' })
   }, [content, editor])
-
-  // Start each newly opened document at its beginning instead of restoring a
-  // position near the end of the previous editor instance.
-  useEffect(() => {
-    if (!editor) return
-    const raf = requestAnimationFrame(() => editor.commands.focus('start'))
-    return () => cancelAnimationFrame(raf)
-  }, [editor])
 
   return (
     <div className="wysiwyg-editor">

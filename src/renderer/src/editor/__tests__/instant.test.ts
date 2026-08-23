@@ -148,19 +148,6 @@ describe('instant syntax trigger', () => {
     expect(content).toEqual([{ type: 'inlineMath', attrs: { latex: 'a^2' } }])
   })
 
-  it('converts a formula when content is typed between existing dollar delimiters', () => {
-    const editor = createEditor()
-    typeInto(editor, 'a$$')
-    editor.commands.setTextSelection(3)
-    typeInto(editor, 'x^2')
-    editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
-
-    expect(editor.getJSON().content?.[0].content).toEqual([
-      { type: 'text', text: 'a' },
-      { type: 'inlineMath', attrs: { latex: 'x^2' } }
-    ])
-  })
-
   it('keeps direct text insertion separate from Markdown paste parsing', () => {
     const editor = createEditor()
     pasteInto(editor, '$x^2$')

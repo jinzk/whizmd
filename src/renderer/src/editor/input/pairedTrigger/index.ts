@@ -2,20 +2,22 @@ import { InputRule, Extension } from '@tiptap/core'
 import { TextSelection, Plugin } from '@tiptap/pm/state'
 import type { EditorState, Transaction } from '@tiptap/pm/state'
 import { canTriggerInlineMarkdown } from '../context'
-import { findMatchAroundCursor, findMatchEndingBeforeCursor, findPairedMatch } from './matcher'
+import { findMatchAroundCursor, findPairedMatch } from './matcher'
 import type { PairedTriggerRule } from './types'
 
-function convertAtPosition(editorState: EditorState, position: number, rules: readonly PairedTriggerRule[]): Transaction | null {
-  const resolved = editorState.doc.resolve(position)
+function convertAtCursor(state: EditorState, rules: readonly PairedTriggerRule[]): Transaction | null {
+  const { from, empty } = state.selection
+  if (!empty) return null
+  const resolved = state.doc.resolve(from)
   if (!resolved.parent.isTextblock) return null
   const text = resolved.parent.textContent
-  const match = findMatchAroundCursor(text, resolved.parentOffset, rules) ?? findMatchEndingBeforeCursor(text, resolved.parentOffset, rules)
+  const match = findMatchAroundCursor(text, resolved.parentOffset, rules)
   if (!match) return null
-  const from = resolved.start() + match.from
-  const node = match.rule.createNode(match.content, editorState)
+  const node = match.rule.createNode(match.content, state)
   if (!node) return null
-  const transaction = editorState.tr.replaceWith(from, resolved.start() + match.to, node)
-  transaction.setSelection(TextSelection.create(transaction.doc, from + node.nodeSize))
+  const start = resolved.start() + match.from
+  const transaction = state.tr.replaceWith(start, resolved.start() + match.to, node)
+  transaction.setSelection(TextSelection.create(transaction.doc, start + node.nodeSize))
   return transaction
 }
 
@@ -29,7 +31,20 @@ export function createPairedTriggerInputRule(rules: readonly PairedTriggerRule[]
       const inserted = match[0].at(-1) ?? ''
       const before = resolved.parent.textContent.slice(0, resolved.parentOffset)
       const after = resolved.parent.textContent.slice(resolved.parentOffset)
-      if (rules.some((rule) => before.endsWith(rule.marker) && after.startsWith(rule.marker))) return
+      if (after) {
+        const virtualText = before + inserted + after
+        const virtualCursor = before.length + inserted.length
+        const pairedMatch = findMatchAroundCursor(virtualText, virtualCursor, rules)
+        if (!pairedMatch) return
+        const node = pairedMatch.rule.createNode(pairedMatch.content, state)
+        if (!node) return
+        const from = resolved.start() + pairedMatch.from
+        const to = resolved.start() + pairedMatch.to - inserted.length
+        const transaction = state.tr.replaceWith(from, to, node)
+        transaction.setSelection(TextSelection.create(transaction.doc, from + node.nodeSize))
+        return
+      }
+
       const pairedMatch = findPairedMatch(before + inserted, resolved.parentOffset + 1, rules)
       if (!pairedMatch) return
       const node = pairedMatch.rule.createNode(pairedMatch.content, state)
@@ -41,41 +56,14 @@ export function createPairedTriggerInputRule(rules: readonly PairedTriggerRule[]
   })
 }
 
-export function createPairedTriggerExtension(rules: readonly PairedTriggerRule[], name = 'pairedTriggerCompletion'): Extension {
+export function createPairedTriggerExtension(rules: readonly PairedTriggerRule[], name: string): Extension {
   return Extension.create({
     name,
     addProseMirrorPlugins() {
       return [new Plugin({
-        view: (view) => {
-          let previousState = view.state
-          return {
-            update: (updatedView) => {
-              const nextState = updatedView.state
-              const previousPosition = previousState.selection.from
-              const selectionChanged = previousPosition !== nextState.selection.from || previousState.selection.to !== nextState.selection.to
-              if (selectionChanged && previousState.doc.eq(nextState.doc) && previousState.selection.empty && nextState.selection.empty) {
-                const transaction = convertAtPosition(nextState, previousPosition, rules)
-                if (transaction) updatedView.dispatch(transaction)
-              }
-              previousState = updatedView.state
-            }
-          }
-        },
-        props: {
-          handleKeyDown: (view, event) => {
-            if (event.key !== 'ArrowRight' && event.key !== 'Enter') return false
-            const transaction = convertAtPosition(view.state, view.state.selection.from, rules)
-            if (!transaction) return false
-            view.dispatch(transaction)
-            return true
-          },
-          handleDOMEvents: {
-            blur: (view) => {
-              const transaction = convertAtPosition(view.state, view.state.selection.from, rules)
-              if (transaction) view.dispatch(transaction)
-              return false
-            }
-          }
+        appendTransaction: (transactions, _oldState, newState) => {
+          if (!transactions.some((transaction) => transaction.docChanged)) return null
+          return convertAtCursor(newState, rules)
         }
       })]
     }

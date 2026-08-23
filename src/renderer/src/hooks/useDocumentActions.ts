@@ -18,6 +18,8 @@ export function useDocumentActions(t: Translator, requestDocumentClose: () => vo
   const saveInFlightRef = useRef<Promise<void> | null>(null)
 
   const handleUpdate = useCallback((content: string): void => {
+    const current = useDocumentStore.getState().documents.find((file) => file.id === activeDocumentId)
+    if (current?.content === content) return
     updateDocument(activeDocumentId, { content, dirty: true })
     setSaveStatus('idle')
   }, [activeDocumentId, updateDocument])
@@ -79,9 +81,12 @@ export function useDocumentActions(t: Translator, requestDocumentClose: () => vo
 
   const newFile = useCallback((): void => {
     const id = `untitled-${Date.now()}`
-    addDocument({ id, path: null, content: '', dirty: false })
-    setActiveDocument(id)
-  }, [addDocument, setActiveDocument])
+    const state = useDocumentStore.getState()
+    replaceDocuments(
+      [...state.documents, { id, path: null, content: '', dirty: false }],
+      id
+    )
+  }, [replaceDocuments])
 
   const selectDocument = useCallback((id: string): void => {
     if (id !== activeDocumentId && documents.some((file) => file.id === id)) setActiveDocument(id)

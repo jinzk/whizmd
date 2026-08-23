@@ -37,7 +37,6 @@ export const InlineDecoration = Node.create({
     const marker = node.attrs?.kind === 'highlight' ? '==' : node.attrs?.kind === 'superscript' ? '^' : '~'
     return `${marker}${node.attrs?.value ?? ''}${marker}`
   },
-  addNodeView() { return ReactNodeViewRenderer(InlineSyntaxNodeView) },
   addInputRules() {
     return [createPairedTriggerInputRule([
       { marker: '==', priority: 70, accepts: (content) => content.length > 0 && !content.includes('\n') && !content.includes('='), createNode: (content) => this.type.create({ kind: 'highlight', value: content }) },
@@ -50,8 +49,9 @@ export const InlineDecoration = Node.create({
       { marker: '==', priority: 70, accepts: (content) => content.length > 0 && !content.includes('\n') && !content.includes('='), createNode: (content, state) => state?.schema.nodes.inlineDecoration.create({ kind: 'highlight', value: content }) ?? null },
       { marker: '^', priority: 60, accepts: (content) => content.length > 0 && !content.includes('\n') && !content.includes('^'), createNode: (content, state) => state?.schema.nodes.inlineDecoration.create({ kind: 'superscript', value: content }) ?? null },
       { marker: '~', priority: 60, accepts: (content) => content.length > 0 && !content.includes('\n') && !content.includes('~'), createNode: (content, state) => state?.schema.nodes.inlineDecoration.create({ kind: 'subscript', value: content }) ?? null }
-    ], 'inlineDecorationCompletion')]
+    ], 'inlineDecorationTransactionCompletion')]
   },
+  addNodeView() { return ReactNodeViewRenderer(InlineSyntaxNodeView) },
   addKeyboardShortcuts() {
     return inlineAtomKeyboardShortcuts(this.type)
   }

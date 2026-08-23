@@ -14,7 +14,7 @@ import { InlineHtml } from './inlineHtml'
 import { HtmlBlock } from './htmlBlock'
 import { SyntaxSource } from './syntaxSource'
 import { MarkdownPaste } from './markdownPaste'
-import { createPairedTriggerExtension } from './input/pairedTrigger'
+import { InlineSegments } from './inline/inlineSegments'
 import { InlineSyntax } from './inlineSyntax'
 import { TaskItem } from '@tiptap/extension-list/task-item'
 import { TaskList } from '@tiptap/extension-list/task-list'
@@ -46,17 +46,7 @@ export function buildEditorExtensions(): AnyExtension[] {
     ReferenceDefinition,
     SyntaxSource,
     MarkdownPaste,
-    createPairedTriggerExtension([
-      {
-        marker: '`',
-        priority: 50,
-        accepts: (content) => content.length > 0 && !content.includes('\n') && !content.includes('`'),
-        createNode: (content, state) => {
-          const mark = state?.schema.marks.code?.create()
-          return mark && state ? state.schema.text(content, [mark]) : null
-        }
-      }
-    ], 'inlineCodeCompletion'),
+    InlineSegments,
     MarkdownTable.configure({ HTMLAttributes: { class: 'wysiwyg-table' } }),
     TableRow,
     TableHeader,

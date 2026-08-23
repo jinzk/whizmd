@@ -30,10 +30,15 @@ export function App(): React.JSX.Element {
   const [recentFiles, setRecentFiles] = useState<string[]>([])
   const [recentFolders, setRecentFolders] = useState<string[]>([])
   const restoredRecentFile = useRef(false)
+  const userCreatedDocument = useRef(false)
   const requestDocumentClose = useCallback(() => setDocumentCloseDialogOpen(true), [])
   const showMarkdownOnly = config?.showMarkdownOnly ?? true
   const notify = useCallback((message: string, type: AppNotice['type'] = 'error', action?: AppNotice['action']): void => setNotices((current) => [...current.filter((notice) => notice.message !== message), { id: `${Date.now()}-${Math.random()}`, type, message, action }].slice(-4)), [])
   const { documents: openedFiles, activeDocumentId, activeDocument, hasUnsavedChanges, rootDir, fileTree, treeStatus, handleUpdate, save, saveStatus, openFile, openFolder, openFolderPath, openFileDialog, refresh, newFile, selectDocument, closeCurrentDocument, closeDocument, removeCurrentDocument, saveAndCloseDocument } = useDocumentActions(t, requestDocumentClose, () => setDocumentCloseDialogOpen(false), notify, showMarkdownOnly)
+  const handleNewFile = useCallback((): void => {
+    userCreatedDocument.current = true
+    newFile()
+  }, [newFile])
   const docPath = activeDocument?.path ?? null
   const documentContent = activeDocument?.content ?? ''
   const lineCount = documentContent ? documentContent.split(/\r?\n/).length : 1
@@ -59,7 +64,9 @@ export function App(): React.JSX.Element {
     if (!window.markdownApp.recent) return
     void window.markdownApp.recent.list().then((recent) => {
       const path = recent.files[0]
-      if (path) void window.markdownApp.file.openRecent(path).then(() => { if (!cancelled) return openFile(path) }).catch(() => {})
+      if (path) void window.markdownApp.file.openRecent(path).then(() => {
+        if (!cancelled && !userCreatedDocument.current) return openFile(path)
+      }).catch(() => {})
     }).catch(() => {})
     return () => { cancelled = true }
   }, [config, openFile])
@@ -172,7 +179,7 @@ export function App(): React.JSX.Element {
 
   useEffect(() => {
     const actions: Record<MenuCommand, () => void> = {
-      'new-file': newFile,
+       'new-file': handleNewFile,
       'open-folder': () => void openFolder(),
       'open-file': () => void openFileDialog(),
       'close-file': closeCurrentDocument,
@@ -184,7 +191,7 @@ export function App(): React.JSX.Element {
       })
     }
     return window.markdownApp.window.onMenuCommand((command) => actions[command]())
-  }, [closeCurrentDocument, exportDocument, newFile, openFile, openFileDialog, openFolder, save])
+  }, [closeCurrentDocument, exportDocument, handleNewFile, openFile, openFileDialog, openFolder, save])
 
   // Global shortcuts: Ctrl/Cmd+S save, Ctrl/Cmd+O open.
   useEffect(() => {
@@ -196,7 +203,7 @@ export function App(): React.JSX.Element {
       const key = e.key.toLowerCase()
       if (key === 'n') {
         e.preventDefault()
-        newFile()
+        handleNewFile()
       } else if (key === 's') {
         e.preventDefault()
         void save()
@@ -207,7 +214,7 @@ export function App(): React.JSX.Element {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [newFile, save, openFileDialog])
+  }, [handleNewFile, save, openFileDialog])
 
   return (
     <div className="app">
@@ -216,7 +223,7 @@ export function App(): React.JSX.Element {
         docTitle={exportTitle(docPath)}
         dirty={hasUnsavedChanges}
         saveStatus={saveStatus}
-        onNew={newFile}
+         onNew={handleNewFile}
         onSave={() => void save()}
         onModeChange={setMode}
         onSettings={showSettings}
@@ -263,7 +270,7 @@ export function App(): React.JSX.Element {
               spellCheck={config?.spellCheck}
             />
           )}
-          {!activeDocument?.content ? (
+          {activeDocument?.path && !activeDocument.content ? (
             <div className="empty-document-hint">
               <strong>{t('emptyDocumentTitle')}</strong>
               <span>{t('emptyDocumentMessage')}</span>

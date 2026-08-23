@@ -92,6 +92,26 @@ describe('advanced Markdown syntax', () => {
     editor.destroy()
   })
 
+  it('converts a single-character highlight while typing', () => {
+    const editor = new Editor({ extensions: buildEditorExtensions() })
+    typeInto(editor, '==d==')
+    expect(editor.getJSON().content?.[0]?.content).toEqual([
+      { type: 'inlineDecoration', attrs: { kind: 'highlight', value: 'd' } }
+    ])
+    editor.destroy()
+  })
+
+  it('converts text inserted between existing highlight markers', () => {
+    const editor = new Editor({ extensions: buildEditorExtensions() })
+    typeInto(editor, '====')
+    editor.commands.setTextSelection(3)
+    typeInto(editor, 'd')
+    expect(editor.getJSON().content?.[0]?.content).toEqual([
+      { type: 'inlineDecoration', attrs: { kind: 'highlight', value: 'd' } }
+    ])
+    editor.destroy()
+  })
+
   it('converts a footnote reference immediately while typing', () => {
     const editor = new Editor({ extensions: buildEditorExtensions() })
     typeInto(editor, '正文[^1]')
