@@ -41,7 +41,8 @@ function createApi(overrides: Partial<MarkdownAppApi['file']> = {}): MarkdownApp
     exportHtml: vi.fn(),
     exportPdf: vi.fn(),
     getPathForFile: vi.fn(),
-    mediaUrl: vi.fn()
+     mediaUrl: vi.fn(),
+     prepareImages: vi.fn(async (content: string) => content)
   } as MarkdownAppApi
 }
 

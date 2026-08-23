@@ -11,6 +11,7 @@ import { TableRow, TableCell, TableHeader } from '@tiptap/extension-table'
 import { MarkdownTable } from './table'
 import { TableTrigger } from './tableTrigger'
 import { InlineHtml } from './inlineHtml'
+import { ImageLinkNode } from './imageLink'
 import { HtmlBlock } from './htmlBlock'
 import { SyntaxSource } from './syntaxSource'
 import { MarkdownPaste } from './markdownPaste'
@@ -33,7 +34,8 @@ export function buildEditorExtensions(): AnyExtension[] {
     CodeBlockExtension.configure({ lowlight, defaultLanguage: 'plaintext' }),
     InlineMath.configure({ katexOptions: { throwOnError: false, displayMode: false } }),
     BlockMath.configure({ katexOptions: { throwOnError: false, displayMode: true } }),
-    Image.configure({ allowBase64: true }),
+    Image.configure({ allowBase64: true, inline: true }),
+    ImageLinkNode,
     LinkNode,
     InlineHtml,
     HtmlBlock,

@@ -16,6 +16,7 @@ function isInsideTable(state: EditorState, pos: number): boolean {
 }
 
 const BLOCK_PATTERN = new RegExp(`^(<(?:${HTML_BLOCK_TAGS.join('|')})\\b[\\s\\S]*?<\\/(?:${HTML_BLOCK_TAGS.join('|')})>\\s*(?:\\n|$)|<!--[\\s\\S]*?-->\\s*(?:\\n|$))`, 'i')
+const HTML_BLOCK_INPUT_PATTERN = new RegExp(`^<(?:${HTML_BLOCK_TAGS.join('|')})(?:>| )$`, 'i')
 
 function tokenToJson(token: MarkdownToken, h: MarkdownParseHelpers): JSONContent {
   return h.createNode('htmlBlock', { html: token.raw ?? '' })
@@ -32,10 +33,10 @@ export const HtmlBlock = Node.create({
   renderHTML({ node }) { return ['div', { 'data-html-block': '', 'data-html': sanitizeHtmlBlock(String(node.attrs.html ?? '')) }] },
   addInputRules() {
     return [new InputRule({
-      find: /^<$/,
-      handler: ({ state, range }) => {
+      find: HTML_BLOCK_INPUT_PATTERN,
+      handler: ({ state, range, match }) => {
         if (isInsideTable(state, range.from)) return
-        const node = this.type.create({ html: '<', htmlEditing: true })
+        const node = this.type.create({ html: match[0].trimEnd(), htmlEditing: true })
         state.tr.replaceRangeWith(range.from, range.to, node)
       }
     })]

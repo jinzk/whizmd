@@ -103,6 +103,7 @@ export interface MarkdownAppApi {
       payload: { data: Uint8Array; name: string },
       docPath: string | null
     ) => Promise<ImportImageResult>
+    prepareImages?: (content: string, docPath: string) => Promise<string>
   }
   dir: {
     scan: (dirPath: string, markdownOnly?: boolean, requestId?: string) => Promise<DirectoryScanResult>

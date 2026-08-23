@@ -5,6 +5,7 @@ import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
 import { useEffect, useRef, useState } from 'react'
 import { canTriggerInlineMarkdown, isInCodeBlock } from '../input/context'
+import { isEscaped } from '../inline/escape'
 import { useNodeViewField } from '../nodeView/useNodeViewField'
 import { inlineAtomKeyboardShortcuts } from '../nodeView/inlineAtomKeyboard'
 import { useI18n } from '../../i18n'
@@ -119,12 +120,19 @@ export const InlineHtml = Node.create({
   parseHTML() { return [{ tag: 'span[data-inline-html]' }] },
   renderHTML({ node }) { return ['span', { 'data-inline-html': '', 'data-html': sanitizeInlineHtml(node.attrs.html) }] },
   markdownTokenizer: {
-    name: 'inlineHtml', level: 'inline', start: (src: string): number => src.indexOf('<'),
+    name: 'inlineHtml', level: 'inline', start: (src: string): number => {
+      for (let index = src.indexOf('<'); index >= 0; index = src.indexOf('<', index + 1)) {
+        let slashes = 0
+        for (let cursor = index - 1; cursor >= 0 && src[cursor] === '\\'; cursor -= 1) slashes += 1
+        if (slashes % 2 === 0) return index
+      }
+      return -1
+    },
     tokenize(src: string): MarkdownToken | undefined { const match = src.match(HTML_PATTERN); return match ? { type: 'inlineHtml', raw: match[0] } : undefined }
   },
   parseMarkdown: tokenToJson,
   renderMarkdown: (node: JSONContent): string => sanitizeInlineHtml(String(node.attrs?.html ?? '')),
-  addInputRules() { return [new InputRule({ find: HTML_INPUT_PATTERN, handler: ({ state, range, match }) => { if (!canTriggerInlineMarkdown(state, range.from)) return; const clean = sanitizeInlineHtml(match[0]); if (!clean) return; const node = this.type.create({ html: match[0] }); const tr = state.tr.replaceRangeWith(range.from, range.to, node); tr.setSelection(TextSelection.create(tr.doc, range.from + node.nodeSize)) } })] },
+   addInputRules() { return [new InputRule({ find: HTML_INPUT_PATTERN, handler: ({ state, range, match }) => { const resolved = state.doc.resolve(range.from); if (isEscaped(resolved.parent.textContent, resolved.parentOffset)) return; if (!canTriggerInlineMarkdown(state, range.from)) return; const clean = sanitizeInlineHtml(match[0]); if (!clean) return; const node = this.type.create({ html: match[0] }); const tr = state.tr.replaceRangeWith(range.from, range.to, node); tr.setSelection(TextSelection.create(tr.doc, range.from + node.nodeSize)) } })] },
    addProseMirrorPlugins() {
      return [new Plugin({
        appendTransaction: (transactions, _oldState, state) => {

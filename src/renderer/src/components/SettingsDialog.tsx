@@ -81,21 +81,13 @@ export function SettingsDialog({ config, originalConfig, onChange, onApply, onCl
           {activeTab === 'files' ? <>
            <label>
              <span>{t('assetsDirectory')}</span>
-              <input value={config.assetsDir} onChange={(event) => { setError(null); onChange({ ...config, assetsDir: event.target.value }) }} placeholder="assets" aria-invalid={!assetsValid} />
+             <input value="assets" readOnly aria-readonly="true" />
              <small>{t('assetsDirectoryHint')}</small>
-             {!assetsValid ? <small className="settings-error">{t('invalidAssetsDirectory')}</small> : null}
            </label>
            <label className="settings-checkbox">
              <span>{t('toggleMarkdownOnly')}</span>
              <input type="checkbox" checked={config.showMarkdownOnly} onChange={(event) => onChange({ ...config, showMarkdownOnly: event.target.checked })} />
            </label>
-          <label>
-            <span>{t('imagePathStrategy')}</span>
-            <select value={config.imagePathStrategy} onChange={(event) => onChange({ ...config, imagePathStrategy: event.target.value as AppConfig['imagePathStrategy'] })}>
-              <option value="relative">{t('relativePath')}</option>
-              <option value="absolute">{t('absolutePath')}</option>
-            </select>
-          </label>
           </> : null}
         </div>
         <div className="app-dialog-actions">

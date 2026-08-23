@@ -26,11 +26,14 @@ const CODE_LANGUAGES = [
   { label: 'go', detail: 'Go' },
   { label: 'rust', detail: 'Rust' },
   { label: 'json', detail: 'JSON' },
+  { label: 'markdown', detail: 'Markdown' },
   { label: 'html', detail: 'HTML' },
   { label: 'css', detail: 'CSS' },
   { label: 'sql', detail: 'SQL' },
   { label: 'bash', detail: 'Shell' },
-  { label: 'plaintext', detail: '纯文本' }
+  { label: 'shell', detail: 'Shell' },
+  { label: 'plaintext', detail: '纯文本' },
+  { label: 'text', detail: '纯文本' }
 ]
 
 function languageCompletion(context: CompletionContext) {

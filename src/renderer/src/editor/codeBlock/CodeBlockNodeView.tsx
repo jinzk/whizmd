@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { NodeViewWrapper, NodeViewContent } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
 import type { Node } from '@tiptap/pm/model'
@@ -18,6 +19,7 @@ export function getCodeBlockViewType(node: Node): CodeBlockViewType {
 function MermaidBlockView({ node, selected, editor, getPos, deleteNode }: NodeViewProps): React.JSX.Element {
   const [svg, setSvg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [errorDismissed, setErrorDismissed] = useState(false)
   const [rendering, setRendering] = useState(false)
   const [editing, setEditing] = useState(selected)
   const renderId = useRef<number>(nextMermaidId(mermaidCounter))
@@ -46,9 +48,9 @@ function MermaidBlockView({ node, selected, editor, getPos, deleteNode }: NodeVi
         const mermaid = await loadMermaid()
         initializeMermaid(mermaid, getMermaidConfig())
         const { svg: rendered } = await mermaid.render(`mermaid-${renderId.current}`, mermaidSource)
-        if (!cancelled) { setSvg(rendered); setError(null); setRendering(false) }
+        if (!cancelled) { setSvg(rendered); setError(null); setErrorDismissed(false); setRendering(false) }
       } catch (err) {
-        if (!cancelled) { setSvg(null); setError(err instanceof Error ? err.message : String(err)); setRendering(false) }
+        if (!cancelled) { setSvg(null); setError(err instanceof Error ? err.message : String(err)); setErrorDismissed(false); setRendering(false) }
       }
     }, 200)
     return () => { cancelled = true; clearTimeout(timer) }
@@ -60,11 +62,12 @@ function MermaidBlockView({ node, selected, editor, getPos, deleteNode }: NodeVi
   }
 
   return <NodeViewWrapper className="mermaid-block" data-mermaid-rendered={svg ? '1' : '0'} data-mermaid-editing={editing ? 'true' : 'false'}>
-    <div className="mermaid-preview" onMouseDown={enterEditMode}>
-       {svg ? <div className="mermaid-svg" dangerouslySetInnerHTML={{ __html: svg }} /> : error ? <div className="mermaid-error" title={error}>{t('mermaidRenderFailed')}</div> : rendering ? <div className="mermaid-loading">{t('mermaidRendering')}</div> : <div className="mermaid-empty">{t('mermaidDiagram')}</div>}
-    </div>
+     <div className="mermaid-preview" onMouseDown={enterEditMode}>
+       {svg ? <div className="mermaid-svg" dangerouslySetInnerHTML={{ __html: svg }} /> : error ? <div className="mermaid-empty">{t('mermaidDiagram')}</div> : rendering ? <div className="mermaid-loading">{t('mermaidRendering')}</div> : <div className="mermaid-empty">{t('mermaidDiagram')}</div>}
+     </div>
+     {error && !errorDismissed ? createPortal(<div className="mermaid-error-bubble" role="alert"><span>{t('mermaidRenderFailed')}</span><button type="button" aria-label="Close notification" onMouseDown={(event) => event.preventDefault()} onClick={() => setErrorDismissed(true)}>×</button></div>, document.body) : null}
     <div className="mermaid-source" aria-hidden={!editing}>
-       <div className="block-source-header mermaid-source-header"><span>Mermaid</span><button type="button" className="block-module-delete" aria-label={t('deleteMermaid')} title={t('deleteMermaid')} onMouseDown={(event) => event.preventDefault()} onClick={deleteNode}>{t('delete')}</button></div>
+       <div className="block-source-header mermaid-source-header"><span>Mermaid</span>{editing ? <button type="button" className="block-module-delete" aria-label={t('deleteMermaid')} title={t('deleteMermaid')} onMouseDown={(event) => event.preventDefault()} onClick={deleteNode}>{t('delete')}</button> : null}</div>
       <pre><code><NodeViewContent /></code></pre>
     </div>
   </NodeViewWrapper>

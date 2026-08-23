@@ -41,8 +41,10 @@ export function App(): React.JSX.Element {
   }, [newFile])
   const docPath = activeDocument?.path ?? null
   const documentContent = activeDocument?.content ?? ''
+  const setDocumentRootDir = useDocumentStore((state) => state.setRootDir)
   const lineCount = documentContent ? documentContent.split(/\r?\n/).length : 1
   const characterCount = documentContent.length
+  useEffect(() => { setDocumentRootDir(rootDir) }, [rootDir, setDocumentRootDir])
   useEffect(() => {
     void window.markdownApp.config.get().then(setConfig)
   }, [setConfig])

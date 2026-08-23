@@ -46,7 +46,8 @@ const api: MarkdownAppApi = {
     importImage: (sourcePath, docPath) =>
       ipcRenderer.invoke(IpcChannels.fileImportImage, sourcePath, docPath),
     saveImageBlob: (payload, docPath) =>
-      ipcRenderer.invoke(IpcChannels.fileSaveImageBlob, payload, docPath)
+      ipcRenderer.invoke(IpcChannels.fileSaveImageBlob, payload, docPath),
+    prepareImages: (content, docPath) => ipcRenderer.invoke(IpcChannels.filePrepareImages, content, docPath)
   },
   dir: {
     scan: (dirPath, markdownOnly, requestId) => ipcRenderer.invoke(IpcChannels.dirScan, dirPath, markdownOnly, requestId),
@@ -56,7 +57,7 @@ const api: MarkdownAppApi = {
   exportPdf: (payload) => ipcRenderer.invoke(IpcChannels.exportPdf, payload),
   getPathForFile: (file) => webUtils.getPathForFile(file),
   mediaUrl: (absolutePath) => {
-    ipcRenderer.send(IpcChannels.mediaAllow, absolutePath)
+    ipcRenderer.sendSync(IpcChannels.mediaAllow, absolutePath)
     const normalized = absolutePath.split('\\').join('/')
     const encoded = encodeURIComponent(normalized).replace(/%2F/gi, '/').replace(/%3A/gi, ':')
     return `media://${encoded.startsWith('/') ? '' : '/'}${encoded}`

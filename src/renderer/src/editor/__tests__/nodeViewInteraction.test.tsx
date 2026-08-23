@@ -17,6 +17,7 @@ import { DefinitionListItem } from '../syntax/definitionList'
 import { MarkdownAlert } from '../syntax/alert'
 import { FootnoteReference, FootnoteDefinition } from '../syntax/footnote'
 import { ReferenceDefinition } from '../syntax/referenceDefinition'
+import { ImageLinkNode } from '../imageLink'
 
 const mounted: Array<{ editor: Editor; unmount: () => void }> = []
 
@@ -103,16 +104,103 @@ describe('NodeView DOM interactions', () => {
       { type: 'inlineHtml', attrs: { html: '<mark>old</mark>' } }
     ] }], [...baseExtensions, LinkNode, Image, InlineHtml])
 
-    await event(() => fireEvent.click(screen.getByRole('link', { name: 'site' })))
+    await event(() => fireEvent.click(screen.getByRole('button', { name: '编辑链接' })))
     const linkText = screen.getByRole('textbox', { name: '链接文字' }) as HTMLInputElement
     expect(linkText).toHaveValue('site')
 
-    await event(() => fireEvent.click(screen.getByAltText('old')))
+    await event(() => fireEvent.click(screen.getByRole('button', { name: '编辑图片' })))
     expect(screen.getByRole('textbox', { name: '图片说明' })).toHaveValue('old')
 
     await event(() => fireEvent.click(screen.getByRole('button', { name: '编辑 HTML 标签' })))
     const html = screen.getByRole('textbox', { name: '编辑 HTML 标签' })
     expect(html).toHaveValue('<mark>old</mark>')
+  })
+
+  it('uses the image editor fields and adds the link address field for image links', async () => {
+    const editor = await mount([{ type: 'paragraph', content: [
+      { type: 'imageLinkNode', attrs: { src: 'data:image/png;base64,AA==', alt: 'old', title: 'title', href: 'https://old.test', reference: null } }
+    ] }], [...baseExtensions, ImageLinkNode])
+
+    await event(() => fireEvent.click(screen.getByRole('button', { name: '编辑图片链接' })))
+    const imageLinkEditor = document.querySelector('.image-link-editor')
+    expect(document.querySelector('.image-link-node')).toHaveClass('image-link-node')
+    expect(imageLinkEditor?.querySelector('.image-link-preview')).toBeInTheDocument()
+    expect(imageLinkEditor?.querySelector('.image-link-fields')).toBeInTheDocument()
+    expect(imageLinkEditor?.children[0]).toHaveClass('image-link-preview')
+    expect(imageLinkEditor?.children[1]).toHaveClass('image-link-fields')
+    expect(screen.getByRole('textbox', { name: '图片说明' })).toHaveValue('old')
+    expect(screen.getByRole('textbox', { name: '图片 src' })).toHaveValue('data:image/png;base64,AA==')
+    expect(screen.getByRole('textbox', { name: '图片标题' })).toHaveValue('title')
+    expect(screen.getByRole('textbox', { name: '链接地址' })).toHaveValue('https://old.test')
+    await event(() => fireEvent.change(screen.getByRole('textbox', { name: '图片说明' }), { target: { value: 'updated' } }))
+    expect(document.querySelector('[data-image-link-editing="true"]')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: '图片说明' })).toHaveValue('updated')
+    const href = screen.getByRole('textbox', { name: '链接地址' })
+    await event(() => {
+      fireEvent.change(href, { target: { value: 'h' } })
+      fireEvent.keyDown(href, { key: 't' })
+      fireEvent.change(href, { target: { value: 'ht' } })
+      fireEvent.keyDown(href, { key: 't' })
+      fireEvent.change(href, { target: { value: 'htt' } })
+    })
+    expect(document.querySelector('[data-image-link-editing="true"]')).toBeInTheDocument()
+    await event(() => fireEvent.keyDown(href, { key: 'x' }))
+    expect(document.querySelector('[data-image-link-editing="true"]')).toBeInTheDocument()
+    expect(json(editor).content?.[0].content?.[0]).toMatchObject({ type: 'imageLinkNode' })
+    await event(() => fireEvent.blur(href, { relatedTarget: document.body }))
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
+    expect(json(editor).content?.[0].content?.[0]).toMatchObject({ type: 'imageLinkNode' })
+    expect(document.querySelector('.image-link-preview-wrap')).toHaveClass('image-preview')
+    expect(document.querySelector('.image-link-preview-wrap .image-edit-button')).toBeInTheDocument()
+    expect(document.querySelector('.image-link-arrow')).toBeInTheDocument()
+    expect(document.querySelector('.image-link-anchor img')).toBeInTheDocument()
+  })
+
+  it('shows image edit buttons when the preview image fails to load', async () => {
+    Object.defineProperty(window, 'markdownApp', { value: { mediaUrl: (value: string) => value }, configurable: true })
+    await mount([{ type: 'paragraph', content: [
+      { type: 'image', attrs: { src: 'data:image/png;base64,AA==', alt: 'image', width: null, title: null, reference: null } },
+      { type: 'text', text: ' ' },
+      { type: 'imageLinkNode', attrs: { src: 'data:image/png;base64,BB==', alt: 'linked image', title: null, href: 'https://example.com', reference: null } }
+    ] }], [...baseExtensions, Image, ImageLinkNode])
+
+    const image = document.querySelector('.image-node img') as HTMLImageElement
+    await event(() => fireEvent.error(image))
+    await event(() => fireEvent.mouseEnter(document.querySelector('.image-preview') as HTMLElement))
+    expect(screen.getByRole('button', { name: '编辑图片' })).toHaveClass('visible')
+
+    await event(() => fireEvent.error(document.querySelector('.image-link-preview-wrap img') as HTMLImageElement))
+    await event(() => fireEvent.mouseEnter(document.querySelector('.image-link-preview-wrap') as HTMLElement))
+    expect(screen.getByRole('button', { name: '编辑图片链接' })).toHaveClass('visible')
+  })
+
+  it('returns an image to preview mode after the image fields lose focus', async () => {
+    await mount([{ type: 'paragraph', content: [
+      { type: 'image', attrs: { src: 'data:image/png;base64,AA==', alt: 'image', width: null, title: null, reference: null } }
+    ] }], [...baseExtensions, Image])
+    await event(() => fireEvent.click(screen.getByRole('button', { name: '编辑图片' })))
+    const source = screen.getByRole('textbox', { name: '图片 src' })
+    await event(() => fireEvent.blur(source, { relatedTarget: document.body }))
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
+    expect(document.querySelector('[data-image-editing="false"]')).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: '图片 src' })).not.toBeInTheDocument()
+  })
+
+  it('returns image and image link nodes to preview when the editor selection leaves them', async () => {
+    const editor = await mount([{ type: 'paragraph', content: [
+      { type: 'image', attrs: { src: 'data:image/png;base64,AA==', alt: 'image', width: null, title: null, reference: null } },
+      { type: 'text', text: 'after ' },
+      { type: 'imageLinkNode', attrs: { src: 'data:image/png;base64,BB==', alt: 'linked', title: null, href: 'https://example.com', reference: null } }
+    ] }], [...baseExtensions, Image, ImageLinkNode])
+
+    await event(() => fireEvent.click(screen.getByRole('button', { name: '编辑图片' })))
+    await event(() => fireEvent.click(screen.getByRole('button', { name: '编辑图片链接' })))
+    expect(document.querySelector('[data-image-editing="true"]')).toBeInTheDocument()
+    expect(document.querySelector('[data-image-link-editing="true"]')).toBeInTheDocument()
+
+    await event(() => editor.commands.setTextSelection(2))
+    expect(document.querySelector('[data-image-editing="true"]')).not.toBeInTheDocument()
+    expect(document.querySelector('[data-image-link-editing="true"]')).not.toBeInTheDocument()
   })
 
   it('edits block NodeView fields and supports deletion', async () => {
@@ -216,7 +304,7 @@ describe('NodeView DOM interactions', () => {
       { type: 'linkNode', attrs: { text: 'docs', href: 'docs', reference: 'docs' } }
     ] }], [...baseExtensions, LinkNode, ReferenceDefinition])
 
-    await event(() => fireEvent.click(screen.getByRole('link', { name: 'docs' })))
+    await event(() => fireEvent.click(screen.getByRole('button', { name: '编辑链接' })))
     await event(() => fireEvent.click(screen.getByRole('button', { name: '创建定义' })))
 
     expect(json(editor).content?.[1]).toMatchObject({

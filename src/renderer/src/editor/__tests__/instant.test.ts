@@ -5,6 +5,8 @@ import StarterKit from '@tiptap/starter-kit'
 import { InlineMath, BlockMath } from '../math'
 import { pasteInto, typeInto } from './helpers'
 import { LinkNode } from '../link'
+import { Image } from '../image'
+import { ImageLinkNode } from '../imageLink'
 
 function createEditor(): Editor {
   return new Editor({
@@ -13,6 +15,8 @@ function createEditor(): Editor {
       InlineMath.configure({ katexOptions: { throwOnError: false } }),
       BlockMath.configure({ katexOptions: { throwOnError: false } }),
       LinkNode,
+      Image,
+      ImageLinkNode,
       Markdown.configure({ indentation: { style: 'space', size: 2 } })
     ]
   })
@@ -85,11 +89,12 @@ describe('instant syntax trigger', () => {
     expect(json.content?.[0].type).toBe('blockquote')
   })
 
-  it('converts triple backticks + space to a code block immediately', () => {
+  it('keeps triple backticks as a language-menu trigger before selection', () => {
     const editor = createEditor()
-    typeInto(editor, '``` ')
+    typeInto(editor, '```')
     const json = editor.getJSON()
-    expect(json.content?.[0].type).toBe('codeBlock')
+    expect(json.content?.[0].type).toBe('paragraph')
+    expect(editor.getText()).toBe('```')
   })
 
   it('converts [text](url) to a link node immediately', () => {
@@ -114,6 +119,32 @@ describe('instant syntax trigger', () => {
     editor.destroy()
   })
 
+  it('triggers links, images, and image links after existing text', () => {
+    const cases = [
+      { input: '前缀[文档](', type: 'linkNode' },
+      { input: '前缀![图片](', type: 'image' },
+      { input: '前缀[![图片](', type: 'imageLinkNode' }
+    ] as const
+
+    for (const testCase of cases) {
+      const editor = createEditor()
+      typeInto(editor, testCase.input)
+      const types = editor.getJSON().content?.flatMap((block) => block.content?.map((node) => node.type) ?? [block.type]) ?? []
+      expect(types).toContain(testCase.type)
+      editor.destroy()
+    }
+  })
+
+  it('turns [![alt]( into an editable image-link node', () => {
+    const editor = createEditor()
+    typeInto(editor, '[![图片](')
+    expect(editor.getJSON().content?.[0].content?.[0]).toMatchObject({
+      type: 'imageLinkNode',
+      attrs: { alt: '图片', src: '', href: '' }
+    })
+    editor.destroy()
+  })
+
   it('converts $x^2$ to inline math when the closing dollar is typed', () => {
     const editor = createEditor()
     typeInto(editor, '面积 $x^2$')
@@ -131,6 +162,13 @@ describe('instant syntax trigger', () => {
     const editor = createEditor()
     typeInto(editor, '\\==not highlighted\\==')
     expect(editor.getJSON().content?.[0].content).toEqual([{ type: 'text', text: '\\==not highlighted\\==' }])
+  })
+
+  it('keeps escaped inline HTML and links as text', () => {
+    const editor = createEditor()
+    typeInto(editor, '\\<b>text\\</b> \\[link\\](https://example.com)')
+    expect(editor.getJSON().content?.[0].content).toEqual([{ type: 'text', text: '\\<b>text\\</b> \\[link\\](https://example.com)' }])
+    editor.destroy()
   })
 
   it('keeps empty and repeated paired markers as text', () => {

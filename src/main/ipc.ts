@@ -1,12 +1,16 @@
 import { app, dialog, ipcMain, BrowserWindow } from 'electron'
 import { promises as fs, existsSync } from 'node:fs'
-import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path'
 import { IpcChannels } from '../shared/ipc'
 import type { AppConfig, FileNode, ExportPayload, ImportImageResult, DirectoryScanResult } from '../shared/types'
 import { addRecentFile, addRecentFolder, clearRecent, getRecent, removeRecentFile, removeRecentFolder } from './recentFiles'
 import { allowMediaDirectory, allowMediaFile } from './protocol'
 import { rebuildApplicationMenu } from './menu'
 import { setMainWindowDirty, setMainWindowLanguage } from './window'
+import { prepareImages } from './imageMigration'
+import { isSupportedImageName, sanitizeFileName, uniqueImageName } from './fileImages'
+import { readTextFile, writeTextFile } from './fileService'
+import { dialogLanguage, getConfig, setConfig } from './configService'
 
 const SKIPPED_DIRS = new Set([
   'node_modules',
@@ -24,24 +28,10 @@ const allowedFileRoots = new Set<string>()
 const allowedFiles = new Set<string>()
 const cancelledScans = new Set<string>()
 
-const DEFAULT_CONFIG: AppConfig = {
-  themeMode: 'system',
-  language: 'system',
-  assetsDir: 'assets',
-  imagePathStrategy: 'relative',
-  autoSave: false,
-  autoSaveDelay: 1000,
-  editorFontSize: 16,
-  editorContentWidth: 800,
-  spellCheck: false,
-  showMarkdownOnly: true
-}
-
-let configCache: AppConfig | null = null
-
 function normalizedPath(filePath: string): string {
   return resolve(filePath).toLowerCase()
 }
+
 
 function allowFile(filePath: string): void {
   allowedFiles.add(normalizedPath(filePath))
@@ -63,59 +53,6 @@ function isAllowedFile(filePath: string): boolean {
   )
 }
 
-function configFilePath(): string {
-  return join(app.getPath('userData'), 'config.json')
-}
-
-
-async function getConfig(): Promise<AppConfig> {
-  if (configCache) {
-    return configCache
-  }
-  try {
-    const raw = await fs.readFile(configFilePath(), 'utf-8')
-    const parsed = JSON.parse(raw) as Partial<AppConfig>
-    const candidate = { ...DEFAULT_CONFIG, ...parsed }
-    configCache = validateConfig(candidate)
-  } catch {
-    configCache = { ...DEFAULT_CONFIG }
-  }
-  return configCache
-}
-
-function validateConfig(config: AppConfig): AppConfig {
-  if (
-    typeof config.assetsDir !== 'string' ||
-    !config.assetsDir.trim() ||
-    isAbsolute(config.assetsDir) ||
-    config.assetsDir.split(/[\\/]/).includes('..')
-  ) {
-    return { ...DEFAULT_CONFIG }
-  }
-  if (!['light', 'dark', 'system'].includes(config.themeMode)) {
-    config.themeMode = DEFAULT_CONFIG.themeMode
-  }
-  if (!['system', 'zh-CN', 'en-US'].includes(config.language)) {
-    config.language = DEFAULT_CONFIG.language
-  }
-  if (!['relative', 'absolute'].includes(config.imagePathStrategy)) {
-    config.imagePathStrategy = DEFAULT_CONFIG.imagePathStrategy
-  }
-  if (![500, 1000, 3000].includes(config.autoSaveDelay)) config.autoSaveDelay = DEFAULT_CONFIG.autoSaveDelay
-  if (![14, 16, 18].includes(config.editorFontSize)) config.editorFontSize = DEFAULT_CONFIG.editorFontSize
-  if (![680, 800, 960].includes(config.editorContentWidth)) config.editorContentWidth = DEFAULT_CONFIG.editorContentWidth
-  if (typeof config.autoSave !== 'boolean') config.autoSave = DEFAULT_CONFIG.autoSave
-  if (typeof config.spellCheck !== 'boolean') config.spellCheck = DEFAULT_CONFIG.spellCheck
-  if (typeof config.showMarkdownOnly !== 'boolean') config.showMarkdownOnly = DEFAULT_CONFIG.showMarkdownOnly
-  return config
-}
-
-async function dialogLanguage(): Promise<'zh-CN' | 'en-US'> {
-  const config = await getConfig()
-  if (config.language !== 'system') return config.language
-  return /^zh(?:-|$)/i.test(app.getLocale()) ? 'zh-CN' : 'en-US'
-}
-
 async function helpDocumentPath(): Promise<string | null> {
   const chinese = (await dialogLanguage()) === 'zh-CN'
   const filePath = join(app.getAppPath(), chinese ? 'HELP_CN.md' : 'HELP.md')
@@ -125,47 +62,15 @@ async function helpDocumentPath(): Promise<string | null> {
   return filePath
 }
 
-async function setConfig(patch: Partial<AppConfig>): Promise<AppConfig> {
-  if (patch.assetsDir !== undefined) {
-    if (
-      typeof patch.assetsDir !== 'string' ||
-      !patch.assetsDir.trim() ||
-      isAbsolute(patch.assetsDir) ||
-      patch.assetsDir.split(/[\\/]/).includes('..')
-    ) {
-      throw new Error('assetsDir must be a non-empty relative directory')
-    }
-  }
-  if (patch.themeMode !== undefined && !['light', 'dark', 'system'].includes(patch.themeMode)) {
-    throw new Error('Invalid theme mode')
-  }
-  if (patch.language !== undefined && !['system', 'zh-CN', 'en-US'].includes(patch.language)) {
-    throw new Error('Invalid language')
-  }
-  if (
-    patch.imagePathStrategy !== undefined &&
-    !['relative', 'absolute'].includes(patch.imagePathStrategy)
-  ) {
-    throw new Error('Invalid image path strategy')
-  }
-  if (patch.autoSave !== undefined && typeof patch.autoSave !== 'boolean') throw new Error('Invalid auto-save setting')
-  if (patch.spellCheck !== undefined && typeof patch.spellCheck !== 'boolean') throw new Error('Invalid spell-check setting')
-  if (patch.showMarkdownOnly !== undefined && typeof patch.showMarkdownOnly !== 'boolean') throw new Error('Invalid file filter setting')
-  if (patch.autoSaveDelay !== undefined && ![500, 1000, 3000].includes(patch.autoSaveDelay)) throw new Error('Invalid auto-save delay')
-  if (patch.editorFontSize !== undefined && ![14, 16, 18].includes(patch.editorFontSize)) throw new Error('Invalid editor font size')
-  if (patch.editorContentWidth !== undefined && ![680, 800, 960].includes(patch.editorContentWidth)) throw new Error('Invalid editor content width')
-  const next = { ...(await getConfig()), ...patch }
-  configCache = next
-  await fs.writeFile(configFilePath(), JSON.stringify(next, null, 2), 'utf-8')
-  return next
-}
 
 export function registerIpcHandlers(): void {
-  ipcMain.on(IpcChannels.mediaAllow, (_event, filePath: unknown) => {
+  ipcMain.on(IpcChannels.mediaAllow, (event, filePath: unknown) => {
     if (typeof filePath !== 'string' || !filePath.trim() || !existsSync(filePath)) {
+      event.returnValue = false
       return
     }
     allowMediaFile(filePath)
+    event.returnValue = true
   })
 
   ipcMain.handle(IpcChannels.appConfigGet, () => getConfig())
@@ -258,13 +163,13 @@ export function registerIpcHandlers(): void {
     if (!isAllowedFile(filePath)) {
       throw new Error('fileRead path was not selected by the user')
     }
-    return fs.readFile(filePath, 'utf-8')
+    return readTextFile(filePath)
   })
   ipcMain.handle(IpcChannels.fileOpenRecent, async (_e, filePath: string) => {
     if (typeof filePath !== 'string' || !filePath.trim() || !existsSync(filePath)) throw new Error('Recent file does not exist')
     allowFile(filePath)
     allowDirectory(dirname(filePath))
-    return fs.readFile(filePath, 'utf-8')
+    return readTextFile(filePath)
   })
 
   ipcMain.handle(IpcChannels.fileWrite, async (_e, filePath: string, content: string) => {
@@ -277,10 +182,7 @@ export function registerIpcHandlers(): void {
     if (!isAllowedFile(filePath)) {
       throw new Error('fileWrite path was not selected by the user')
     }
-    const tempPath = `${filePath}.markdownapp-${process.pid}-${Date.now()}.tmp`
-    await fs.writeFile(tempPath, content, 'utf-8')
-    await fs.rename(tempPath, filePath)
-    return filePath
+    return writeTextFile(filePath, content)
   })
 
   ipcMain.handle(
@@ -304,7 +206,7 @@ export function registerIpcHandlers(): void {
         // so the image is referenced by a stable media:// URL instead of an
         // inline base64 blob that would bloat the markdown text.
         const assetsDir = resolve(app.getPath('userData'), config.assetsDir)
-        const target = uniqueFileName(assetsDir, fileName)
+        const target = join(assetsDir, uniqueImageName(assetsDir, fileName))
         await fs.mkdir(assetsDir, { recursive: true })
         allowMediaDirectory(assetsDir)
         await fs.copyFile(sourcePath, target)
@@ -312,7 +214,7 @@ export function registerIpcHandlers(): void {
       }
 
       const assetsDir = resolve(dirname(docPath), config.assetsDir)
-      const target = uniqueFileName(assetsDir, fileName)
+       const target = join(assetsDir, uniqueImageName(assetsDir, fileName))
       await fs.mkdir(assetsDir, { recursive: true })
       allowMediaDirectory(dirname(docPath))
       await fs.copyFile(sourcePath, target)
@@ -323,6 +225,11 @@ export function registerIpcHandlers(): void {
       }
     }
   )
+
+  ipcMain.handle(IpcChannels.filePrepareImages, async (_e, content: string, docPath: string): Promise<string> => {
+    if (typeof content !== 'string' || typeof docPath !== 'string' || !isAllowedFile(docPath)) return content
+    return prepareImages(content, docPath, { allowMediaDirectory })
+  })
 
   ipcMain.handle(
     IpcChannels.fileSaveImageBlob,
@@ -349,14 +256,14 @@ export function registerIpcHandlers(): void {
       }
       if (!docPath || config.imagePathStrategy === 'absolute') {
         const assetsDir = resolve(app.getPath('userData'), config.assetsDir)
-        const target = uniqueFileName(assetsDir, fileName)
+        const target = join(assetsDir, uniqueImageName(assetsDir, fileName))
         await fs.mkdir(assetsDir, { recursive: true })
         allowMediaDirectory(assetsDir)
         await fs.writeFile(target, Buffer.from(payload.data))
         return { markdownPath: target, absolutePath: target }
       }
       const assetsDir = resolve(dirname(docPath), config.assetsDir)
-      const target = uniqueFileName(assetsDir, fileName)
+       const target = join(assetsDir, uniqueImageName(assetsDir, fileName))
       await fs.mkdir(assetsDir, { recursive: true })
       allowMediaDirectory(dirname(docPath))
       await fs.writeFile(target, Buffer.from(payload.data))
@@ -518,34 +425,4 @@ async function scanDirectory(dirPath: string, depth = 0, markdownOnly = true, re
   })
 
   return { name: basename(dirPath), path: dirPath, isDirectory: true, children }
-}
-
-function sanitizeFileName(fileName: string): string {
-  const cleaned = fileName.replace(/[\\/:*?"<>|]/g, '-')
-  if (!cleaned || /^\s*$/.test(cleaned)) {
-    return 'pasted-image.png'
-  }
-  const ext = extname(cleaned).toLowerCase()
-  if (!['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg', '.avif'].includes(ext)) {
-    return `${cleaned}.png`
-  }
-  return cleaned
-}
-
-function isSupportedImageName(fileName: string): boolean {
-  return ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg', '.avif'].includes(
-    extname(fileName).toLowerCase()
-  )
-}
-
-function uniqueFileName(dir: string, fileName: string): string {
-  const ext = extname(fileName)
-  const stem = basename(fileName, ext)
-  let candidate = fileName
-  let index = 1
-  while (existsSync(join(dir, candidate))) {
-    candidate = `${stem}-${index}${ext}`
-    index += 1
-  }
-  return candidate
 }

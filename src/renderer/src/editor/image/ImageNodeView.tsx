@@ -1,43 +1,46 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NodeViewWrapper } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
 import { useDocumentStore } from '../../store/documents'
-import { dirnamePath, isAbsolutePath, resolveRelative } from '../../utils/path'
+import { dirnamePath, isAbsolutePath, mediaUrlToPath, resolveRelative } from '../../utils/path'
 import { referenceEntry } from '../referenceRegistry'
 import { ReferenceStatus } from '../reference/ReferenceStatus'
 import { useNodeViewField } from '../nodeView/useNodeViewField'
 import { useI18n } from '../../i18n'
+import { decodeUrlPath, encodeUrlValue } from '../../utils/url'
 
-function resolveSrc(src: string, docPath: string | null): string {
-  src = src.trim()
+function resolveLocalPath(src: string, docPath: string | null, rootDir: string | null): string {
+  src = decodeUrlPath(src.trim())
   if (!src) {
     return ''
   }
-  if (/^(https?:|data:|media:|blob:)/i.test(src)) {
-    return src
-  }
+  if (/^(https?:|data:|media:|blob:)/i.test(src)) return ''
   let absolute: string
-  if (isAbsolutePath(src)) {
+  if (src.startsWith('/') && rootDir) {
+    absolute = resolveRelative(rootDir, src)
+  } else if (isAbsolutePath(src)) {
     absolute = src
   } else if (docPath) {
     absolute = resolveRelative(dirnamePath(docPath), src)
   } else {
     return ''
   }
-  return window.markdownApp.mediaUrl(absolute)
+  return absolute
 }
 
 type ImageNodeViewProps = NodeViewProps
 
 export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
   const { t } = useI18n()
-  const { node, updateAttributes, deleteNode, selected } = props
+  const { node, updateAttributes, deleteNode, selected, editor, getPos } = props
   const docPath = useDocumentStore((state) =>
     state.documents.find((document) => document.id === state.activeDocumentId)?.path ?? null
   )
+  const rootDir = useDocumentStore((state) => state.rootDir)
 
-  const srcField = useNodeViewField(String(node.attrs.src ?? ''), (value) => updateAttributes({ src: value }))
+  const srcField = useNodeViewField(String(node.attrs.src ?? ''), (value) => updateAttributes({ src: encodeUrlValue(value) }))
   const altField = useNodeViewField(String(node.attrs.alt ?? ''), (value) => updateAttributes({ alt: value }))
+  const titleField = useNodeViewField(String(node.attrs.title ?? ''), (value) => updateAttributes({ title: value || null }))
   const src = srcField.value
   const alt = altField.value
   const width = node.attrs.width ?? null
@@ -45,15 +48,46 @@ export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
 
   // Temporary width applied while dragging; null falls back to the attr.
   const [editing, setEditing] = useState(selected || !src)
+  const [showEditButton, setShowEditButton] = useState(false)
+  const editTimer = useRef<number | null>(null)
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
   const editorRef = useRef<HTMLDivElement>(null)
+  const blurTimer = useRef<number | null>(null)
   const imgRef = useRef<HTMLImageElement>(null)
   const draggingRef = useRef(false)
   const startXRef = useRef(0)
   const startWidthRef = useRef(0)
   const [dragWidth, setDragWidth] = useState<number | null>(null)
 
-  const resolvedSrc = resolveSrc(src, docPath)
+  const showEditorControl = (): void => { if (editTimer.current !== null) window.clearTimeout(editTimer.current); setShowEditButton(true) }
+  const scheduleHideEditorControl = (): void => { if (editTimer.current !== null) window.clearTimeout(editTimer.current); editTimer.current = window.setTimeout(() => setShowEditButton(false), 350) }
+
+  useEffect(() => () => {
+    if (blurTimer.current !== null) window.clearTimeout(blurTimer.current)
+  }, [])
+
+  useEffect(() => {
+    if (!editing) return
+    const updateEditing = (): void => {
+      const position = getPos()
+      if (position === undefined) return
+      const selection = editor.state.selection
+      const inside = selection.from > position && selection.from < position + node.nodeSize
+      if (!inside) setEditing(false)
+    }
+    editor.on('selectionUpdate', updateEditing)
+    return () => { editor.off('selectionUpdate', updateEditing) }
+  }, [editing, editor, getPos, node.nodeSize])
+
+  const value = src.trim()
+  const displaySrc = /^(https?:|data:|blob:)/i.test(value)
+    ? value
+    : /^media:/i.test(value)
+      ? window.markdownApp.mediaUrl(mediaUrlToPath(value))
+    : (() => {
+        const localPath = resolveLocalPath(value, docPath, rootDir)
+        return localPath ? window.markdownApp.mediaUrl(localPath) : ''
+      })()
 
   function startResize(e: React.MouseEvent): void {
     e.preventDefault()
@@ -97,25 +131,26 @@ export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
       className="image-node"
       data-selected={selected ? 'true' : 'false'}
       data-image-editing={editing ? 'true' : 'false'}
-      onClick={() => setEditing(true)}
     >
-      <div className="image-preview" onMouseDown={() => setEditing(true)}>
-        {resolvedSrc && failedSrc !== resolvedSrc ? (
+      <div className="image-preview" onMouseEnter={showEditorControl} onMouseLeave={scheduleHideEditorControl}>
+        {displaySrc && failedSrc !== displaySrc ? (
           <img
             ref={imgRef}
-            src={resolvedSrc}
+            src={displaySrc}
             alt={alt}
+            title={String(node.attrs.title ?? '') || undefined}
             style={effectiveWidth ? { width: `${effectiveWidth}px` } : undefined}
             contentEditable={false}
             draggable={true}
-            onError={() => setFailedSrc(resolvedSrc)}
+            onError={() => setFailedSrc(displaySrc)}
           />
         ) : (
-          <span className={resolvedSrc ? 'image-broken' : 'image-placeholder'}>
-             {resolvedSrc ? t('imageLoadFailed', { src }) : t('enterImageAddress')}
+          <span className={displaySrc ? 'image-broken' : 'image-placeholder'}>
+             {displaySrc ? t('imageLoadFailed', { src }) : t('enterImageAddress')}
           </span>
         )}
-        {selected && resolvedSrc ? (
+        {!editing ? <button type="button" className={`image-edit-button ${showEditButton ? 'visible' : ''}`} aria-label={t('editImage')} title={t('editImage')} onMouseEnter={showEditorControl} onMouseLeave={scheduleHideEditorControl} onMouseDown={(event) => event.preventDefault()} onClick={() => setEditing(true)}>{t('edit')}</button> : null}
+        {selected && displaySrc ? (
           <span
             className="image-resize-handle"
             onMouseDown={startResize}
@@ -127,10 +162,15 @@ export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
         <div
           ref={editorRef}
           className="image-fields"
+          onFocusCapture={() => {
+            if (blurTimer.current !== null) window.clearTimeout(blurTimer.current)
+          }}
           onBlur={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-              setEditing(false)
-            }
+            if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+            if (blurTimer.current !== null) window.clearTimeout(blurTimer.current)
+            blurTimer.current = window.setTimeout(() => {
+              if (!editorRef.current?.contains(document.activeElement)) setEditing(false)
+            }, 0)
           }}
         >
           <div className="image-field">
@@ -163,10 +203,12 @@ export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
               onKeyDown={srcField.onKeyDown}
             />
           </label>
+          <label className="image-field">
+            <span>{t('imageTitle')}</span>
+            <input value={titleField.value} aria-label={t('imageTitle')} placeholder={t('enterImageTitle')} onChange={(event) => titleField.change(event.target.value)} onKeyDown={titleField.onKeyDown} />
+          </label>
           {node.attrs.reference ? <ReferenceStatus editor={props.editor} id={String(node.attrs.reference)} entry={reference} /> : null}
         </div>
-      ) : alt ? (
-        <div className="image-caption">{alt}</div>
       ) : null}
     </NodeViewWrapper>
   )

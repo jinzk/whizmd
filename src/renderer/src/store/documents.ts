@@ -10,6 +10,8 @@ export interface OpenDocument {
 interface DocumentState {
   documents: OpenDocument[]
   activeDocumentId: string
+  rootDir: string | null
+  setRootDir: (rootDir: string | null) => void
   addDocument: (document: OpenDocument) => void
   updateDocument: (id: string, patch: Partial<OpenDocument>) => void
   removeDocument: (id: string) => void
@@ -20,6 +22,8 @@ interface DocumentState {
 export const useDocumentStore = create<DocumentState>((set) => ({
   documents: [{ id: 'untitled-1', path: null, content: '', dirty: false }],
   activeDocumentId: 'untitled-1',
+  rootDir: null,
+  setRootDir: (rootDir) => set({ rootDir }),
   addDocument: (document) => set((state) => ({ documents: [...state.documents, document] })),
   updateDocument: (id, patch) => set((state) => ({
     documents: state.documents.map((document) =>

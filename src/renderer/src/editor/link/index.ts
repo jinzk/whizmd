@@ -44,19 +44,19 @@ export const LinkNode = Node.create({
     : `[${node.attrs?.text ?? ''}](${node.attrs?.href ?? ''})`,
   addInputRules() {
     return [new InputRule({
-      find: /(?:^| )\[([^\]]+)\]\[([^\]]+)\]$/,
-      handler: ({ state, range, match }) => {
-        if (!canTriggerInlineMarkdown(state, range.from)) return
-        const start = range.from + match[0].indexOf('[')
+       find: /(?:^|[^!\\])\[([^\]\n]+)\]\[([^\]\n]+)\]$/,
+       handler: ({ state, range, match }) => {
+         if (!canTriggerInlineMarkdown(state, range.from)) return
+         const start = range.from + match[0].indexOf('[')
         const node = this.type.create({ text: match[1], href: match[2], reference: match[2] })
         const tr = state.tr.replaceWith(start, range.to, node)
         tr.setSelection(TextSelection.create(tr.doc, start + node.nodeSize))
       }
     }), new InputRule({
-      find: /(?:^| )\[([^\]\n]*)\]\($/,
-      handler: ({ state, range, match }) => {
-        if (!canTriggerInlineMarkdown(state, range.from)) return
-        const start = range.from + match[0].indexOf('[')
+       find: /(?:^|[^!\\])\[([^\]\n]*)\]\($/,
+       handler: ({ state, range, match }) => {
+         if (!canTriggerInlineMarkdown(state, range.from)) return
+         const start = range.from + match[0].indexOf('[')
         const transaction = state.tr.replaceRangeWith(
           start,
           range.to,

@@ -1,10 +1,5 @@
 import type { PairedMatch, PairedTriggerRule } from './types'
-
-function isEscaped(text: string, index: number): boolean {
-  let slashes = 0
-  for (let cursor = index - 1; cursor >= 0 && text[cursor] === '\\'; cursor -= 1) slashes += 1
-  return slashes % 2 === 1
-}
+import { isEscaped } from '../../inline/escape'
 
 function findMatch(text: string, cursor: number, rule: PairedTriggerRule): PairedMatch | null {
   const { marker } = rule

@@ -59,8 +59,11 @@ export function useDocumentActions(t: Translator, requestDocumentClose: () => vo
         setSaveStatus('idle')
         return
       }
-      await window.markdownApp.file.write(target, document.content)
-      updateDocument(document.id, { path: target, dirty: false })
+       const content = window.markdownApp.file.prepareImages
+         ? await window.markdownApp.file.prepareImages(document.content, target)
+         : document.content
+       await window.markdownApp.file.write(target, content)
+       updateDocument(document.id, { path: target, content, dirty: false })
       setSaveStatus('saved')
        if (rootDir) {
          const result = await window.markdownApp.dir.scan(rootDir)

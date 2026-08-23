@@ -52,35 +52,62 @@ describe('code block language round-trip', () => {
     editor.destroy()
   })
 
+  it('supports markdown as a code block language', () => {
+    const editor = createEditor('')
+    typeInto(editor, '```markdown ')
+    expect(editor.getJSON().content?.[0]).toMatchObject({
+      type: 'codeBlock',
+      attrs: { language: 'markdown' }
+    })
+    editor.destroy()
+  })
+
+  it('creates a code block directly after a supported language fence', () => {
+    const editor = createEditor('')
+    typeInto(editor, '```c ')
+    expect(editor.getJSON().content?.[0]).toMatchObject({ type: 'codeBlock', attrs: { language: 'c' } })
+    editor.destroy()
+  })
+
   it('turns a leading less-than sign into the unified HTML block', () => {
     const editor = createEditor('')
-    typeInto(editor, '<')
+    typeInto(editor, '<div>')
     expect(editor.getJSON().content?.[0]).toMatchObject({
       type: 'htmlBlock',
-      attrs: { html: '<' }
+      attrs: { html: '<div>' }
     })
     expect(editor.state.selection instanceof NodeSelection && editor.state.selection.node.type.name).toBe('htmlBlock')
     editor.destroy()
   })
 
-  it('creates the unified HTML block from a leading less-than sign', () => {
+  it('opens the HTML block editor after a block tag and a space', () => {
     const editor = createEditor('')
-    typeInto(editor, '<')
+    typeInto(editor, '<div ')
     expect(editor.getJSON().content?.[0]).toMatchObject({
       type: 'htmlBlock',
-      attrs: { html: '<' }
+      attrs: { html: '<div' }
+    })
+    editor.destroy()
+  })
+
+  it('creates the unified HTML block from a leading less-than sign', () => {
+    const editor = createEditor('')
+    typeInto(editor, '<section>')
+    expect(editor.getJSON().content?.[0]).toMatchObject({
+      type: 'htmlBlock',
+      attrs: { html: '<section>' }
     })
     editor.destroy()
   })
 
   it('uses the unified HTML block for typed HTML preview content', () => {
     const editor = createEditor('')
-    typeInto(editor, '<')
+    typeInto(editor, '<article>')
 
     const node = editor.getJSON().content?.[0]
     expect(node).toMatchObject({
       type: 'htmlBlock',
-      attrs: { html: '<' },
+      attrs: { html: '<article>' },
     })
     editor.destroy()
   })

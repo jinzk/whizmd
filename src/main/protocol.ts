@@ -1,7 +1,7 @@
-import { app, protocol, net } from 'electron'
+import { app, protocol } from 'electron'
 import { extname, normalize, sep } from 'node:path'
-import { existsSync } from 'node:fs'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { existsSync, promises as fs } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 const MEDIA_SCHEME = 'media'
 
@@ -72,10 +72,14 @@ export function registerMediaScheme(): void {
  */
 export function registerMediaProtocol(): void {
   allowMediaDirectory(app.getPath('userData'))
-  protocol.handle(MEDIA_SCHEME, (request) => {
+  protocol.handle(MEDIA_SCHEME, async (request) => {
     try {
        const url = new URL(request.url)
-       const decodedPath = decodeURIComponent(url.pathname)
+        const decodedPath = decodeURIComponent(
+          /^[a-z]$/i.test(url.hostname) && url.pathname.startsWith('/')
+            ? `${url.hostname}:${url.pathname}`
+            : url.pathname
+        )
        const fileUrl = `file://${decodedPath}`
        const absolutePath = fileURLToPath(fileUrl)
 
@@ -90,8 +94,13 @@ export function registerMediaProtocol(): void {
         return new Response('File not found', { status: 404 })
       }
 
-      return net.fetch(pathToFileURL(absolutePath).toString(), {
-        headers: { 'Content-Type': MIME_BY_EXT[ext] ?? 'application/octet-stream' }
+      const data = await fs.readFile(absolutePath)
+      return new Response(new Uint8Array(data), {
+        headers: {
+          'Content-Type': MIME_BY_EXT[ext] ?? 'application/octet-stream',
+          'Cache-Control': 'no-store',
+          'Access-Control-Allow-Origin': '*'
+        }
       })
     } catch {
       return new Response('Bad request', { status: 400 })

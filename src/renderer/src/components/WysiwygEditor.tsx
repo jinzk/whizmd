@@ -17,14 +17,20 @@ const CODE_LANGUAGES = [
   ['typescript', 'TypeScript'],
   ['python', 'Python'],
   ['java', 'Java'],
+  ['c', 'C'],
+  ['cpp', 'C++'],
+  ['csharp', 'C#'],
   ['go', 'Go'],
   ['rust', 'Rust'],
   ['json', 'JSON'],
+  ['markdown', 'Markdown'],
   ['html', 'HTML'],
   ['css', 'CSS'],
   ['sql', 'SQL'],
   ['bash', 'Shell'],
-  ['plaintext', '纯文本']
+  ['shell', 'Shell'],
+  ['plaintext', '纯文本'],
+  ['text', '纯文本']
 ] as const
 
 export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props): React.JSX.Element {
@@ -34,7 +40,10 @@ export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props):
   const lastEmittedRef = useRef<string | null>(null)
   const onUpdateRef = useRef(onUpdate)
   const [showLanguageMenu, setShowLanguageMenu] = useState(false)
+  const [activeLanguageIndex, setActiveLanguageIndex] = useState(0)
+  const [languageQuery, setLanguageQuery] = useState('')
   const [languageMenuPosition, setLanguageMenuPosition] = useState({ top: 0, left: 0 })
+  const languageMenuRef = useRef<HTMLDivElement>(null)
 
   const syncLanguageMenu = (instance: Editor): void => {
     const { $from } = instance.state.selection
@@ -42,9 +51,13 @@ export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props):
     const shouldShow =
       $from.parent.type.name === 'paragraph' &&
       $from.parentOffset === currentLine.length &&
-      currentLine.endsWith('```')
+      currentLine.startsWith('```') &&
+      !currentLine.includes('\n')
 
     setShowLanguageMenu(shouldShow)
+    const query = shouldShow ? currentLine.slice(3).trim().toLowerCase() : ''
+    setLanguageQuery(query)
+    setActiveLanguageIndex(0)
     if (!shouldShow) {
       return
     }
@@ -85,7 +98,7 @@ export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props):
       lastEmittedRef.current = md
       onUpdateRef.current(md)
     },
-    onBlur: () => setShowLanguageMenu(false),
+    onBlur: () => undefined,
     onDestroy: () => {
       editorRef.current = null
     },
@@ -116,6 +129,13 @@ export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props):
         event.preventDefault()
         void insertPastedImages(editorRef.current, items)
         return true
+      },
+      handleKeyDown: (_view, event) => {
+        if (event.key !== 'Tab' || !showLanguageMenu) return false
+        event.preventDefault()
+        setActiveLanguageIndex(0)
+        languageMenuRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
+        return true
       }
     }
   })
@@ -139,6 +159,36 @@ export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props):
       window.removeEventListener('scroll', reposition, true)
     }
   }, [editor, showLanguageMenu])
+
+  const chooseLanguageByIndex = (index: number): void => {
+    const language = filteredCodeLanguages[index]?.[0]
+    if (language) chooseLanguage(language)
+  }
+
+  const filteredCodeLanguages = CODE_LANGUAGES.filter(([language]) => language.startsWith(languageQuery))
+
+  const focusLanguageOption = (index: number): void => {
+    setActiveLanguageIndex(index)
+    const options = languageMenuRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]')
+    options?.[index]?.focus()
+  }
+
+  const handleLanguageMenuKeyDown = (event: React.KeyboardEvent<HTMLElement>): void => {
+    const currentIndex = Number((event.currentTarget as HTMLElement).getAttribute('data-language-index') ?? activeLanguageIndex)
+    if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+      event.preventDefault()
+      if (filteredCodeLanguages.length) focusLanguageOption((currentIndex + 1) % filteredCodeLanguages.length)
+    } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+      event.preventDefault()
+      if (filteredCodeLanguages.length) focusLanguageOption((currentIndex - 1 + filteredCodeLanguages.length) % filteredCodeLanguages.length)
+    } else if (event.key === 'Enter' || event.key === 'Tab') {
+      event.preventDefault()
+      chooseLanguageByIndex(currentIndex)
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      setShowLanguageMenu(false)
+    }
+  }
 
   const chooseLanguage = (language: string): void => {
     if (!editor) return
@@ -166,16 +216,22 @@ export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props):
       {editor && showLanguageMenu ? (
         <div
           className="code-language-menu"
+          ref={languageMenuRef}
           role="listbox"
+          onKeyDown={handleLanguageMenuKeyDown}
           aria-label={t('chooseCodeLanguage')}
           style={{ top: languageMenuPosition.top, left: languageMenuPosition.left }}
         >
           <div className="code-language-title">{t('chooseCodeLanguage')}</div>
-          {CODE_LANGUAGES.map(([language, label]) => (
-            <button
+           {filteredCodeLanguages.map(([language, label], index) => (
+             <button
               key={language}
               type="button"
-              role="option"
+               role="option"
+               tabIndex={index === activeLanguageIndex ? 0 : -1}
+               aria-selected={index === activeLanguageIndex}
+               data-language-index={index}
+               onFocus={() => setActiveLanguageIndex(index)}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => chooseLanguage(language)}
             >

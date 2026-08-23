@@ -1,9 +1,11 @@
 /* Image NodeView styles. */
-.wysiwyg-editor .tiptap .image-node { display: block; max-width: 100%; position: relative; margin: 0.75em 0; border: 1px solid var(--md-border); border-radius: 6px; overflow: hidden; background: var(--md-code-bg); }
+.wysiwyg-editor .tiptap .image-node { display: block; width: 100%; max-width: 100%; position: relative; clear: both; margin: 0.75em 0; border: 1px solid var(--md-border); border-radius: 6px; overflow: hidden; background: var(--md-code-bg); box-sizing: border-box; }
+.wysiwyg-editor .tiptap .image-node[data-image-editing='false'] { margin: 0.75em 0; border: 0; border-radius: 0; overflow: visible; background: transparent; }
 .wysiwyg-editor .tiptap .image-preview { min-height: 80px; padding: 16px; position: relative; max-width: 100%; line-height: 0; text-align: center; }
+.wysiwyg-editor .tiptap .image-node[data-image-editing='false'] .image-preview { min-height: 0; padding: 0; }
 .wysiwyg-editor .tiptap .image-node img { max-width: 100%; height: auto; border-radius: 4px; }
 .wysiwyg-editor .tiptap .image-node[data-selected='true'] img { outline: 2px solid var(--md-accent); outline-offset: 1px; }
-.wysiwyg-editor .tiptap .image-placeholder { color: var(--md-text-muted); font-size: 13px; line-height: 1.4; border: 1px dashed var(--md-border); border-radius: 4px; padding: 8px 12px; display: inline-block; }
+.wysiwyg-editor .tiptap .image-placeholder, .wysiwyg-editor .tiptap .image-broken { color: var(--md-text-muted); font-size: 13px; line-height: 1.4; border: 1px dashed var(--md-border); border-radius: 4px; padding: 8px 12px; display: inline-block; }
 .wysiwyg-editor .tiptap .image-fields { border-top: 1px solid var(--md-border); }
 .wysiwyg-editor .tiptap .image-field { display: flex; align-items: center; gap: 12px; min-height: 36px; padding: 0 12px; border-bottom: 1px solid var(--md-border); }
 .wysiwyg-editor .tiptap .image-field span { flex: 0 0 64px; color: var(--md-text-muted); font-size: 12px; }

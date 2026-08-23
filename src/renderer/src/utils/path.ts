@@ -1,7 +1,16 @@
 /** Renderer-side path helpers (no node:path in the sandboxed window). */
 
 export function isAbsolutePath(p: string): boolean {
-  return /^[a-zA-Z]:[\\/]/.test(p) || p.startsWith('/') || p.startsWith('\\\\')
+  return /^[a-zA-Z]:[\\/]/.test(p) || p.startsWith('\\\\')
+}
+
+/** Convert a media:// URL back to its local path for user-entered sources. */
+export function mediaUrlToPath(value: string): string {
+  const url = new URL(value)
+  const pathname = decodeURIComponent(url.pathname)
+  if (/^[a-z]$/i.test(url.hostname)) return `${url.hostname}:${pathname}`
+  if (url.hostname) return `//${url.hostname}${pathname}`
+  return pathname
 }
 
 export function dirnamePath(p: string): string {

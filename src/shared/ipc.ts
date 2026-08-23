@@ -23,6 +23,7 @@ export const IpcChannels = {
   fileWrite: 'file:write',
   fileImportImage: 'file:import-image',
   fileSaveImageBlob: 'file:save-image-blob',
+  filePrepareImages: 'file:prepare-images',
   dirScan: 'dir:scan',
   dirScanCancel: 'dir:scan-cancel',
 

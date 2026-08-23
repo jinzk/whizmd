@@ -10,6 +10,7 @@ import { Image } from '../image'
 import { LinkNode } from '../link'
 import { typeInto } from './helpers'
 import { MarkdownTable } from '../table'
+import { buildEditorExtensions } from '../extensions'
 
 function createEditor(): Editor {
   return new Editor({
@@ -94,6 +95,58 @@ describe('table editing', () => {
     editor.destroy()
   })
 
+  it('uses the production inline segment pipeline inside table cells', () => {
+    const editor = new Editor({ extensions: buildEditorExtensions() })
+    editor.commands.setContent(
+      '| Content |\n| --- |\n| $a$ <b>d</b> [doc](https://example.com) ==x== ^1^ ~2~ |',
+      { contentType: 'markdown' }
+    )
+
+    const table = editor.getJSON().content?.[0]
+    const row = table && 'content' in table ? table.content?.[1] : undefined
+    const cell = row && 'content' in row ? row.content?.[0] : undefined
+    const paragraph = cell && 'content' in cell ? cell.content?.[0] : undefined
+    const content: JSONContent[] = paragraph && 'content' in paragraph ? paragraph.content ?? [] : []
+
+    expect(content.map((node) => node.type)).toEqual([
+      'inlineMath',
+      'text',
+      'inlineHtml',
+      'text',
+      'linkNode',
+      'text',
+      'inlineDecoration',
+      'text',
+      'inlineDecoration',
+      'text',
+      'inlineDecoration'
+    ])
+    expect(editor.getMarkdown()).toContain('$a$ <b>d</b> [doc](https://example.com) ==x== ^1^ ~2~')
+    editor.destroy()
+  })
+
+  it('converts typed mixed inline nodes inside a table cell', () => {
+    const editor = new Editor({ extensions: buildEditorExtensions() })
+    editor.commands.setContent('| Content |\n| --- |\n| start |', { contentType: 'markdown' })
+
+    let paragraphPosition = 0
+    editor.state.doc.descendants((node, position) => {
+      if (node.type.name === 'paragraph' && node.textContent === 'start') paragraphPosition = position
+    })
+    editor.commands.setTextSelection(paragraphPosition + 1 + 'start'.length)
+    typeInto(editor, ' $a$ <b>d</b> ==x==')
+
+    const table = editor.getJSON().content?.[0]
+    const row = table && 'content' in table ? table.content?.[1] : undefined
+    const cell = row && 'content' in row ? row.content?.[0] : undefined
+    const paragraph = cell && 'content' in cell ? cell.content?.[0] : undefined
+    const content: JSONContent[] = paragraph && 'content' in paragraph ? paragraph.content ?? [] : []
+    expect(content.map((node) => node.type)).toContain('inlineMath')
+    expect(content.map((node) => node.type)).toContain('inlineHtml')
+    expect(content.map((node) => node.type)).toContain('inlineDecoration')
+    editor.destroy()
+  })
+
   it('turns a leading pipe into a table', () => {
     const editor = createEditor()
     typeInto(editor, '|')
@@ -103,6 +156,14 @@ describe('table editing', () => {
     const cells = firstRow && 'content' in firstRow ? firstRow.content : undefined
     expect(table?.type).toBe('table')
     expect(cells?.[0]?.type).toBe('tableHeader')
+    editor.destroy()
+  })
+
+  it('keeps an escaped leading pipe as text', () => {
+    const editor = createEditor()
+    typeInto(editor, '\\|')
+    expect(editor.getText()).toBe('\\|')
+    expect(editor.getJSON().content?.[0]?.type).toBe('paragraph')
     editor.destroy()
   })
 

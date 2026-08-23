@@ -3,6 +3,7 @@ import { Plugin } from '@tiptap/pm/state'
 import { TextSelection } from '@tiptap/pm/state'
 import { PluginKey } from '@tiptap/pm/state'
 import { addColumnAfter, addRowAfter, cellAround, deleteColumn, deleteRow, selectedRect } from 'prosemirror-tables'
+import { isEscaped } from './inline/escape'
 
 const tableUiKey = new PluginKey('tableUi')
 
@@ -181,6 +182,7 @@ export const TableTrigger = Extension.create({
             const { $from } = state.selection
             if (
               text !== '|' ||
+              isEscaped($from.parent.textContent, $from.parentOffset) ||
               from !== to ||
               !$from.parent.isTextblock ||
               $from.parentOffset !== 0 ||
