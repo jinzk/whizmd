@@ -120,6 +120,7 @@ WhizMD uses GitHub Flavored Markdown (GFM) and supports:
 - Ordered and unordered lists
 - Tables
 - Links and images
+- Image links with editable image and destination fields
 - Inline HTML
 - Code blocks and syntax highlighting
 - Mermaid diagrams
@@ -187,11 +188,20 @@ Supported image formats include PNG, JPEG, GIF, SVG, WebP, BMP, ICO, and AVIF.
 
 ### Image Paths
 
-When an image is dragged or pasted into a saved Markdown document, WhizMD imports it into a document-related asset directory and stores a usable image path in the Markdown. Images inserted into an untitled document are temporarily stored in the application asset library; saving the document first is recommended before organizing the document and its image assets.
+When an image is dragged or pasted into a saved Markdown document, WhizMD keeps paths compatible with GitHub repositories:
 
-The image module allows you to edit the alt text, image source, and display size, or delete the image.
+- Images inside the Markdown directory, its subdirectories, or the containing Git repository remain where they are.
+- Relative paths such as `../images/logo.png` are preserved.
+- Images outside the repository are copied to `assets/` beside the Markdown file only when migration is required.
+- `assets/` is not created when there is no image to migrate.
+- Spaces and other illegal URL characters are encoded, for example `my image.png` becomes `my%20image.png`.
+- Existing assets are not overwritten; conflicting names receive a numeric suffix.
 
-When moving a Markdown file, move its referenced image assets as well. Otherwise, the images may no longer be displayed.
+Images inserted into an untitled document are temporarily stored in the application asset library; saving the document first is recommended before organizing the document and its image assets.
+
+The image module allows you to edit the alt text, image source, title, and display size, or delete the image. Image links provide the same image fields plus a link destination field.
+
+When moving a Markdown file, preserve the repository-relative locations of its referenced images. For images stored in `assets/`, move that directory with the Markdown file.
 
 ## Code Blocks
 

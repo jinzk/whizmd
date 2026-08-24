@@ -20,6 +20,8 @@ WhizMD is a desktop Markdown editor for desktop, built with Electron, React, Typ
 - Markdown content embedded inside HTML blocks
 - Mathematics rendering with KaTeX
 - Tables, lists, images, links, inline HTML, and extended Markdown syntax
+- Image links with separate image and destination editing
+- GitHub-compatible image paths and URL-encoded media paths
 - Light, dark, and system themes
 - Chinese and English interface localization
 - Automatic code block indentation based on the current line
@@ -31,7 +33,7 @@ Clone the repository and install dependencies:
 
 ```bash
 git clone <repository-url>
-cd markdownapp
+cd whizmd
 npm install
 ```
 
@@ -104,13 +106,24 @@ src/
 ├── preload/              Secure renderer API bridge
 ├── shared/               Shared types and IPC definitions
 └── renderer/src/
-    ├── components/      Application and editor components
-    ├── editor/           Tiptap extensions and custom NodeViews
+    ├── components/      Application, WYSIWYG, and editor UI components
+    ├── editor/           Tiptap extensions, NodeViews, media, and parser logic
     ├── export/           HTML/PDF export preparation
     ├── hooks/            React hooks
     ├── store/            Editor configuration and document session state
     └── styles/           Application and editor styles
 ```
+
+### Image Storage
+
+When saving a Markdown document, WhizMD keeps local image references compatible with GitHub repositories:
+
+- Images already inside the document's directory, its subdirectories, or the containing Git repository are not copied.
+- Repository-relative paths such as `../images/logo.png` are preserved.
+- Images outside the repository are copied to `assets/` beside the Markdown file when migration is required.
+- The `assets/` directory is created only when an image actually needs to be migrated.
+- Spaces and other URL characters are encoded, for example `my image.png` becomes `my%20image.png`.
+- Existing files are not overwritten; conflicting names receive a numeric suffix.
 
 ## Testing
 

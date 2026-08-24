@@ -20,6 +20,8 @@ WhizMD 是一款面向桌面的 Markdown 编辑器，基于 Electron、React、T
 - 支持 HTML 容器内部嵌入 Markdown 内容
 - 使用 KaTeX 渲染数学公式
 - 支持表格、列表、图片、链接、行内 HTML 和扩展 Markdown 语法
+- 支持图片链接，并可分别编辑图片地址和跳转地址
+- 支持 GitHub 兼容的图片路径和 URL 编码媒体路径
 - 浅色、深色和跟随系统主题
 - 中文和英文界面
 - 代码块按当前行缩进自动换行
@@ -31,7 +33,7 @@ WhizMD 是一款面向桌面的 Markdown 编辑器，基于 Electron、React、T
 
 ```bash
 git clone <repository-url>
-cd markdownapp
+cd whizmd
 npm install
 ```
 
@@ -104,13 +106,24 @@ src/
 ├── preload/              安全的渲染进程 API 桥接
 ├── shared/               共享类型和 IPC 定义
 └── renderer/src/
-    ├── components/      应用和编辑器组件
-    ├── editor/           Tiptap 扩展和自定义 NodeView
+    ├── components/      应用、所见即所得和编辑器 UI 组件
+    ├── editor/           Tiptap 扩展、NodeView、媒体和解析器逻辑
     ├── export/           HTML/PDF 导出准备逻辑
     ├── hooks/            React Hooks
     ├── store/            编辑器配置和文档会话状态
     └── styles/           应用和编辑器样式
 ```
+
+### 图片存储策略
+
+保存 Markdown 文档时，WhizMD 会尽量保持图片引用与 GitHub 仓库兼容：
+
+- 已经位于文档目录、子目录或所属 Git 仓库内的图片不会被复制。
+- `../images/logo.png` 这类仓库相对路径会保留。
+- 仓库外的本地图片只有在确实需要迁移时，才会复制到 Markdown 文件同级的 `assets/` 目录。
+- 没有图片需要迁移时不会创建 `assets/` 目录。
+- 空格和其他 URL 字符会被编码，例如 `my image.png` 会保存为 `my%20image.png`。
+- 已有文件不会被覆盖，重名文件会自动添加数字后缀。
 
 ## 测试
 
