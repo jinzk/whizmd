@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import type { Editor } from '@tiptap/core'
 import { buildEditorExtensions } from '../editor/extensions'
-import { useI18n } from '../i18n'
 import { insertDroppedImages, insertPastedImages, isImageFile } from '../editor/image/insert'
+import { CodeLanguageMenu } from './CodeLanguageMenu'
+import { useWysiwygContent } from './useWysiwygContent'
 
 interface Props {
   content: string
@@ -11,36 +12,10 @@ interface Props {
   spellCheck?: boolean
 }
 
-const CODE_LANGUAGES = [
-  ['mermaid', 'Mermaid 图表'],
-  ['javascript', 'JavaScript'],
-  ['typescript', 'TypeScript'],
-  ['python', 'Python'],
-  ['java', 'Java'],
-  ['c', 'C'],
-  ['cpp', 'C++'],
-  ['csharp', 'C#'],
-  ['go', 'Go'],
-  ['rust', 'Rust'],
-  ['json', 'JSON'],
-  ['markdown', 'Markdown'],
-  ['html', 'HTML'],
-  ['css', 'CSS'],
-  ['sql', 'SQL'],
-  ['bash', 'Shell'],
-  ['shell', 'Shell'],
-  ['plaintext', '纯文本'],
-  ['text', '纯文本']
-] as const
-
 export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props): React.JSX.Element {
-  const { t } = useI18n()
   const editorRef = useRef<Editor | null>(null)
   const [extensions] = useState(buildEditorExtensions)
-  const lastEmittedRef = useRef<string | null>(null)
-  const onUpdateRef = useRef(onUpdate)
   const [showLanguageMenu, setShowLanguageMenu] = useState(false)
-  const [activeLanguageIndex, setActiveLanguageIndex] = useState(0)
   const [languageQuery, setLanguageQuery] = useState('')
   const [languageMenuPosition, setLanguageMenuPosition] = useState({ top: 0, left: 0 })
   const languageMenuRef = useRef<HTMLDivElement>(null)
@@ -57,7 +32,6 @@ export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props):
     setShowLanguageMenu(shouldShow)
     const query = shouldShow ? currentLine.slice(3).trim().toLowerCase() : ''
     setLanguageQuery(query)
-    setActiveLanguageIndex(0)
     if (!shouldShow) {
       return
     }
@@ -78,9 +52,7 @@ export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props):
     }
   }
 
-  useEffect(() => {
-    onUpdateRef.current = onUpdate
-  }, [onUpdate])
+  const { initialize, emit, sync } = useWysiwygContent(content, onUpdate)
 
   const editor = useEditor({
     extensions,
@@ -89,14 +61,11 @@ export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props):
     autofocus: 'start',
     onCreate: ({ editor }) => {
       editorRef.current = editor
-      lastEmittedRef.current = editor.getMarkdown()
+       initialize(editor)
     },
     onUpdate: ({ editor }) => {
       syncLanguageMenu(editor)
-      const md = editor.getMarkdown()
-      if (md === lastEmittedRef.current) return
-      lastEmittedRef.current = md
-      onUpdateRef.current(md)
+       emit(editor)
     },
     onBlur: () => undefined,
     onDestroy: () => {
@@ -133,7 +102,6 @@ export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props):
       handleKeyDown: (_view, event) => {
         if (event.key !== 'Tab' || !showLanguageMenu) return false
         event.preventDefault()
-        setActiveLanguageIndex(0)
         languageMenuRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
         return true
       }
@@ -160,92 +128,13 @@ export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props):
     }
   }, [editor, showLanguageMenu])
 
-  const chooseLanguageByIndex = (index: number): void => {
-    const language = filteredCodeLanguages[index]?.[0]
-    if (language) chooseLanguage(language)
-  }
-
-  const filteredCodeLanguages = CODE_LANGUAGES.filter(([language]) => language.startsWith(languageQuery))
-
-  const focusLanguageOption = (index: number): void => {
-    setActiveLanguageIndex(index)
-    const options = languageMenuRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]')
-    options?.[index]?.focus()
-  }
-
-  const handleLanguageMenuKeyDown = (event: React.KeyboardEvent<HTMLElement>): void => {
-    const currentIndex = Number((event.currentTarget as HTMLElement).getAttribute('data-language-index') ?? activeLanguageIndex)
-    if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
-      event.preventDefault()
-      if (filteredCodeLanguages.length) focusLanguageOption((currentIndex + 1) % filteredCodeLanguages.length)
-    } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
-      event.preventDefault()
-      if (filteredCodeLanguages.length) focusLanguageOption((currentIndex - 1 + filteredCodeLanguages.length) % filteredCodeLanguages.length)
-    } else if (event.key === 'Enter' || event.key === 'Tab') {
-      event.preventDefault()
-      chooseLanguageByIndex(currentIndex)
-    } else if (event.key === 'Escape') {
-      event.preventDefault()
-      setShowLanguageMenu(false)
-    }
-  }
-
-  const chooseLanguage = (language: string): void => {
-    if (!editor) return
-    const { $from } = editor.state.selection
-    const from = $from.start()
-    const to = $from.end()
-    editor.chain().focus().deleteRange({ from, to }).setCodeBlock({ language }).run()
-    setShowLanguageMenu(false)
-  }
-
-  // Push externally supplied markdown (e.g. switching from source mode or
-  // opening a file) into the editor only when it did not originate from this
-  // editor itself. Content that the editor already emitted is never pushed
-  // back, so typing never triggers a reset of the document or cursor.
-  useEffect(() => {
-    if (!editor) return
-    if (content === lastEmittedRef.current) return
-    lastEmittedRef.current = content
-    editor.commands.setContent(content, { emitUpdate: false, contentType: 'markdown' })
-  }, [content, editor])
+  useEffect(() => { sync(editor) }, [editor, sync])
 
   return (
     <div className="wysiwyg-editor">
        <EditorContent editor={editor} spellCheck={spellCheck} />
       {editor && showLanguageMenu ? (
-        <div
-          className="code-language-menu"
-          ref={languageMenuRef}
-          role="listbox"
-          onKeyDown={handleLanguageMenuKeyDown}
-          aria-label={t('chooseCodeLanguage')}
-          style={{ top: languageMenuPosition.top, left: languageMenuPosition.left }}
-        >
-          <div className="code-language-title">{t('chooseCodeLanguage')}</div>
-           {filteredCodeLanguages.map(([language, label], index) => (
-             <button
-              key={language}
-              type="button"
-               role="option"
-               tabIndex={index === activeLanguageIndex ? 0 : -1}
-               aria-selected={index === activeLanguageIndex}
-               data-language-index={index}
-               onFocus={() => setActiveLanguageIndex(index)}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => chooseLanguage(language)}
-            >
-              <code>{language}</code>
-              <span>
-                {language === 'mermaid'
-                  ? t('mermaid')
-                  : language === 'plaintext'
-                    ? t('plaintext')
-                    : label}
-              </span>
-            </button>
-          ))}
-        </div>
+        <CodeLanguageMenu editor={editor} query={languageQuery} position={languageMenuPosition} menuRef={languageMenuRef} onClose={() => setShowLanguageMenu(false)} />
       ) : null}
     </div>
   )

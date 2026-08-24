@@ -11,6 +11,7 @@ import { decodeUrlPath, encodeUrlValue } from '../../utils/url'
 import { useNodeViewEditing } from '../nodeView/useNodeViewEditing'
 import { useNodeViewHover } from '../nodeView/useNodeViewHover'
 import { MediaPreview } from '../media/MediaPreview'
+import { MediaFields } from '../media/MediaFields'
 
 function resolveLocalPath(src: string, docPath: string | null, rootDir: string | null): string {
   src = decodeUrlPath(src.trim())
@@ -145,41 +146,7 @@ export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
             }, 0)
           }}
         >
-          <div className="image-field">
-             <span>{t('imageAlt')}</span>
-            <input
-              value={alt}
-               aria-label={t('imageAlt')}
-               placeholder={t('enterImageAlt')}
-                onChange={(event) => altField.change(event.target.value)}
-               onKeyDown={altField.onKeyDown}
-            />
-            <button
-              type="button"
-              className="block-module-delete image-delete"
-               aria-label={t('deleteImage')}
-               title={t('deleteImage')}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={deleteNode}
-            >
-               {t('delete')}
-            </button>
-          </div>
-          <label className="image-field">
-             <span>{t('imageSrc')}</span>
-            <input
-              value={src}
-               aria-label={t('imageSrc')}
-               placeholder={t('enterImageAddress')}
-              onChange={(event) => srcField.change(event.target.value)}
-              onKeyDown={srcField.onKeyDown}
-            />
-          </label>
-          <label className="image-field">
-            <span>{t('imageTitle')}</span>
-            <input value={titleField.value} aria-label={t('imageTitle')} placeholder={t('enterImageTitle')} onChange={(event) => titleField.change(event.target.value)} onKeyDown={titleField.onKeyDown} />
-          </label>
-          {node.attrs.reference ? <ReferenceStatus editor={props.editor} id={String(node.attrs.reference)} entry={reference} /> : null}
+          <MediaFields alt={altField} src={srcField} title={titleField} onDelete={deleteNode} extra={node.attrs.reference ? <ReferenceStatus editor={props.editor} id={String(node.attrs.reference)} entry={reference} /> : null} />
         </div>
       ) : null}
     </NodeViewWrapper>

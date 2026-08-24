@@ -12,6 +12,7 @@ import { decodeUrlPath, encodeUrlValue } from '../../utils/url'
 import { useNodeViewEditing } from '../nodeView/useNodeViewEditing'
 import { useNodeViewHover } from '../nodeView/useNodeViewHover'
 import { MediaPreview } from '../media/MediaPreview'
+import { MediaFields } from '../media/MediaFields'
 
 const IMAGE_LINK_PATTERN = /^\[!\[([^\]]*)\]\((?:"((?:[^"\\]|\\.)*)"|([^\s)]+))(?:\s+("(?:[^"\\]|\\.)*"))?\)\]\(([^)]+)\)/
 
@@ -65,12 +66,7 @@ export function ImageLinkView({ node, updateAttributes, deleteNode, selected, ed
       }, 0)
     }} ref={editorRef}>
       <span className="image-link-preview"><MediaPreview src={imageSrc} alt={altField.value} title={titleField.value} failed={!imageSrc && Boolean(resolvedSrc)} failedLabel={t('imageLoadFailed', { src: srcField.value })} emptyLabel={t('enterImageAddress')} onError={() => setFailedSrc(imageSrc)} /></span>
-      <span className="image-link-fields">
-        <span className="image-field"><span>{t('imageAlt')}</span><input value={altField.value} aria-label={t('imageAlt')} placeholder={t('enterImageAlt')} onChange={(event) => altField.change(event.target.value)} onBlur={altField.commit} onKeyDown={altField.onKeyDown} /><button type="button" className="block-module-delete image-delete" aria-label={t('deleteImage')} title={t('deleteImage')} onMouseDown={(event) => event.preventDefault()} onClick={deleteNode}>{t('delete')}</button></span>
-        <label className="image-field"><span>{t('imageSrc')}</span><input value={srcField.value} aria-label={t('imageSrc')} placeholder={t('enterImageAddress')} onChange={(event) => srcField.change(event.target.value)} onBlur={srcField.commit} onKeyDown={srcField.onKeyDown} /></label>
-        <label className="image-field"><span>{t('imageTitle')}</span><input value={titleField.value} aria-label={t('imageTitle')} placeholder={t('enterImageTitle')} onChange={(event) => titleField.change(event.target.value)} onBlur={titleField.commit} onKeyDown={titleField.onKeyDown} /></label>
-        <label className="image-field"><span>{t('linkAddress')}</span><input value={hrefField.value} aria-label={t('linkAddress')} placeholder="https://example.com" onChange={(event) => hrefField.change(event.target.value)} onBlur={hrefField.commit} onKeyDown={hrefField.onKeyDown} /></label>
-      </span>
+      <MediaFields alt={altField} src={srcField} title={titleField} href={hrefField} onDelete={deleteNode} />
     </span> : <span className="image-link-preview-wrap image-preview" onMouseEnter={show} onMouseLeave={hide}>
       <a className="image-link-anchor" href={hrefField.value || undefined} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>
         <MediaPreview src={imageSrc} alt={altField.value} title={titleField.value} failed={!imageSrc && Boolean(resolvedSrc)} failedLabel={t('imageLoadFailed', { src: srcField.value })} emptyLabel={t('enterImageAddress')} onError={() => setFailedSrc(imageSrc)} />
