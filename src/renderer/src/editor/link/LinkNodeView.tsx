@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef } from 'react'
 import { NodeViewWrapper } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
 import { referenceEntry } from '../referenceRegistry'
@@ -6,6 +6,8 @@ import { ReferenceStatus } from '../reference/ReferenceStatus'
 import { useNodeViewField } from '../nodeView/useNodeViewField'
 import { useI18n } from '../../i18n'
 import { encodeUrlValue } from '../../utils/url'
+import { useNodeViewEditing } from '../nodeView/useNodeViewEditing'
+import { useNodeViewHover } from '../nodeView/useNodeViewHover'
 
 export function LinkNodeView({ node, updateAttributes, deleteNode, selected, editor, getPos }: NodeViewProps): React.JSX.Element {
   const { t } = useI18n()
@@ -13,38 +15,11 @@ export function LinkNodeView({ node, updateAttributes, deleteNode, selected, edi
   const hrefField = useNodeViewField(String(node.attrs.href ?? ''), (value) => updateAttributes({ href: encodeUrlValue(value) }))
   const text = textField.value
   const href = hrefField.value
-  const [editing, setEditing] = useState(selected || !href)
-  const [showEditButton, setShowEditButton] = useState(false)
+  const { editing, setEditing } = useNodeViewEditing(editor, getPos, node.nodeSize, selected || !href)
+  const { visible: showEditButton, show: showEditorControl, hide: scheduleHideEditorControl } = useNodeViewHover()
   const fieldsRef = useRef<HTMLDivElement>(null)
-  const hideEditTimer = useRef<number | null>(null)
   const reference = node.attrs.reference ? referenceEntry(editor, String(node.attrs.reference)) : undefined
 
-  useEffect(() => () => {
-    if (hideEditTimer.current !== null) window.clearTimeout(hideEditTimer.current)
-  }, [])
-
-  const showEditorControl = (): void => {
-    if (hideEditTimer.current !== null) window.clearTimeout(hideEditTimer.current)
-    setShowEditButton(true)
-  }
-
-  const scheduleHideEditorControl = (): void => {
-    if (hideEditTimer.current !== null) window.clearTimeout(hideEditTimer.current)
-    hideEditTimer.current = window.setTimeout(() => setShowEditButton(false), 350)
-  }
-
-  useEffect(() => {
-    if (!editing) return
-    const updateEditing = (): void => {
-      const position = getPos()
-      if (position === undefined) return
-      const selection = editor.state.selection
-      const inside = selection.from > position && selection.from < position + node.nodeSize
-      if (!inside && editor.isFocused) setEditing(false)
-    }
-    editor.on('selectionUpdate', updateEditing)
-    return () => { editor.off('selectionUpdate', updateEditing) }
-  }, [editing, editor, getPos, node.nodeSize])
 
   return (
     <NodeViewWrapper

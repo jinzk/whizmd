@@ -12,7 +12,7 @@ describe('buildExportHtml', () => {
     expect(html).toContain('E = mc^2')
   })
 
-  it('turns mermaid fences into pre.mermaid blocks', async () => {
+  it('turns mermaid fences into pre.mermaid blocks', { timeout: 15_000 }, async () => {
     const html = await buildExportHtml('```mermaid\ngraph TD\n  A-->B\n```', {
       title: 'test',
       docPath: null

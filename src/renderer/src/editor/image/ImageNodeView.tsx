@@ -8,6 +8,9 @@ import { ReferenceStatus } from '../reference/ReferenceStatus'
 import { useNodeViewField } from '../nodeView/useNodeViewField'
 import { useI18n } from '../../i18n'
 import { decodeUrlPath, encodeUrlValue } from '../../utils/url'
+import { useNodeViewEditing } from '../nodeView/useNodeViewEditing'
+import { useNodeViewHover } from '../nodeView/useNodeViewHover'
+import { MediaPreview } from '../media/MediaPreview'
 
 function resolveLocalPath(src: string, docPath: string | null, rootDir: string | null): string {
   src = decodeUrlPath(src.trim())
@@ -47,9 +50,8 @@ export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
   const reference = node.attrs.reference ? referenceEntry(props.editor, String(node.attrs.reference)) : undefined
 
   // Temporary width applied while dragging; null falls back to the attr.
-  const [editing, setEditing] = useState(selected || !src)
-  const [showEditButton, setShowEditButton] = useState(false)
-  const editTimer = useRef<number | null>(null)
+  const { editing, setEditing } = useNodeViewEditing(editor, getPos, node.nodeSize, selected || !src)
+  const { visible: showEditButton, show: showEditorControl, hide: scheduleHideEditorControl } = useNodeViewHover()
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
   const editorRef = useRef<HTMLDivElement>(null)
   const blurTimer = useRef<number | null>(null)
@@ -59,25 +61,10 @@ export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
   const startWidthRef = useRef(0)
   const [dragWidth, setDragWidth] = useState<number | null>(null)
 
-  const showEditorControl = (): void => { if (editTimer.current !== null) window.clearTimeout(editTimer.current); setShowEditButton(true) }
-  const scheduleHideEditorControl = (): void => { if (editTimer.current !== null) window.clearTimeout(editTimer.current); editTimer.current = window.setTimeout(() => setShowEditButton(false), 350) }
-
   useEffect(() => () => {
     if (blurTimer.current !== null) window.clearTimeout(blurTimer.current)
   }, [])
 
-  useEffect(() => {
-    if (!editing) return
-    const updateEditing = (): void => {
-      const position = getPos()
-      if (position === undefined) return
-      const selection = editor.state.selection
-      const inside = selection.from > position && selection.from < position + node.nodeSize
-      if (!inside) setEditing(false)
-    }
-    editor.on('selectionUpdate', updateEditing)
-    return () => { editor.off('selectionUpdate', updateEditing) }
-  }, [editing, editor, getPos, node.nodeSize])
 
   const value = src.trim()
   const displaySrc = /^(https?:|data:|blob:)/i.test(value)
@@ -133,22 +120,7 @@ export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
       data-image-editing={editing ? 'true' : 'false'}
     >
       <div className="image-preview" onMouseEnter={showEditorControl} onMouseLeave={scheduleHideEditorControl}>
-        {displaySrc && failedSrc !== displaySrc ? (
-          <img
-            ref={imgRef}
-            src={displaySrc}
-            alt={alt}
-            title={String(node.attrs.title ?? '') || undefined}
-            style={effectiveWidth ? { width: `${effectiveWidth}px` } : undefined}
-            contentEditable={false}
-            draggable={true}
-            onError={() => setFailedSrc(displaySrc)}
-          />
-        ) : (
-          <span className={displaySrc ? 'image-broken' : 'image-placeholder'}>
-             {displaySrc ? t('imageLoadFailed', { src }) : t('enterImageAddress')}
-          </span>
-        )}
+        <MediaPreview src={displaySrc} alt={alt} title={String(node.attrs.title ?? '')} style={effectiveWidth ? { width: `${effectiveWidth}px` } : undefined} draggable failed={failedSrc === displaySrc} failedLabel={t('imageLoadFailed', { src })} emptyLabel={t('enterImageAddress')} onError={() => setFailedSrc(displaySrc)} />
         {!editing ? <button type="button" className={`image-edit-button ${showEditButton ? 'visible' : ''}`} aria-label={t('editImage')} title={t('editImage')} onMouseEnter={showEditorControl} onMouseLeave={scheduleHideEditorControl} onMouseDown={(event) => event.preventDefault()} onClick={() => setEditing(true)}>{t('edit')}</button> : null}
         {selected && displaySrc ? (
           <span

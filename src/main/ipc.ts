@@ -1,8 +1,8 @@
 import { app, dialog, ipcMain, BrowserWindow } from 'electron'
 import { promises as fs, existsSync } from 'node:fs'
-import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path'
+import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import { IpcChannels } from '../shared/ipc'
-import type { AppConfig, FileNode, ExportPayload, ImportImageResult, DirectoryScanResult } from '../shared/types'
+import type { AppConfig, ExportPayload, ImportImageResult } from '../shared/types'
 import { addRecentFile, addRecentFolder, clearRecent, getRecent, removeRecentFile, removeRecentFolder } from './recentFiles'
 import { allowMediaDirectory, allowMediaFile } from './protocol'
 import { rebuildApplicationMenu } from './menu'
@@ -11,22 +11,10 @@ import { prepareImages } from './imageMigration'
 import { isSupportedImageName, sanitizeFileName, uniqueImageName } from './fileImages'
 import { readTextFile, writeTextFile } from './fileService'
 import { dialogLanguage, getConfig, setConfig } from './configService'
+import { registerDirectoryHandlers } from './directoryHandlers'
 
-const SKIPPED_DIRS = new Set([
-  'node_modules',
-  '.git',
-  '.svn',
-  '.hg',
-  '.idea',
-  '.vscode',
-  'dist',
-  'out'
-])
-const MARKDOWN_EXTENSIONS = new Set(['.md', '.markdown', '.txt'])
-const MAX_SCAN_DEPTH = 8
 const allowedFileRoots = new Set<string>()
 const allowedFiles = new Set<string>()
-const cancelledScans = new Set<string>()
 
 function normalizedPath(filePath: string): string {
   return resolve(filePath).toLowerCase()
@@ -301,22 +289,7 @@ export function registerIpcHandlers(): void {
     allowFile(result.filePath)
     return result.filePath
   })
-
-  ipcMain.on(IpcChannels.dirScanCancel, (_event, requestId: unknown) => {
-    if (typeof requestId === 'string') cancelledScans.add(requestId)
-  })
-  ipcMain.handle(IpcChannels.dirScan, async (_e, dirPath: string, markdownOnly = true, requestId?: string): Promise<DirectoryScanResult> => {
-    if (typeof dirPath !== 'string') {
-      return { status: 'error', message: 'Invalid directory path' }
-    }
-    if (!isAllowedFile(dirPath)) {
-      return { status: 'error', message: 'Directory was not selected by the user' }
-    }
-    const tree = await scanDirectory(dirPath, 0, markdownOnly, requestId)
-    if (requestId) cancelledScans.delete(requestId)
-    if (!tree) return { status: 'error', message: 'Unable to scan directory' }
-    return { status: tree.children.length ? 'success' : 'empty', tree }
-  })
+  registerDirectoryHandlers({ isAllowedFile })
 
   ipcMain.handle(
     IpcChannels.exportHtml,
@@ -388,41 +361,3 @@ export function registerIpcHandlers(): void {
 }
 
 export { getConfig }
-
-async function scanDirectory(dirPath: string, depth = 0, markdownOnly = true, requestId?: string): Promise<FileNode | null> {
-  let entries
-  try {
-    entries = await fs.readdir(dirPath, { withFileTypes: true })
-  } catch {
-    return null
-  }
-
-  const children: FileNode[] = []
-  for (const entry of entries) {
-    if (requestId && cancelledScans.has(requestId)) return null
-    if (entry.name.startsWith('.')) {
-      continue
-    }
-    const fullPath = join(dirPath, entry.name)
-    if (entry.isDirectory()) {
-      if (SKIPPED_DIRS.has(entry.name) || depth >= MAX_SCAN_DEPTH) {
-        continue
-      }
-      const node = await scanDirectory(fullPath, depth + 1, markdownOnly, requestId)
-      if (node && node.children.length > 0) {
-        children.push(node)
-      }
-    } else if (entry.isFile() && (!markdownOnly || MARKDOWN_EXTENSIONS.has(extname(entry.name).toLowerCase()))) {
-      children.push({ name: entry.name, path: fullPath, isDirectory: false, children: [] })
-    }
-  }
-
-  children.sort((a, b) => {
-    if (a.isDirectory !== b.isDirectory) {
-      return a.isDirectory ? -1 : 1
-    }
-    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
-  })
-
-  return { name: basename(dirPath), path: dirPath, isDirectory: true, children }
-}

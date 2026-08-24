@@ -9,6 +9,7 @@ export type InlineSegment =
   | { type: 'inlineDecoration'; kind: 'highlight' | 'superscript' | 'subscript'; value: string }
 
 type Candidate = { start: number; end: number; segment: InlineSegment }
+type CandidateMatch = { end: number; priority: number; segment: InlineSegment }
 import { isEscaped } from './escape'
 
 const definitions = [
@@ -22,20 +23,23 @@ const definitions = [
 ] as const
 
 function findCandidate(text: string, start: number): Candidate | null {
+  const matches: CandidateMatch[] = []
   if (text.startsWith('![', start) && !isEscaped(text, start)) {
     const image = text.slice(start).match(/^!\[([^\]]*)\]\((?:"((?:[^"\\]|\\.)*)"|([^\s)]+))(?:\s+("(?:[^"\\]|\\.)*"))?(?:\s+=\s*(\d+(?:\.\d+)?)(?:x\d+(?:\.\d+)?)?)?\)/)
-    if (image) return { start, end: start + image[0].length, segment: { type: 'image', alt: image[1], src: image[2] ?? image[3], title: image[4]?.slice(1, -1) ?? null, width: image[5] ? Number(image[5]) : null, reference: null } }
+    if (image) matches.push({ end: start + image[0].length, priority: 90, segment: { type: 'image', alt: image[1], src: image[2] ?? image[3], title: image[4]?.slice(1, -1) ?? null, width: image[5] ? Number(image[5]) : null, reference: null } })
   }
   if (text[start] === '[' && !isEscaped(text, start)) {
     const imageLink = text.slice(start).match(/^\[!\[([^\]]*)\]\((?:"((?:[^"\\]|\\.)*)"|([^\s)]+))(?:\s+("(?:[^"\\]|\\.)*"))?\)\]\(([^)]+)\)/)
-    if (imageLink) return { start, end: start + imageLink[0].length, segment: { type: 'imageLinkNode', alt: imageLink[1], src: imageLink[2] ?? imageLink[3], title: imageLink[4]?.slice(1, -1) ?? null, href: imageLink[5], reference: null } }
+    if (imageLink) matches.push({ end: start + imageLink[0].length, priority: 110, segment: { type: 'imageLinkNode', alt: imageLink[1], src: imageLink[2] ?? imageLink[3], title: imageLink[4]?.slice(1, -1) ?? null, href: imageLink[5], reference: null } })
     // A valid image link owns the outer brackets; never let the generic link
     // parser claim the same opening sequence.
     const inline = text.slice(start).match(/^\[(?!![^[]*\]\()([^\]]*)\]\(([^)]+)\)/)
-    if (inline) return { start, end: start + inline[0].length, segment: { type: 'linkNode', text: inline[1], href: inline[2], reference: null } }
+    if (inline) matches.push({ end: start + inline[0].length, priority: 80, segment: { type: 'linkNode', text: inline[1], href: inline[2], reference: null } })
     const reference = text.slice(start).match(/^\[([^\]]*)\]\[([^\]]+)\]/)
-    if (reference) return { start, end: start + reference[0].length, segment: { type: 'linkNode', text: reference[1], href: reference[2], reference: reference[2] } }
+    if (reference) matches.push({ end: start + reference[0].length, priority: 80, segment: { type: 'linkNode', text: reference[1], href: reference[2], reference: reference[2] } })
   }
+  const selected = matches.sort((left, right) => right.priority - left.priority || right.end - left.end)[0]
+  if (selected) return { start, end: selected.end, segment: selected.segment }
   if (text[start] === '<' && !isEscaped(text, start)) {
     const match = text.slice(start).match(/^<(a|b|br|del|em|i|img|mark|s|span|strong|sub|sup|u)\b[^>]*(?:\/>|>[^\n<]*<\/\1>)/i)
     if (match) return { start, end: start + match[0].length, segment: { type: 'inlineHtml', value: match[0] } }

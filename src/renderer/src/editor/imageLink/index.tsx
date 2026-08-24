@@ -9,6 +9,9 @@ import { dirnamePath, isAbsolutePath, mediaUrlToPath, resolveRelative } from '..
 import { useNodeViewField } from '../nodeView/useNodeViewField'
 import { useI18n } from '../../i18n'
 import { decodeUrlPath, encodeUrlValue } from '../../utils/url'
+import { useNodeViewEditing } from '../nodeView/useNodeViewEditing'
+import { useNodeViewHover } from '../nodeView/useNodeViewHover'
+import { MediaPreview } from '../media/MediaPreview'
 
 const IMAGE_LINK_PATTERN = /^\[!\[([^\]]*)\]\((?:"((?:[^"\\]|\\.)*)"|([^\s)]+))(?:\s+("(?:[^"\\]|\\.)*"))?\)\]\(([^)]+)\)/
 
@@ -38,36 +41,18 @@ export function ImageLinkView({ node, updateAttributes, deleteNode, selected, ed
   const { t } = useI18n()
   const rootDir = useDocumentStore((state) => state.rootDir)
   const docPath = useDocumentStore((state) => state.documents.find((doc) => doc.id === state.activeDocumentId)?.path ?? null)
-  const [showEdit, setShowEdit] = useState(false)
+  const { visible: showEdit, show, hide } = useNodeViewHover()
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
-  const timer = useRef<number | null>(null)
   const blurTimer = useRef<number | null>(null)
   const editorRef = useRef<HTMLSpanElement>(null)
   const srcField = useNodeViewField(String(node.attrs.src ?? ''), (value) => updateAttributes({ src: encodeUrlValue(value) }), { commitOnChange: false })
   const altField = useNodeViewField(String(node.attrs.alt ?? ''), (value) => updateAttributes({ alt: value }), { commitOnChange: false })
   const titleField = useNodeViewField(String(node.attrs.title ?? ''), (value) => updateAttributes({ title: value || null }), { commitOnChange: false })
   const hrefField = useNodeViewField(String(node.attrs.href ?? ''), (value) => updateAttributes({ href: encodeUrlValue(value) }), { commitOnChange: false })
-  const [editing, setEditing] = useState(selected || !srcField.value)
+  const { editing, setEditing } = useNodeViewEditing(editor, getPos, node.nodeSize, selected || !srcField.value)
   const resolvedSrc = resolveSrc(srcField.value, docPath, rootDir)
   const imageSrc = resolvedSrc && failedSrc !== resolvedSrc ? resolvedSrc : ''
-  useEffect(() => () => {
-    if (timer.current !== null) window.clearTimeout(timer.current)
-    if (blurTimer.current !== null) window.clearTimeout(blurTimer.current)
-  }, [])
-  useEffect(() => {
-    if (!editing) return
-    const updateEditing = (): void => {
-      const position = getPos()
-      if (position === undefined) return
-      const selection = editor.state.selection
-      const inside = selection.from > position && selection.from < position + node.nodeSize
-      if (!inside) setEditing(false)
-    }
-    editor.on('selectionUpdate', updateEditing)
-    return () => { editor.off('selectionUpdate', updateEditing) }
-  }, [editing, editor, getPos, node.nodeSize])
-  const show = (): void => { if (timer.current !== null) window.clearTimeout(timer.current); setShowEdit(true) }
-  const hide = (): void => { if (timer.current !== null) window.clearTimeout(timer.current); timer.current = window.setTimeout(() => setShowEdit(false), 350) }
+  useEffect(() => () => { if (blurTimer.current !== null) window.clearTimeout(blurTimer.current) }, [])
 
   return <NodeViewWrapper as="span" className="image-link-node" data-selected={selected ? 'true' : 'false'} data-image-link-editing={editing ? 'true' : 'false'}>
     {editing ? <span className="image-link-editor" onKeyDown={(event) => event.stopPropagation()} onFocusCapture={() => {
@@ -79,7 +64,7 @@ export function ImageLinkView({ node, updateAttributes, deleteNode, selected, ed
         if (!editorRef.current?.contains(document.activeElement)) setEditing(false)
       }, 0)
     }} ref={editorRef}>
-      <span className="image-link-preview">{imageSrc ? <img src={imageSrc} alt={altField.value} title={titleField.value || undefined} onError={() => setFailedSrc(imageSrc)} /> : <span>{resolvedSrc ? t('imageLoadFailed', { src: srcField.value }) : t('enterImageAddress')}</span>}</span>
+      <span className="image-link-preview"><MediaPreview src={imageSrc} alt={altField.value} title={titleField.value} failed={!imageSrc && Boolean(resolvedSrc)} failedLabel={t('imageLoadFailed', { src: srcField.value })} emptyLabel={t('enterImageAddress')} onError={() => setFailedSrc(imageSrc)} /></span>
       <span className="image-link-fields">
         <span className="image-field"><span>{t('imageAlt')}</span><input value={altField.value} aria-label={t('imageAlt')} placeholder={t('enterImageAlt')} onChange={(event) => altField.change(event.target.value)} onBlur={altField.commit} onKeyDown={altField.onKeyDown} /><button type="button" className="block-module-delete image-delete" aria-label={t('deleteImage')} title={t('deleteImage')} onMouseDown={(event) => event.preventDefault()} onClick={deleteNode}>{t('delete')}</button></span>
         <label className="image-field"><span>{t('imageSrc')}</span><input value={srcField.value} aria-label={t('imageSrc')} placeholder={t('enterImageAddress')} onChange={(event) => srcField.change(event.target.value)} onBlur={srcField.commit} onKeyDown={srcField.onKeyDown} /></label>
@@ -88,7 +73,7 @@ export function ImageLinkView({ node, updateAttributes, deleteNode, selected, ed
       </span>
     </span> : <span className="image-link-preview-wrap image-preview" onMouseEnter={show} onMouseLeave={hide}>
       <a className="image-link-anchor" href={hrefField.value || undefined} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>
-        {imageSrc ? <img src={imageSrc} alt={altField.value} title={titleField.value || undefined} onError={() => setFailedSrc(imageSrc)} /> : <span className={resolvedSrc ? 'image-broken' : 'image-placeholder'}>{resolvedSrc ? t('imageLoadFailed', { src: srcField.value }) : t('enterImageAddress')}</span>}
+        <MediaPreview src={imageSrc} alt={altField.value} title={titleField.value} failed={!imageSrc && Boolean(resolvedSrc)} failedLabel={t('imageLoadFailed', { src: srcField.value })} emptyLabel={t('enterImageAddress')} onError={() => setFailedSrc(imageSrc)} />
         <span className="image-link-arrow" aria-hidden="true">↗</span>
       </a>
       <button type="button" className={`image-edit-button image-link-edit-button ${showEdit ? 'visible' : ''}`} aria-label={t('editImageLink')} onMouseEnter={show} onMouseLeave={hide} onMouseDown={(event) => event.preventDefault()} onClick={() => setEditing(true)}>{t('edit')}</button>
