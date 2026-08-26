@@ -15,6 +15,48 @@ const SHAPE_LABELS: Record<ShapeKind, TranslationKey> = {
   isosceles: 'geometryShapeIsosceles'
 }
 
+type ToolEntry = { id: GeometryToolId; label: TranslationKey }
+
+const DRAW_TOOLS: ToolEntry[] = [
+  { id: 'point', label: 'geometryPoint' },
+  { id: 'segment', label: 'geometrySegment' },
+  { id: 'polygon', label: 'geometryPolygon' },
+  { id: 'arc', label: 'geometryArc' },
+  { id: 'text', label: 'geometryText' }
+]
+
+const CONSTRUCT_TOOLS: ToolEntry[] = [
+  { id: 'midpoint', label: 'geometryMidpoint' },
+  { id: 'intersection', label: 'geometryIntersection' },
+  { id: 'perpendicularFoot', label: 'geometryFoot' },
+  { id: 'coincident', label: 'geometryCoincident' },
+  { id: 'splitSegment', label: 'geometrySplitSegment' }
+]
+
+const CONSTRAINT_TOOLS: ToolEntry[] = [
+  { id: 'parallel', label: 'geometryParallel' },
+  { id: 'perpendicular', label: 'geometryPerpendicular' },
+  { id: 'equalLength', label: 'geometryEqualLength' },
+  { id: 'horizontal', label: 'geometryHorizontal' },
+  { id: 'vertical', label: 'geometryVerticalEdge' },
+  { id: 'tangent', label: 'geometryTangent' },
+  { id: 'symmetric', label: 'geometrySymmetric' },
+  { id: 'angle', label: 'geometryAngle' }
+]
+
+const TRANSFORM_TOOLS: ToolEntry[] = [
+  { id: 'move', label: 'geometryMove' },
+  { id: 'rotate', label: 'geometryRotate' },
+  { id: 'splitAtIntersection', label: 'geometrySplitIntersection' }
+]
+
+const COMING_SOON: TranslationKey[] = [
+  'geometryMeasure',
+  'geometryMirror',
+  'geometryOffset',
+  'geometryTrim'
+]
+
 type Props = {
   tool: GeometryToolId
   canUndo: boolean
@@ -28,6 +70,8 @@ type Props = {
 export function GeometryToolbar({ tool, canUndo, canRedo, onTool, onShapeKind, onUndo, onRedo }: Props): React.JSX.Element {
   const { t } = useI18n()
   const [shapePickerOpen, setShapePickerOpen] = useState(false)
+  const [openMenu, setOpenMenu] = useState<'construct' | 'constraint' | 'transform' | 'more' | null>(null)
+  const toolbarRef = useRef<HTMLDivElement>(null)
   const pickerRef = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
@@ -39,18 +83,55 @@ export function GeometryToolbar({ tool, canUndo, canRedo, onTool, onShapeKind, o
     return () => document.removeEventListener('mousedown', close)
   }, [shapePickerOpen])
 
-  const toolButton = (id: GeometryToolId, labelKey: TranslationKey): React.JSX.Element => (
-    <button key={id} type="button" className={tool === id ? 'active' : ''} title={t(labelKey)} onClick={() => onTool(id)}>
+  useEffect(() => {
+    if (!openMenu) return
+    const close = (event: MouseEvent): void => {
+      if (toolbarRef.current && !toolbarRef.current.contains(event.target as Node)) setOpenMenu(null)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [openMenu])
+
+  const toolButton = (id: GeometryToolId, labelKey: TranslationKey, closeMenu = false): React.JSX.Element => (
+    <button key={id} type="button" className={tool === id ? 'active' : ''} title={t(labelKey)} onClick={() => { onTool(id); if (closeMenu) setOpenMenu(null) }}>
       {t(labelKey)}
     </button>
   )
+
+  const drawGroup = (labelKey: TranslationKey, entries: ToolEntry[]): React.JSX.Element => (
+    <span className="geometry-toolbar-group">
+      <span className="geometry-toolbar-group-label">{t(labelKey)}</span>
+      {entries.map(({ id, label }) => toolButton(id, label))}
+    </span>
+  )
+
+  const category = (id: 'construct' | 'constraint' | 'transform', labelKey: TranslationKey, entries: ToolEntry[]): React.JSX.Element => {
+    const active = entries.some((entry) => entry.id === tool)
+    const expanded = openMenu === id
+    return (
+      <span className="geometry-category-wrap">
+        <button
+          type="button"
+          className={active ? 'active' : ''}
+          aria-haspopup="menu"
+          aria-expanded={expanded}
+          title={t(labelKey)}
+          onClick={() => setOpenMenu(expanded ? null : id)}
+        >
+          {t(labelKey)} ▾
+        </button>
+        {expanded ? (
+          <span className="geometry-category-popover" role="menu" aria-label={t(labelKey)}>
+            {entries.map(({ id: toolId, label }) => toolButton(toolId, label, true))}
+          </span>
+        ) : null}
+      </span>
+    )
+  }
+
   return (
-    <div className="geometry-toolbar">
-      {toolButton('point', 'geometryPoint')}
-      {toolButton('segment', 'geometrySegment')}
-      {toolButton('polygon', 'geometryPolygon')}
-      {toolButton('arc', 'geometryArc')}
-      {toolButton('text', 'geometryText')}
+    <div className="geometry-toolbar" ref={toolbarRef}>
+      {drawGroup('geometryGroupDraw', DRAW_TOOLS)}
       <span className="geometry-shape-wrap" ref={pickerRef}>
         <button
           type="button"
@@ -84,26 +165,39 @@ export function GeometryToolbar({ tool, canUndo, canRedo, onTool, onShapeKind, o
           </span>
         ) : null}
       </span>
+
+      {category('construct', 'geometryGroupConstruct', CONSTRUCT_TOOLS)}
+      {category('constraint', 'geometryGroupConstraint', CONSTRAINT_TOOLS)}
+      {category('transform', 'geometryGroupTransform', TRANSFORM_TOOLS)}
+
+      <span className="geometry-toolbar-spacer" />
+
+      <span className="geometry-category-wrap">
+        <button
+          type="button"
+          className={openMenu === 'more' ? 'active' : ''}
+          aria-haspopup="true"
+          aria-expanded={openMenu === 'more'}
+          title={t('geometryToolbarMore')}
+          onClick={() => setOpenMenu((open) => open === 'more' ? null : 'more')}
+        >
+          {t('geometryToolbarMore')} ▾
+        </button>
+        {openMenu === 'more' ? (
+          <span className="geometry-category-popover geometry-more-popover" role="menu" aria-label={t('geometryToolbarMore')}>
+            <span className="geometry-more-section">
+              <span className="geometry-more-section-label">{t('geometryComingSoon')}</span>
+              {COMING_SOON.map((label) => (
+                <button key={label} type="button" className="geometry-toolbar-comingsoon" disabled title={t('geometryComingSoon')}>
+                  {t(label)}
+                </button>
+              ))}
+            </span>
+          </span>
+        ) : null}
+      </span>
+
       <span className="geometry-toolbar-sep" />
-      {toolButton('move', 'geometryMove')}
-      {toolButton('rotate', 'geometryRotate')}
-      <span className="geometry-toolbar-sep" />
-      {toolButton('midpoint', 'geometryMidpoint')}
-      {toolButton('intersection', 'geometryIntersection')}
-      {toolButton('perpendicularFoot', 'geometryFoot')}
-      <span className="geometry-toolbar-sep" />
-      {toolButton('coincident', 'geometryCoincident')}
-      {toolButton('parallel', 'geometryParallel')}
-      {toolButton('perpendicular', 'geometryPerpendicular')}
-      {toolButton('equalLength', 'geometryEqualLength')}
-      {toolButton('tangent', 'geometryTangent')}
-      {toolButton('symmetric', 'geometrySymmetric')}
-      {toolButton('angle', 'geometryAngle')}
-      {toolButton('horizontal', 'geometryHorizontal')}
-      {toolButton('vertical', 'geometryVerticalEdge')}
-      {toolButton('splitSegment', 'geometrySplitSegment')}
-      <span className="geometry-toolbar-sep" />
-      {toolButton('splitAtIntersection', 'geometrySplitIntersection')}
       <button type="button" onClick={onUndo} disabled={!canUndo}>
         {t('undo')}
       </button>
