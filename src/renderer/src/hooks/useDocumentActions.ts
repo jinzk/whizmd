@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { useDocumentStore } from '../store/documents'
 import { useFileOperations } from './useFileOperations'
+import { consumePendingGeometryAssets, clearPendingGeometryAssets } from '../services/pendingGeometryAssets'
 
 type Translator = (key: 'saveFailed' | 'openFailed', values?: Record<string, string>) => string
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
@@ -59,11 +60,22 @@ export function useDocumentActions(t: Translator, requestDocumentClose: () => vo
         setSaveStatus('idle')
         return
       }
-       const content = window.markdownApp.file.prepareImages
-         ? await window.markdownApp.file.prepareImages(document.content, target)
-         : document.content
-       await window.markdownApp.file.write(target, content)
-       updateDocument(document.id, { path: target, content, dirty: false })
+      let content = document.content
+      const pendings = consumePendingGeometryAssets(document.id)
+      for (const pending of pendings) {
+        if (!content.includes(pending.previousRef)) continue
+        try {
+          const result = await window.markdownApp.file.saveGeometry(pending.svg, `geometry-${pending.id}.svg`, target)
+          content = content.split(pending.previousRef).join(result.markdownPath)
+        } catch (error) {
+          console.error('Failed to flush pending geometry asset', error)
+        }
+      }
+       const prepared = window.markdownApp.file.prepareImages
+         ? await window.markdownApp.file.prepareImages(content, target)
+         : content
+       await window.markdownApp.file.write(target, prepared)
+       updateDocument(document.id, { path: target, content: prepared, dirty: false })
       setSaveStatus('saved')
        if (rootDir) {
          const result = await window.markdownApp.dir.scan(rootDir)
@@ -96,8 +108,9 @@ export function useDocumentActions(t: Translator, requestDocumentClose: () => vo
   }, [activeDocumentId, documents, setActiveDocument])
 
   const removeCurrentDocument = useCallback((): void => {
-    onDocumentClosed()
     const state = useDocumentStore.getState()
+    clearPendingGeometryAssets(state.activeDocumentId)
+    onDocumentClosed()
     const currentIndex = state.documents.findIndex((file) => file.id === state.activeDocumentId)
     const remaining = state.documents.filter((file) => file.id !== state.activeDocumentId)
     const next = remaining[Math.min(Math.max(currentIndex, 0), remaining.length - 1)]
@@ -109,6 +122,7 @@ export function useDocumentActions(t: Translator, requestDocumentClose: () => vo
   }, [onDocumentClosed, replaceDocuments])
 
   const closeDocument = useCallback((id: string): void => {
+    clearPendingGeometryAssets(id)
     const state = useDocumentStore.getState()
     const current = state.documents.find((file) => file.id === id)
     if (!current) return

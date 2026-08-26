@@ -48,6 +48,8 @@ const api: MarkdownAppApi = {
     saveImageBlob: (payload, docPath) =>
       ipcRenderer.invoke(IpcChannels.fileSaveImageBlob, payload, docPath),
     prepareImages: (content, docPath) => ipcRenderer.invoke(IpcChannels.filePrepareImages, content, docPath)
+    ,saveGeometry: (svg, name, docPath, existingPath) => ipcRenderer.invoke(IpcChannels.fileSaveGeometry, svg, name, docPath, existingPath)
+    ,readGeometry: (source, docPath) => ipcRenderer.invoke(IpcChannels.fileReadGeometry, source, docPath)
   },
   dir: {
     scan: (dirPath, markdownOnly, requestId) => ipcRenderer.invoke(IpcChannels.dirScan, dirPath, markdownOnly, requestId),

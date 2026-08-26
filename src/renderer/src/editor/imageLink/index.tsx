@@ -53,6 +53,8 @@ export function ImageLinkView({ node, updateAttributes, deleteNode, selected, ed
   const { editing, setEditing } = useNodeViewEditing(editor, getPos, node.nodeSize, selected || !srcField.value)
   const resolvedSrc = resolveSrc(srcField.value, docPath, rootDir)
   const imageSrc = resolvedSrc && failedSrc !== resolvedSrc ? resolvedSrc : ''
+  const isGeometryImage = /\.svg(?:$|[?#])/i.test(srcField.value)
+  const editGeometry = (): void => { window.dispatchEvent(new CustomEvent('whizmd:edit-geometry', { detail: { src: srcField.value } })) }
   useEffect(() => () => { if (blurTimer.current !== null) window.clearTimeout(blurTimer.current) }, [])
 
   return <NodeViewWrapper as="span" className="image-link-node" data-selected={selected ? 'true' : 'false'} data-image-link-editing={editing ? 'true' : 'false'}>
@@ -66,7 +68,7 @@ export function ImageLinkView({ node, updateAttributes, deleteNode, selected, ed
       }, 0)
     }} ref={editorRef}>
       <span className="image-link-preview"><MediaPreview src={imageSrc} alt={altField.value} title={titleField.value} failed={!imageSrc && Boolean(resolvedSrc)} failedLabel={t('imageLoadFailed', { src: srcField.value })} emptyLabel={t('enterImageAddress')} onError={() => setFailedSrc(imageSrc)} /></span>
-      <MediaFields alt={altField} src={srcField} title={titleField} href={hrefField} onDelete={deleteNode} />
+      <MediaFields alt={altField} src={srcField} title={titleField} href={hrefField} onDelete={deleteNode} extra={isGeometryImage ? <button type="button" aria-label={t('editGeometry')} onClick={editGeometry}>{t('editGeometry')}</button> : null} />
     </span> : <span className="image-link-preview-wrap image-preview" onMouseEnter={show} onMouseLeave={hide}>
       <a className="image-link-anchor" href={hrefField.value || undefined} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>
         <MediaPreview src={imageSrc} alt={altField.value} title={titleField.value} failed={!imageSrc && Boolean(resolvedSrc)} failedLabel={t('imageLoadFailed', { src: srcField.value })} emptyLabel={t('enterImageAddress')} onError={() => setFailedSrc(imageSrc)} />

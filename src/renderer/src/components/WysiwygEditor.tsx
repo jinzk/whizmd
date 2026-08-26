@@ -2,23 +2,30 @@ import { useEffect, useRef, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import type { Editor } from '@tiptap/core'
 import { buildEditorExtensions } from '../editor/extensions'
-import { insertDroppedImages, insertPastedImages, isImageFile } from '../editor/image/insert'
+import { insertDroppedImages, insertPastedImages, insertImageFromDialog, isImageFile } from '../editor/image/insert'
 import { CodeLanguageMenu } from './CodeLanguageMenu'
 import { useWysiwygContent } from './useWysiwygContent'
+import { EditorContextMenu, type EditorInsertAction } from './EditorContextMenu'
+import { useI18n } from '../i18n'
 
 interface Props {
   content: string
   onUpdate: (markdown: string) => void
   spellCheck?: boolean
+  onInsertAction?: (action: EditorInsertAction) => void
+  onEditorReady?: (editor: Editor) => void
+  onEditorDestroy?: () => void
 }
 
-export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props): React.JSX.Element {
+export function WysiwygEditor({ content, onUpdate, spellCheck = false, onInsertAction, onEditorReady, onEditorDestroy }: Props): React.JSX.Element {
   const editorRef = useRef<Editor | null>(null)
+  const { t } = useI18n()
   const [extensions] = useState(buildEditorExtensions)
   const [showLanguageMenu, setShowLanguageMenu] = useState(false)
   const [languageQuery, setLanguageQuery] = useState('')
   const [languageMenuPosition, setLanguageMenuPosition] = useState({ top: 0, left: 0 })
   const languageMenuRef = useRef<HTMLDivElement>(null)
+  const [contextMenu, setContextMenu] = useState<{ left: number; top: number } | null>(null)
 
   const syncLanguageMenu = (instance: Editor): void => {
     const { $from } = instance.state.selection
@@ -54,13 +61,31 @@ export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props):
 
   const { initialize, emit, sync } = useWysiwygContent(content, onUpdate)
 
+  const handleInsertAction = (action: EditorInsertAction): void => {
+    if (!editor) return
+    if (action === 'image') {
+      void insertImageFromDialog(editor)
+    } else if (action === 'link') {
+      editor.commands.insertContent({ type: 'linkNode', attrs: { text: '', href: '', reference: null } })
+    } else if (action === 'imageLink') {
+      editor.commands.insertContent({ type: 'imageLinkNode', attrs: { src: '', alt: '', title: null, href: '', reference: null } })
+    } else if (action === 'table') {
+      editor.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: true })
+    } else if (action === 'codeBlock') {
+      editor.chain().focus().setCodeBlock({ language: 'plaintext' }).run()
+    } else {
+      onInsertAction?.(action)
+    }
+  }
+
   const editor = useEditor({
     extensions,
     content,
     contentType: 'markdown',
     autofocus: 'start',
     onCreate: ({ editor }) => {
-      editorRef.current = editor
+       editorRef.current = editor
+       onEditorReady?.(editor)
        initialize(editor)
     },
     onUpdate: ({ editor }) => {
@@ -70,6 +95,7 @@ export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props):
     onBlur: () => undefined,
     onDestroy: () => {
       editorRef.current = null
+      onEditorDestroy?.()
     },
     editorProps: {
       handleDrop: (_view, event, _slice, moved) => {
@@ -131,11 +157,12 @@ export function WysiwygEditor({ content, onUpdate, spellCheck = false }: Props):
   useEffect(() => { sync(editor) }, [editor, sync])
 
   return (
-    <div className="wysiwyg-editor">
+    <div className="wysiwyg-editor" onContextMenu={(event) => { event.preventDefault(); setContextMenu({ left: event.clientX, top: event.clientY }) }}>
        <EditorContent editor={editor} spellCheck={spellCheck} />
       {editor && showLanguageMenu ? (
         <CodeLanguageMenu editor={editor} query={languageQuery} position={languageMenuPosition} menuRef={languageMenuRef} onClose={() => setShowLanguageMenu(false)} />
       ) : null}
+      {contextMenu ? <EditorContextMenu position={contextMenu} onClose={() => setContextMenu(null)} onAction={handleInsertAction} labels={{ image: t('insertImage'), link: t('insertLink'), imageLink: t('insertImageLink'), table: t('insertTable'), codeBlock: t('insertCodeBlock'), geometry: t('drawGeometry') }} /> : null}
     </div>
   )
 }

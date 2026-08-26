@@ -47,6 +47,7 @@ export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
   const titleField = useNodeViewField(String(node.attrs.title ?? ''), (value) => updateAttributes({ title: value || null }))
   const src = srcField.value
   const alt = altField.value
+  const isGeometryImage = /\.svg(?:$|[?#])/i.test(src)
   const width = node.attrs.width ?? null
   const reference = node.attrs.reference ? referenceEntry(props.editor, String(node.attrs.reference)) : undefined
 
@@ -112,6 +113,8 @@ export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
     window.addEventListener('mouseup', onUp)
   }
 
+  const editGeometry = (): void => { window.dispatchEvent(new CustomEvent('whizmd:edit-geometry', { detail: { src } })) }
+
   const effectiveWidth = dragWidth ?? width
 
   return (
@@ -146,7 +149,7 @@ export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
             }, 0)
           }}
         >
-          <MediaFields alt={altField} src={srcField} title={titleField} onDelete={deleteNode} extra={node.attrs.reference ? <ReferenceStatus editor={props.editor} id={String(node.attrs.reference)} entry={reference} /> : null} />
+        <MediaFields alt={altField} src={srcField} title={titleField} onDelete={deleteNode} extra={<>{isGeometryImage ? <button type="button" aria-label={t('editGeometry')} onClick={editGeometry}>{t('editGeometry')}</button> : null}{node.attrs.reference ? <ReferenceStatus editor={props.editor} id={String(node.attrs.reference)} entry={reference} /> : null}</>} />
         </div>
       ) : null}
     </NodeViewWrapper>

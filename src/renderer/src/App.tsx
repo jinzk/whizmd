@@ -14,6 +14,11 @@ import { DocumentStatusBar } from './components/DocumentStatusBar'
 import { Dialog } from './components/Dialog'
 import { Toast, type AppNotice } from './components/Toast'
 import { SettingsDialog } from './components/SettingsDialog'
+import type { EditorInsertAction } from './components/EditorContextMenu'
+import { GeometryEditorDialog } from './components/GeometryEditorDialog'
+import { deserializeGeometrySvg, type GeometryDocument } from './geometry'
+import { insertGeometryImage } from './services/insertGeometryImage'
+import type { Editor } from '@tiptap/core'
 
 export function App(): React.JSX.Element {
   const mode = useEditorStore((s) => s.mode)
@@ -25,6 +30,10 @@ export function App(): React.JSX.Element {
 
   const [documentCloseDialogOpen, setDocumentCloseDialogOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [geometryOpen, setGeometryOpen] = useState(false)
+  const [geometryDocument, setGeometryDocument] = useState<GeometryDocument | undefined>()
+  const [geometryExistingPath, setGeometryExistingPath] = useState<string | undefined>()
+  const geometryEditorRef = useRef<Editor | null>(null)
   const [settingsDraft, setSettingsDraft] = useState<AppConfig | null>(null)
   const [notices, setNotices] = useState<AppNotice[]>([])
   const [recentFiles, setRecentFiles] = useState<string[]>([])
@@ -72,6 +81,20 @@ export function App(): React.JSX.Element {
     }).catch(() => {})
     return () => { cancelled = true }
   }, [config, openFile])
+
+  useEffect(() => {
+    const openGeometry = async (event: Event): Promise<void> => {
+      const src = (event as CustomEvent<{ src: string }>).detail?.src
+      if (!src) return
+      try {
+      const svg = await window.markdownApp.file.readGeometry(src, docPath)
+        const document = svg ? deserializeGeometrySvg(svg) : null
+        if (document) { setGeometryDocument(document); setGeometryExistingPath(src); setGeometryOpen(true) }
+      } catch { /* External or unavailable SVG remains a normal image. */ }
+    }
+    window.addEventListener('whizmd:edit-geometry', openGeometry)
+    return () => window.removeEventListener('whizmd:edit-geometry', openGeometry)
+  }, [docPath])
 
   useEffect(() => {
     void window.markdownApp.recent?.list().then((recent) => { setRecentFiles(recent.files); setRecentFolders(recent.folders) })
@@ -178,6 +201,27 @@ export function App(): React.JSX.Element {
     },
     [activeDocument, exportDefaultPath, exportTitle]
   )
+  const handleInsertAction = useCallback((action: EditorInsertAction): void => {
+    if (action === 'geometry') setGeometryOpen(true)
+  }, [])
+  const handleDrawGeometry = useCallback((): void => setGeometryOpen(true), [])
+  const saveGeometry = useCallback(async (svg: string): Promise<void> => {
+    try {
+      await insertGeometryImage({
+        svg,
+        docPath,
+        existingPath: geometryExistingPath,
+        editor: geometryEditorRef.current,
+        activeDocumentId: activeDocument?.id ?? '',
+        hasActiveDocument: Boolean(activeDocument),
+        onStagedNotice: () => notify(t('geometryStagedNotice'), 'info'),
+        appendMarkdown: (image) => handleUpdate(activeDocument?.content ? `${activeDocument.content}\n\n${image}` : image)
+      })
+      setGeometryOpen(false)
+    } catch (error) {
+      notify(`几何图保存失败：${error instanceof Error ? error.message : String(error)}`)
+    }
+  }, [activeDocument, docPath, geometryExistingPath, handleUpdate, notify, t])
 
   useEffect(() => {
     const actions: Record<MenuCommand, () => void> = {
@@ -228,8 +272,10 @@ export function App(): React.JSX.Element {
          onNew={handleNewFile}
         onSave={() => void save()}
         onModeChange={setMode}
-        onSettings={showSettings}
+         onSettings={showSettings}
+         onDrawGeometry={handleDrawGeometry}
       />
+      {geometryOpen ? <GeometryEditorDialog existingPath={geometryExistingPath} initialDocument={geometryDocument} onClose={() => { setGeometryOpen(false); setGeometryDocument(undefined); setGeometryExistingPath(undefined) }} onSave={saveGeometry} /> : null}
 
       <div className="main-layout">
         <FileSidebar
@@ -262,7 +308,10 @@ export function App(): React.JSX.Element {
               key={activeDocumentId}
               content={activeDocument?.content ?? ''}
               onUpdate={handleUpdate}
-              spellCheck={config?.spellCheck}
+               spellCheck={config?.spellCheck}
+               onInsertAction={handleInsertAction}
+               onEditorReady={(instance) => { geometryEditorRef.current = instance }}
+          onEditorDestroy={() => { geometryEditorRef.current = null }}
             />
           ) : (
             <SourceEditor

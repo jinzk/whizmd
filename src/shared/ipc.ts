@@ -24,6 +24,8 @@ export const IpcChannels = {
   fileImportImage: 'file:import-image',
   fileSaveImageBlob: 'file:save-image-blob',
   filePrepareImages: 'file:prepare-images',
+  fileSaveGeometry: 'file:save-geometry',
+  fileReadGeometry: 'file:read-geometry',
   dirScan: 'dir:scan',
   dirScanCancel: 'dir:scan-cancel',
 
