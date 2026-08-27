@@ -17,7 +17,8 @@ export const SHAPE_DESCRIPTORS: readonly ShapeDescriptor[] = [
   { kind: 'parallelogram', vertexCount: 4, supportsUniformScale: false, supportsFreeStretch: true, supportsRotation: true, supportsInteriorAngleEditing: true },
   { kind: 'rhombus', vertexCount: 4, supportsUniformScale: true, supportsFreeStretch: false, supportsRotation: true, supportsInteriorAngleEditing: true },
   { kind: 'equilateral', vertexCount: 3, supportsUniformScale: true, supportsFreeStretch: false, supportsRotation: true, supportsInteriorAngleEditing: true },
-  { kind: 'isosceles', vertexCount: 3, supportsUniformScale: true, supportsFreeStretch: false, supportsRotation: true, supportsInteriorAngleEditing: true }
+  { kind: 'isosceles', vertexCount: 3, supportsUniformScale: true, supportsFreeStretch: false, supportsRotation: true, supportsInteriorAngleEditing: true },
+  { kind: 'rightTriangle', vertexCount: 3, supportsUniformScale: false, supportsFreeStretch: true, supportsRotation: true, supportsInteriorAngleEditing: false }
 ]
 
 export function getShapeDescriptor(kind: ShapeKind): ShapeDescriptor {

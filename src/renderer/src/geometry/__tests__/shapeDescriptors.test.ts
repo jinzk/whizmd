@@ -5,7 +5,7 @@ describe('shape descriptors', () => {
   it('describes every factory shape exactly once', () => {
     const kinds = SHAPE_DESCRIPTORS.map((descriptor) => descriptor.kind)
     expect(new Set(kinds).size).toBe(kinds.length)
-    expect(kinds).toEqual(['circle', 'ellipse', 'square', 'rectangle', 'parallelogram', 'rhombus', 'equilateral', 'isosceles'])
+    expect(kinds).toEqual(['circle', 'ellipse', 'square', 'rectangle', 'parallelogram', 'rhombus', 'equilateral', 'isosceles', 'rightTriangle'])
   })
 
   it('centralizes transform capabilities', () => {

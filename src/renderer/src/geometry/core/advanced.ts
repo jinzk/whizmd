@@ -1,5 +1,4 @@
-import { addCircle, addPoint, addSegment, getGeometryObject, type GeometryDocument } from './model'
-import { resolvePoint } from './calculations'
+import { addCircle, addPoint, addSegment, type GeometryDocument } from './model'
 
 function mirrorPoint(point: { x: number; y: number }, axisA: { x: number; y: number }, axisB: { x: number; y: number }): { x: number; y: number } {
   const dx = axisB.x - axisA.x; const dy = axisB.y - axisA.y
@@ -33,34 +32,4 @@ export function mirrorObjects(document: GeometryDocument, objectIds: readonly st
     if (center) next = addCircle(next, center, object.radius)
   }
   return next
-}
-
-export function offsetSegment(document: GeometryDocument, segmentId: string, distance: number): GeometryDocument {
-  const segment = getGeometryObject(document, segmentId)
-  if (!segment || segment.type !== 'segment' || !Number.isFinite(distance) || distance === 0) return document
-  const start = resolvePoint(document, segment.start); const end = resolvePoint(document, segment.end)
-  if (!start || !end) return document
-  const length = Math.hypot(end.x - start.x, end.y - start.y)
-  if (!length) return document
-  const nx = -(end.y - start.y) / length * distance; const ny = (end.x - start.x) / length * distance
-  let next = addPoint(document, start.x + nx, start.y + ny)
-  const first = next.points.at(-1)!.id
-  next = addPoint(next, end.x + nx, end.y + ny)
-  return addSegment(next, first, next.points.at(-1)!.id)
-}
-
-export function offsetCircle(document: GeometryDocument, circleId: string, distance: number): GeometryDocument {
-  const circle = getGeometryObject(document, circleId)
-  return circle?.type === 'circle' && Number.isFinite(distance) && distance !== 0 ? addCircle(document, circle.center, Math.max(1, circle.radius + distance)) : document
-}
-
-export function trimSegmentAt(document: GeometryDocument, segmentId: string, parameter: number): GeometryDocument {
-  const segment = document.segments.find((object) => object.id === segmentId)
-  if (!segment || segment.type !== 'segment' || !Number.isFinite(parameter) || parameter <= 0 || parameter >= 1) return document
-  const start = resolvePoint(document, segment.start); const end = resolvePoint(document, segment.end)
-  if (!start || !end) return document
-  const point = addPoint(document, start.x + (end.x - start.x) * parameter, start.y + (end.y - start.y) * parameter)
-  const pointId = point.points.at(-1)!.id
-  const segments = point.segments.filter((object) => object.id !== segmentId)
-  return addSegment({ ...point, segments }, segment.start, pointId)
 }

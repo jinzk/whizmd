@@ -1,4 +1,4 @@
-import { findPolygonCycle, getArcAngles, getGeometryObject, getGeometryObjects, isSimpleCycle, polygonCycleSegmentIds, resolveEllipseGeometry, resolvePoint, type GeometryDocument, type GeometryToolId } from '../../geometry'
+import { findConstrainedShapeCycle, findPolygonCycle, getArcAngles, getGeometryObject, getGeometryObjects, isSimpleCycle, polygonCycleSegmentIds, resolveEllipseGeometry, resolvePoint, type GeometryDocument, type GeometryToolId } from '../../geometry'
 
 type MouseEventOf = React.MouseEvent<SVGElement>
 
@@ -37,7 +37,7 @@ function PolygonHitAreas(props: Props): React.JSX.Element {
   const seen = new Set<string>()
   const cycles: string[][] = []
   for (const object of getGeometryObjects(props.document, 'point')) {
-    const cycle = findPolygonCycle(props.document, object.id)
+    const cycle = findConstrainedShapeCycle(props.document, object.id) ?? findPolygonCycle(props.document, object.id)
     if (!cycle || !isSimpleCycle(props.document, cycle)) continue
     const key = [...cycle].sort().join('|')
     if (seen.has(key)) continue
@@ -109,9 +109,12 @@ function CircleObject(props: Props & { id: string; centerId: string; radius: num
          stroke={props.selectedIds.includes(id) ? SELECTED_COLOR : DEFAULT_COLOR}
         strokeWidth="2"
         onClick={(event) => props.onSelectObject(id, event)}
-        onMouseDown={(event) => props.onGrabRigid([centerId], event)}
+         onMouseDown={(event) => {
+           if (props.tool === 'move') event.stopPropagation()
+           props.onGrabRigid([centerId], event)
+         }}
       />
-       <circle data-handle="" cx={center.x + radius} cy={center.y} r="6" fill={props.selectedIds.includes(id) ? SELECTED_COLOR : HANDLE_COLOR} cursor="ew-resize" onMouseDown={(event) => props.onStartCircleResize(id, event)} />
+       <circle data-handle="" className="geometry-handle-radius" cx={center.x + radius} cy={center.y} r="6" fill={props.selectedIds.includes(id) ? SELECTED_COLOR : HANDLE_COLOR} onMouseDown={(event) => props.onStartCircleResize(id, event)} />
     </g>
   )
 }
@@ -151,17 +154,22 @@ function SegmentObject(props: Props & { id: string; startId: string; endId: stri
            props.onSelectObject(id, event)
          }}
          onMouseDown={(event) => {
-           if (props.constructionTool) {
-             event.stopPropagation()
-             return
-           }
+            if (props.constructionTool) {
+              event.stopPropagation()
+              return
+            }
+            if (props.tool === 'move') {
+              event.stopPropagation()
+              props.onGrabRigid([startId, endId], event)
+              return
+            }
            if (props.tool === 'select' && props.onShapeEdgeDrag(id, event)) {
              event.stopPropagation()
              props.onSelectObject(id, event)
              return
            }
-           if (props.tool === 'select') props.onSelectObject(id, event)
-           props.onGrabRigid([startId, endId], event)
+            if (props.tool === 'select') props.onSelectObject(id, event)
+            props.onGrabRigid([startId, endId], event)
          }}
       />
       <circle data-handle="" cx={start.x} cy={start.y} r="7" fill="transparent" stroke={HANDLE_COLOR} strokeWidth="1" cursor="move" onClick={select(startId)} onMouseDown={(event) => props.onSegmentEndpointPress(id, 'start', event)} />
@@ -193,11 +201,18 @@ function ArcObject(props: Props & { id: string; centerId: string; radius: number
          stroke={props.selectedIds.includes(id) ? SELECTED_COLOR : DEFAULT_COLOR}
         strokeWidth="2"
         onClick={(event) => props.onSelectObject(id, event)}
-        onMouseDown={(event) => props.tool === 'select' && props.onCurveResize(id, event) ? undefined : props.onGrabRigid([centerId], event)}
+         onMouseDown={(event) => {
+           if (props.tool === 'move') {
+             event.stopPropagation()
+             props.onGrabRigid([centerId], event)
+             return
+           }
+           if (!(props.tool === 'select' && props.onCurveResize(id, event))) props.onGrabRigid([centerId], event)
+         }}
       />
-       <circle data-handle="" cx={sx} cy={sy} r="6" fill={HANDLE_COLOR} cursor="grab" onMouseDown={(event) => props.tool === 'select' || props.tool === 'point' ? props.onStartArcHandleDrag(id, 'start', event) : props.onSelectArcEndpoint(id, 'start', event)} />
-       <circle data-handle="" cx={ex} cy={ey} r="6" fill={HANDLE_COLOR} cursor="grab" onMouseDown={(event) => props.tool === 'select' || props.tool === 'point' ? props.onStartArcHandleDrag(id, 'end', event) : props.onSelectArcEndpoint(id, 'end', event)} />
-      <circle data-handle="" cx={mx} cy={my} r="6" fill={HANDLE_COLOR} cursor="move" onMouseDown={(event) => props.onStartArcHandleDrag(id, 'radius', event)} />
+       <circle data-handle="" className="geometry-handle-endpoint" cx={sx} cy={sy} r="6" fill={HANDLE_COLOR} onMouseDown={(event) => props.tool === 'select' || props.tool === 'point' ? props.onStartArcHandleDrag(id, 'start', event) : props.onSelectArcEndpoint(id, 'start', event)} />
+       <circle data-handle="" className="geometry-handle-endpoint" cx={ex} cy={ey} r="6" fill={HANDLE_COLOR} onMouseDown={(event) => props.tool === 'select' || props.tool === 'point' ? props.onStartArcHandleDrag(id, 'end', event) : props.onSelectArcEndpoint(id, 'end', event)} />
+       <circle data-handle="" className="geometry-handle-radius" cx={mx} cy={my} r="6" fill={HANDLE_COLOR} onMouseDown={(event) => props.onStartArcHandleDrag(id, 'radius', event)} />
     </g>
   )
 }
@@ -224,9 +239,16 @@ function EllipseObject(props: Props & { id: string; focusA: string; focusB: stri
        stroke={props.selectedIds.includes(id) ? SELECTED_COLOR : DEFAULT_COLOR}
       strokeWidth="2"
       onClick={(event) => props.onSelectObject(id, event)}
-       onMouseDown={(event) => props.tool === 'select' && props.onCurveResize(id, event) ? undefined : props.onGrabRigid([focusA, focusB], event)}
+       onMouseDown={(event) => {
+         if (props.tool === 'move') {
+           event.stopPropagation()
+           props.onGrabRigid([focusA, focusB], event)
+           return
+         }
+         if (!(props.tool === 'select' && props.onCurveResize(id, event))) props.onGrabRigid([focusA, focusB], event)
+       }}
     />
-    <circle data-handle="" cx={handleX} cy={handleY} r="6" fill={props.selectedIds.includes(id) ? SELECTED_COLOR : HANDLE_COLOR} cursor="ew-resize" onMouseDown={(event) => props.onStartEllipseResize(id, event)} />
+     <circle data-handle="" className="geometry-handle-scale" cx={handleX} cy={handleY} r="6" fill={props.selectedIds.includes(id) ? SELECTED_COLOR : HANDLE_COLOR} onMouseDown={(event) => props.onStartEllipseResize(id, event)} />
     </g>
   )
 }

@@ -1,8 +1,17 @@
 .geometry-dialog { width: min(1080px, calc(100vw - 32px)); max-height: calc(100vh - 32px); display: flex; flex-direction: column; overflow: hidden; }
-.geometry-layout { display: flex; flex: 1 1 auto; gap: 12px; align-items: stretch; min-height: 0; overflow: hidden; }
+.geometry-layout { display: grid; grid-template-columns: 180px minmax(0, 1fr) 240px; flex: 1 1 auto; gap: 12px; align-items: stretch; min-height: 0; overflow: hidden; }
 .geometry-main { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .geometry-canvas { display: block; width: 100%; min-height: 360px; border: 1px solid var(--md-border); border-radius: 6px; background: repeating-linear-gradient(0deg, transparent 0 24px, color-mix(in srgb, var(--md-border) 30%, transparent) 25px), repeating-linear-gradient(90deg, transparent 0 24px, color-mix(in srgb, var(--md-border) 30%, transparent) 25px); outline: none; }
 .geometry-canvas text { user-select: none; font: 14px/1.2 sans-serif; }
+.geometry-canvas-move { cursor: grab; }
+.geometry-canvas-move:active { cursor: grabbing; }
+.geometry-canvas-select { cursor: default; }
+.geometry-handle-move { cursor: move; }
+.geometry-handle-stretch { cursor: nwse-resize; }
+.geometry-handle-rotate { cursor: alias; }
+.geometry-handle-scale { cursor: nesw-resize; }
+.geometry-handle-radius { cursor: ew-resize; }
+.geometry-handle-endpoint { cursor: crosshair; }
 .geometry-canvas line { pointer-events: stroke; }
 .geometry-canvas-wrap { position: relative; min-height: 0; overflow: auto; }
 .geometry-construction-hint { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 2; max-width: calc(100% - 24px); padding: 4px 12px; border: 1px solid color-mix(in srgb, var(--md-accent) 35%, transparent); border-radius: 6px; background: color-mix(in srgb, var(--md-accent) 14%, var(--md-bg)); box-shadow: 0 2px 8px rgb(0 0 0 / 15%); color: var(--md-text); font-size: 13px; text-align: center; pointer-events: none; }
@@ -16,6 +25,15 @@
 .geometry-toolbar button:hover:not(:disabled), .geometry-inspector button:hover:not(:disabled) { border-color: var(--md-accent); color: var(--md-accent); }
 .geometry-toolbar button.active { border-color: var(--md-accent); background: var(--md-accent); color: var(--md-accent-text); font-weight: 600; }
 .geometry-toolbar button:disabled { cursor: not-allowed; opacity: .45; }
+.geometry-toolbar-modes { display: inline-flex; align-items: center; gap: 4px; }
+.geometry-mode-button { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 30px; padding: 4px !important; }
+.geometry-tool-icon { width: 19px; height: 19px; }
+.geometry-drawing-tools { display: flex; flex-direction: column; gap: 8px; min-height: 0; padding: 10px; border: 1px solid var(--md-border); border-radius: 6px; background: color-mix(in srgb, var(--md-border) 14%, transparent); overflow-y: auto; }
+.geometry-drawing-tools-list { display: grid; gap: 4px; }
+.geometry-drawing-tools-list button { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 5px 7px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--md-text); cursor: pointer; text-align: left; }
+.geometry-drawing-tools-list button:hover, .geometry-drawing-tools-list button.active { border-color: var(--md-accent); color: var(--md-accent); }
+.geometry-drawing-tool-icon { width: 19px; height: 19px; flex: 0 0 auto; }
+.geometry-drawing-shapes { display: grid; gap: 4px; margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--md-border); }
 .geometry-toolbar-sep { width: 1px; height: 18px; margin: 0 5px; background: var(--md-border); }
 .geometry-toolbar-spacer { flex: 1; }
 .geometry-shape-wrap { position: relative; display: inline-flex; }
@@ -53,4 +71,4 @@
 .constraint-valid { color: var(--md-success, #1a7f37); }
 .geometry-constraint-detail { color: var(--md-text-muted); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; }
 .geometry-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; flex-shrink: 0; }
-@media (max-width: 720px) { .geometry-dialog { width: calc(100vw - 16px); } .geometry-canvas { min-height: 260px; } .geometry-toolbar { max-height: 120px; overflow-y: auto; } .geometry-inspector { flex-wrap: wrap; } .geometry-layout { flex-direction: column; } .geometry-side { width: 100%; flex-direction: row; flex-wrap: wrap; align-items: flex-start; } .geometry-side > * { flex: 1 1 220px; } }
+@media (max-width: 720px) { .geometry-dialog { width: calc(100vw - 16px); } .geometry-canvas { min-height: 260px; } .geometry-toolbar { max-height: 120px; overflow-y: auto; } .geometry-inspector { flex-wrap: wrap; } .geometry-layout { grid-template-columns: 1fr; overflow-y: auto; } .geometry-drawing-tools { max-height: 150px; } .geometry-drawing-tools-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } .geometry-drawing-tools-list button { justify-content: center; flex-direction: column; font-size: 11px; } .geometry-side { width: auto; flex-direction: row; flex-wrap: wrap; align-items: flex-start; } .geometry-side > * { flex: 1 1 220px; } }

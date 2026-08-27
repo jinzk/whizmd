@@ -1,7 +1,11 @@
-import { getGeometryObjects, type GeometryDocument, type GeometrySegment } from '../core/model'
+import { getGeometryObjects, type GeometryDocument, type GeometryObject, type GeometrySegment } from '../core/model'
 import { getArcAngles, resolveArcPoint, resolveEllipseGeometry } from '../core/calculations'
 
 type Bounds = { minX: number; minY: number; maxX: number; maxY: number }
+
+function getRenderableGeometryObjects(document: GeometryDocument): GeometryObject[] {
+  return [...getGeometryObjects(document, 'point'), ...getGeometryObjects(document, 'segment'), ...getGeometryObjects(document, 'circle'), ...getGeometryObjects(document, 'ellipse'), ...getGeometryObjects(document, 'arc'), ...getGeometryObjects(document, 'text')]
+}
 
 function growBounds(bounds: Bounds | null, x1: number, y1: number, x2: number, y2: number): Bounds {
   if (!bounds) return { minX: x1, minY: y1, maxX: x2, maxY: y2 }
@@ -21,7 +25,7 @@ function textExtent(text: string): { width: number; height: number } {
 function contentBounds(document: GeometryDocument): Bounds | null {
   const points = new Map(getGeometryObjects(document, 'point').map((point) => [point.id, point]))
   let bounds: Bounds | null = null
-  for (const object of [...getGeometryObjects(document, 'point'), ...getGeometryObjects(document, 'segment'), ...getGeometryObjects(document, 'circle'), ...getGeometryObjects(document, 'ellipse'), ...getGeometryObjects(document, 'arc'), ...getGeometryObjects(document, 'text')]) {
+  for (const object of getRenderableGeometryObjects(document)) {
     if (object.type === 'point') {
       bounds = growBounds(bounds, object.x - 4, object.y - 4, object.x + 4, object.y + 4)
       if (object.label) {
@@ -73,7 +77,7 @@ function contentBounds(document: GeometryDocument): Bounds | null {
 
 export function renderGeometrySvg(document: GeometryDocument): string {
   const points = new Map(getGeometryObjects(document, 'point').map((point) => [point.id, point]))
-  const body = [...getGeometryObjects(document, 'point'), ...getGeometryObjects(document, 'segment'), ...getGeometryObjects(document, 'circle'), ...getGeometryObjects(document, 'ellipse'), ...getGeometryObjects(document, 'arc'), ...getGeometryObjects(document, 'text')].map((object) => {
+  const body = getRenderableGeometryObjects(document).map((object) => {
     if (object.type === 'point') return `<circle cx="${object.x}" cy="${object.y}" r="4" fill="#0969da" />${object.label ? `<text x="${object.x + 8}" y="${object.y - 8}" fill="#24292f">${escapeXml(object.label)}</text>` : ''}`
     if (object.type === 'text') return `<text x="${object.x}" y="${object.y}" fill="${object.color ?? '#24292f'}" font-size="${object.fontSize ?? 14}"${object.rotation ? ` transform="rotate(${object.rotation} ${object.x} ${object.y})"` : ''}>${escapeXml(object.text)}</text>`
     if (object.type === 'circle') {

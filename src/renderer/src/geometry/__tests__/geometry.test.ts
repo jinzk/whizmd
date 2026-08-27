@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addArc, addCircle, addConstraint, addEllipse, addPoint, addSegment, addText, checkMergePoints, createGeometryDocument, deserializeGeometry, deserializeGeometrySvg, getGeometryCurves, getGeometryObject, getGeometryObjects, getNodeIncidents, isTopologyNode, mergePoints, mergePointsTopology, mergePointsWithConstraints, rebuildGeometryGraphs, removeObject, renderGeometrySvg, resizeCircle, resolveEllipseGeometry, resolvePoint, sanitizeGeometrySvg, serializeGeometry } from '../index'
+import { addArc, addCircle, addConstraint, addEllipse, addPoint, addSegment, addText, checkMergePoints, createGeometryDocument, deserializeGeometry, deserializeGeometrySvg, getGeometryCurves, getGeometryObject, getGeometryObjects, getNodeIncidents, isTopologyNode, mergePoints, mergePointsTopology, mergePointsWithConstraints, rebuildGeometryGraphs, removeObject, renderGeometrySvg, resizeCircle, resolveEllipseGeometry, resolvePoint, sanitizeGeometrySvg, serializeGeometry, splitNode } from '../index'
 
 describe('geometry module', () => {
   it('creates and round-trips a geometry document', () => {
@@ -221,6 +221,54 @@ describe('geometry module', () => {
     const merged = mergePointsTopology(document, 'P1', 'P2')
     expect(getGeometryObject(merged, 'A1')).toMatchObject({ center: 'P1', startAnchor: 'P3' })
     expect(renderGeometrySvg(merged)).toContain('<path')
+  })
+
+  it('tracks arc endpoint anchors in topology incidents', () => {
+    let document = createGeometryDocument()
+    document = addPoint(document, 0, 0)
+    document = addPoint(document, 50, 0)
+    document = addPoint(document, 0, 50)
+    document = addArc(document, 'P1', 50, 0, Math.PI / 2, { startAnchor: 'P2', endAnchor: 'P3' })
+    expect(getNodeIncidents(document, 'P2')).toEqual([{ curveId: 'A1', endpoint: 'start' }])
+    expect(getNodeIncidents(document, 'P3')).toEqual([{ curveId: 'A1', endpoint: 'end' }])
+  })
+
+  it('splits one object away from a shared node without changing coordinates', () => {
+    let document = createGeometryDocument()
+    document = addPoint(document, 0, 0)
+    document = addPoint(document, 10, 0)
+    document = addPoint(document, 0, 10)
+    document = addSegment(document, 'P1', 'P2')
+    document = addSegment(document, 'P1', 'P3')
+    const split = splitNode(document, 'P1', 'S2')
+    expect(split.points).toHaveLength(4)
+    expect(split.segments.find((segment) => segment.id === 'S1')).toMatchObject({ start: 'P1' })
+    expect(split.segments.find((segment) => segment.id === 'S2')).toMatchObject({ start: 'P4' })
+    expect(resolvePoint(split, 'P4')).toMatchObject({ x: 0, y: 0 })
+  })
+
+  it('cleans constraints and text anchors when deleting referenced geometry', () => {
+    let document = createGeometryDocument()
+    document = addPoint(document, 0, 0)
+    document = addPoint(document, 100, 0)
+    document = addSegment(document, 'P1', 'P2')
+    document = addText(document, 50, 10, 'label')
+    document = { ...document, annotations: [{ ...document.annotations[0], anchor: { objectId: 'S1', t: 0.5, offsetX: 0, offsetY: 0 } }] }
+    document = addConstraint(document, { type: 'midpoint', point: 'P1', line: 'S1' })
+    const removed = removeObject(document, 'S1')
+    expect(removed.constraints).toEqual([])
+    expect(removed.annotations[0].anchor).toBeUndefined()
+    expect(removed.dependencies).toEqual([])
+  })
+
+  it('rebuilds dependency indexes when a dependent constraint is added', () => {
+    let document = createGeometryDocument()
+    document = addPoint(document, 0, 0)
+    document = addPoint(document, 100, 0)
+    document = addPoint(document, 50, 0)
+    document = addSegment(document, 'P1', 'P2')
+    const next = addConstraint(document, { type: 'midpoint', point: 'P3', line: 'S1' })
+    expect(next.dependencies).toEqual([{ id: 'D1', sourceId: 'P3', dependencyIds: ['S1'], kind: 'midpoint' }])
   })
 
   it('does not merge a segment endpoint with a point on that segment', () => {

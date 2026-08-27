@@ -1,7 +1,6 @@
 export * from './core/model'
 export * from './core/calculations'
 export * from './core/constraints'
-export * from './core/history'
 export * from './core/solver'
 export * from './core/hitTest'
 export * from './core/curves'

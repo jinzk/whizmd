@@ -1,5 +1,5 @@
 export type GeometryRole = 'boundary' | 'construction' | 'attachment'
-export type GeometryShapeKind = 'circle' | 'ellipse' | 'square' | 'rectangle' | 'parallelogram' | 'rhombus' | 'equilateral' | 'isosceles'
+export type GeometryShapeKind = 'circle' | 'ellipse' | 'square' | 'rectangle' | 'parallelogram' | 'rhombus' | 'equilateral' | 'isosceles' | 'rightTriangle'
 export type GeometryShape = { id: string; kind: GeometryShapeKind; boundaryPointIds: string[]; boundarySegmentIds: string[] }
 export type GeometrySharedNode = { id: string; memberIds: string[] }
 export type GeometryDependency = { id: string; sourceId: string; dependencyIds: string[]; kind: 'midpoint' | 'intersection' | 'pointOnLine' | 'textAnchor' }
@@ -39,21 +39,17 @@ export function splitGeometryObjects(objects: readonly GeometryObject[]): Geomet
 
 export function buildGeometryObjects(document: Pick<GeometryDocument, 'points' | 'segments' | 'curves' | 'annotations'>): GeometryObject[] { return [...document.points, ...document.segments, ...document.curves, ...document.annotations] }
 
-export function getAllGeometryObjects(document: GeometryDocument): GeometryObject[] {
-  return buildGeometryObjects(document)
-}
-
 export function nextObjectId(document: GeometryDocument, prefix: string): string {
   const base = buildGeometryObjects(document).reduce((max, object) => (object.id.startsWith(prefix) ? Math.max(max, Number(object.id.slice(prefix.length)) || 0) : max), 0)
   return `${prefix}${base + 1}`
 }
 
 export function getGeometryObject(document: GeometryDocument, id: string): GeometryObject | undefined {
-  return getAllGeometryObjects(document).find((object) => object.id === id)
+  return buildGeometryObjects(document).find((object) => object.id === id)
 }
 
 export function getGeometryObjects<T extends GeometryObject['type']>(document: GeometryDocument, type: T): Extract<GeometryObject, { type: T }>[] {
-  return getAllGeometryObjects(document).filter((object) => object.type === type) as Extract<GeometryObject, { type: T }>[]
+  return buildGeometryObjects(document).filter((object) => object.type === type) as Extract<GeometryObject, { type: T }>[]
 }
 
 export function addPoint(document: GeometryDocument, x: number, y: number, label?: string, metadata?: Pick<GeometryPoint, 'ownerId' | 'role'>): GeometryDocument {
@@ -80,7 +76,7 @@ export function rebuildGeometryGraphs(document: GeometryDocument): GeometryDocum
     id,
     memberIds: allObjects.flatMap((object) => {
       if (object.type === 'segment' && (object.start === id || object.end === id)) return [object.id]
-      if ((object.type === 'circle' && object.center === id) || (object.type === 'ellipse' && (object.focusA === id || object.focusB === id)) || (object.type === 'arc' && object.center === id)) return [object.id]
+       if ((object.type === 'circle' && object.center === id) || (object.type === 'ellipse' && (object.focusA === id || object.focusB === id)) || (object.type === 'arc' && [object.center, object.startAnchor, object.endAnchor].includes(id))) return [object.id]
       return []
     })
   }))
@@ -94,19 +90,6 @@ export function rebuildGeometryGraphs(document: GeometryDocument): GeometryDocum
     if (object.type === 'text' && object.anchor) dependencies.push({ id: `DT-${object.id}`, sourceId: object.id, dependencyIds: [object.anchor.objectId], kind: 'textAnchor' })
   }
   return { ...document, sharedNodes, dependencies }
-}
-
-export function splitSegment(document: GeometryDocument, segmentId: string, pointId: string): GeometryDocument {
-  const segment = document.segments.find((object) => object.id === segmentId)
-  if (!segment || segment.type !== 'segment' || segment.start === pointId || segment.end === pointId) return document
-  const base = document.segments.filter((object) => object.id !== segmentId).reduce((max, object) => Math.max(max, Number(object.id.slice(1)) || 0), 0)
-  const firstId = `S${base + 1}`
-  const secondId = `S${base + 2}`
-  const shapes = document.shapes.map((shape) => shape.boundarySegmentIds.includes(segmentId)
-    ? { ...shape, boundarySegmentIds: shape.boundarySegmentIds.flatMap((id) => id === segmentId ? [firstId, secondId] : [id]), boundaryPointIds: shape.boundaryPointIds.includes(pointId) ? shape.boundaryPointIds : [...shape.boundaryPointIds, pointId] }
-    : shape)
-  const segments = [...document.segments.filter((item) => item.id !== segmentId), { type: 'segment' as const, id: firstId, start: segment.start, end: pointId }, { type: 'segment' as const, id: secondId, start: pointId, end: segment.end }]
-  return { ...document, segments, shapes, topology: { nodeIds: document.topology.nodeIds.includes(pointId) ? document.topology.nodeIds : [...document.topology.nodeIds, pointId] } }
 }
 
 export function addCircle(document: GeometryDocument, center: string, radius: number): GeometryDocument {
@@ -200,7 +183,7 @@ export function mergePoints(document: GeometryDocument, keepId: string, removeId
       return point && Math.hypot(point.x - keep.x, point.y - keep.y) <= 1e-6 &&
         merged.segments.some((object) => object.start === keepId || object.end === keepId)
     })
-  return duplicateIntersection ? mergePoints(merged, keepId, duplicateIntersection) : merged
+  return rebuildGeometryGraphs(duplicateIntersection ? mergePoints(merged, keepId, duplicateIntersection) : merged)
 }
 
 export function mergePointsTopology(document: GeometryDocument, keepId: string, removeId: string): GeometryDocument {
@@ -232,6 +215,36 @@ export function mergePointsWithConstraints(document: GeometryDocument, keepId: s
   const topology = mergePointsTopology(document, keepId, removeId)
   const constraints = topology.constraints.filter((constraint) => !(constraint.type === 'coincident' && constraint.pointA === constraint.pointB))
   return rebuildGeometryGraphs({ ...topology, constraints })
+}
+
+export function splitNode(document: GeometryDocument, nodeId: string, objectId: string): GeometryDocument {
+  const node = document.points.find((point) => point.id === nodeId)
+  const object = getGeometryObject(document, objectId)
+  if (!node || !object || object.id === nodeId) return document
+  const connectedObjectCount = buildGeometryObjects(document).filter((item) => item.id !== nodeId && objectReferences(item, nodeId)).length
+  if (connectedObjectCount < 2) return document
+  const references = object.type === 'segment'
+    ? [object.start === nodeId, object.end === nodeId].filter(Boolean).length
+    : object.type === 'circle'
+      ? Number(object.center === nodeId)
+      : object.type === 'ellipse'
+        ? Number(object.focusA === nodeId) + Number(object.focusB === nodeId)
+        : object.type === 'arc'
+          ? Number(object.center === nodeId) + Number(object.startAnchor === nodeId) + Number(object.endAnchor === nodeId)
+          : 0
+  if (references !== 1) return document
+  const newPointId = nextObjectId(document, 'P')
+  const newPoint: GeometryPoint = { ...node, id: newPointId }
+  const remapped = buildGeometryObjects(document).map((item) => {
+    if (item.id !== objectId) return item
+    if (item.type === 'segment') return { ...item, start: item.start === nodeId ? newPointId : item.start, end: item.end === nodeId ? newPointId : item.end }
+    if (item.type === 'circle') return { ...item, center: item.center === nodeId ? newPointId : item.center }
+    if (item.type === 'ellipse') return { ...item, focusA: item.focusA === nodeId ? newPointId : item.focusA, focusB: item.focusB === nodeId ? newPointId : item.focusB }
+    if (item.type === 'arc') return { ...item, center: item.center === nodeId ? newPointId : item.center, startAnchor: item.startAnchor === nodeId ? newPointId : item.startAnchor, endAnchor: item.endAnchor === nodeId ? newPointId : item.endAnchor }
+    return item
+  })
+  const collections = splitGeometryObjects([...remapped, newPoint])
+  return rebuildGeometryGraphs({ ...document, ...collections, topology: { nodeIds: [...document.topology.nodeIds, newPointId] } })
 }
 
 
@@ -268,17 +281,27 @@ export function resizeCircle(document: GeometryDocument, id: string, radius: num
 }
 
 export function removeObject(document: GeometryDocument, id: string): GeometryDocument {
-  const removedObject = getGeometryObject(document, id)
-  const removedSegment = removedObject?.type === 'segment' ? removedObject.id : null
-  const objects = buildGeometryObjects(document).filter((object) => object.id !== id && !objectReferences(object, id))
-  return { ...document, ...splitGeometryObjects(objects), shapes: document.shapes.filter((shape) => shape.id !== id).map((shape) => ({ ...shape, boundaryPointIds: shape.boundaryPointIds.filter((pointId) => pointId !== id), boundarySegmentIds: shape.boundarySegmentIds.filter((segmentId) => segmentId !== (removedSegment ?? id)) })) }
+  const removedIds = new Set([id])
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const object of buildGeometryObjects(document)) {
+      if (!removedIds.has(object.id) && [...removedIds].some((removedId) => objectReferences(object, removedId))) {
+        removedIds.add(object.id)
+        changed = true
+      }
+    }
+  }
+  const removedSegment = document.segments.find((segment) => removedIds.has(segment.id))?.id ?? null
+  const objects = buildGeometryObjects(document).filter((object) => !removedIds.has(object.id)).map((object) => object.type === 'text' && object.anchor && removedIds.has(object.anchor.objectId) ? { ...object, anchor: undefined } : object).map((object) => object.type === 'arc' ? { ...object, startAnchor: object.startAnchor && removedIds.has(object.startAnchor) ? undefined : object.startAnchor, endAnchor: object.endAnchor && removedIds.has(object.endAnchor) ? undefined : object.endAnchor } : object)
+  const constraints = document.constraints.filter((constraint) => !Object.values(constraint).some((value) => typeof value === 'string' && removedIds.has(value)))
+  return rebuildGeometryGraphs({ ...document, ...splitGeometryObjects(objects), constraints, shapes: document.shapes.filter((shape) => !removedIds.has(shape.id)).map((shape) => ({ ...shape, boundaryPointIds: shape.boundaryPointIds.filter((pointId) => !removedIds.has(pointId)), boundarySegmentIds: shape.boundarySegmentIds.filter((segmentId) => segmentId !== (removedSegment ?? id) && !removedIds.has(segmentId)) })) })
 }
 
 function objectReferences(object: GeometryObject, id: string): boolean {
   return     (object.type === 'segment' && (object.start === id || object.end === id)) ||
     (object.type === 'circle' && object.center === id) ||
     (object.type === 'ellipse' && (object.focusA === id || object.focusB === id)) ||
-    (object.type === 'arc' && (object.center === id || object.startAnchor === id || object.endAnchor === id)) ||
     (object.type === 'arc' && object.center === id) ||
     false
 }

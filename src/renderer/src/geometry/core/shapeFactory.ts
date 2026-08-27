@@ -82,7 +82,9 @@ export function buildShape(document: GeometryDocument, kind: ShapeKind, x1: numb
   put(leftX, baseY)
   put(rightX, baseY)
   link(ids[0], ids[1])
-  if (kind === 'equilateral') {
+  if (kind === 'rightTriangle') {
+    put(leftX, y2)
+  } else if (kind === 'equilateral') {
     const height = (Math.sqrt(3) / 2) * baseLength
     const apexY = baseY + (directionDown ? height : -height)
     put((leftX + rightX) / 2, apexY)
@@ -92,7 +94,8 @@ export function buildShape(document: GeometryDocument, kind: ShapeKind, x1: numb
   }
   const leftLeg = link(ids[0], ids[2])
   const rightLeg = link(ids[1], ids[2])
-  constrain({ type: 'equalLength', segmentA: leftLeg, segmentB: rightLeg })
+  if (kind === 'rightTriangle') constrain({ type: 'perpendicular', lineA: 'S1', lineB: leftLeg })
+  else constrain({ type: 'equalLength', segmentA: leftLeg, segmentB: rightLeg })
   const boundarySegmentIds = next.segments.filter((object) => object.ownerId === ownerId).map((object) => object.id)
   return addShape(next, { id: ownerId, kind, boundaryPointIds: ids, boundarySegmentIds })
 }

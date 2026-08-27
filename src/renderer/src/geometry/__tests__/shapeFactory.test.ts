@@ -75,4 +75,12 @@ describe('shape factory', () => {
     expect(built.constraints.filter((constraint) => constraint.type === 'equalLength')).toHaveLength(3)
     expect(evaluateConstraints(built, built.constraints).every((result) => result.valid)).toBe(true)
   })
+
+  it('builds a right triangle with a right angle at the first vertex', () => {
+    const built = buildShape(createGeometryDocument(), 'rightTriangle', 100, 100, 300, 260)
+    expect(built.points.map((point) => ({ x: point.x, y: point.y }))).toEqual([{ x: 100, y: 100 }, { x: 300, y: 100 }, { x: 100, y: 260 }])
+    expect(built.segments).toHaveLength(3)
+    expect(built.constraints).toContainEqual({ type: 'perpendicular', lineA: 'S1', lineB: 'S2' })
+    expect(evaluateConstraints(built, built.constraints).every((result) => result.valid)).toBe(true)
+  })
 })

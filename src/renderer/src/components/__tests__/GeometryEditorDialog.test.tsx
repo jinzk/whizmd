@@ -9,13 +9,41 @@ describe('GeometryEditorDialog', () => {
     fireEvent.click(within(screen.getByRole('menu', { name: category })).getByRole('button', { name: tool }))
   }
 
+  it('shows vector drawing tools and separate selection and move modes', () => {
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} />)
+    expect(screen.getByRole('complementary', { name: '绘制' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '选择' }).querySelector('svg')).not.toBeNull()
+    expect(screen.getByRole('button', { name: '移动' }).querySelector('svg')).not.toBeNull()
+    expect(screen.getByRole('button', { name: '撤销' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重做' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '点' }).querySelector('circle')).not.toBeNull()
+    expect(screen.getByRole('button', { name: '线段' }).querySelector('path')).not.toBeNull()
+    expect(screen.getByRole('button', { name: '圆弧' }).querySelector('path')).not.toBeNull()
+    expect(screen.getByRole('option', { name: '圆' }).querySelector('circle')).not.toBeNull()
+    expect(screen.getByRole('option', { name: '椭圆' }).querySelector('ellipse')).not.toBeNull()
+    expect(screen.getByRole('option', { name: '矩形' }).querySelector('rect')).not.toBeNull()
+  })
+
+  it('moves a point with the hand mode', () => {
+    let document = createGeometryDocument()
+    document = addPoint(document, 100, 100)
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} />)
+    const canvas = screen.getByRole('img', { name: '几何图画布' })
+    fireEvent.click(screen.getByRole('button', { name: '移动' }))
+    const point = canvas.querySelector('circle[r="5"]')!
+    fireEvent.mouseDown(point, { clientX: 100, clientY: 100 })
+    fireEvent.mouseMove(window, { clientX: 140, clientY: 130 })
+    fireEvent.mouseUp(window)
+    expect(point.getAttribute('cx')).toBe('140')
+    expect(point.getAttribute('cy')).toBe('130')
+  })
+
   it('offers geometry tools and emits SVG on insert', () => {
     const onSave = vi.fn()
     render(<GeometryEditorDialog onClose={vi.fn()} onSave={onSave} />)
     expect(screen.getByRole('button', { name: '点' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '线段' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '圆' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: '形状' }))
+    expect(screen.getByRole('option', { name: '圆' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: '圆' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '文字' }))
     fireEvent.click(screen.getByRole('button', { name: '插入' }))
@@ -142,7 +170,7 @@ describe('GeometryEditorDialog', () => {
     document = addPoint(document, 100, 100)
     document = addPoint(document, 200, 100)
     document = addSegment(document, 'P1', 'P2')
-    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} initialTool="select" />)
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} initialTool="move" />)
     const canvas = screen.getByRole('img', { name: '几何图画布' })
     const line = canvas.querySelector('line')!
     fireEvent.mouseDown(line, { clientX: 150, clientY: 100 })
@@ -164,7 +192,7 @@ describe('GeometryEditorDialog', () => {
     const lines = canvas.querySelectorAll('line')
     fireEvent.click(lines[0])
     fireEvent.click(lines[1])
-    fireEvent.click(screen.getByRole('button', { name: '选择' }))
+    fireEvent.click(screen.getByRole('button', { name: '移动' }))
     fireEvent.click(canvas.querySelectorAll('line:not(.geometry-constraint-marker)')[0])
     expect(screen.getByText('约束', { selector: '.geometry-constraints strong' })).toBeInTheDocument()
   })
@@ -180,7 +208,7 @@ describe('GeometryEditorDialog', () => {
     document = addConstraint(document, { type: 'parallel', lineA: 'S1', lineB: 'S2' })
     render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} />)
     const canvas = screen.getByRole('img', { name: '几何图画布' })
-    fireEvent.click(screen.getByRole('button', { name: '选择' }))
+     fireEvent.click(screen.getByRole('button', { name: '移动' }))
     fireEvent.click(canvas.querySelectorAll('line:not(.geometry-constraint-marker)')[0])
     expect(screen.getByText(/P1-P2 \/ P3-P4/)).toBeInTheDocument()
   })
@@ -204,6 +232,22 @@ describe('GeometryEditorDialog', () => {
     expect(within(screen.getByRole('menu', { name: '构造' })).getByRole('button', { name: '合并点' })).toBeInTheDocument()
     fireEvent.click(within(screen.getByRole('menu', { name: '构造' })).getByRole('button', { name: '合并点' }))
     expect(screen.getByRole('status')).toHaveTextContent('请选择第一个对象（点）')
+  })
+
+  it('splits a selected node connection into a new coincident point', () => {
+    let document = createGeometryDocument()
+    document = addPoint(document, 100, 100)
+    document = addPoint(document, 200, 100)
+    document = addPoint(document, 100, 200)
+    document = addSegment(document, 'P1', 'P2')
+    document = addSegment(document, 'P1', 'P3')
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} />)
+    const canvas = screen.getByRole('img', { name: '几何图画布' })
+    clickCategoryTool('构造', '拆分节点')
+    fireEvent.click(canvas.querySelectorAll('circle[r="5"]')[0])
+    fireEvent.click(canvas.querySelectorAll('line')[1])
+    expect(canvas.querySelectorAll('circle[r="5"]')).toHaveLength(4)
+    expect(screen.getByRole('button', { name: '选择' })).toHaveClass('active')
   })
 
   it('connects two selected endpoints', () => {
@@ -340,7 +384,7 @@ describe('GeometryEditorDialog', () => {
   it('does not drag a constrained shape when drawing a segment from its vertex', () => {
     render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} />)
     const canvas = screen.getByRole('img', { name: '几何图画布' })
-    fireEvent.click(screen.getByRole('button', { name: '形状' }))
+    fireEvent.click(screen.getByRole('option', { name: '正方形' }))
     fireEvent.mouseDown(canvas, { clientX: 100, clientY: 100 })
     fireEvent.mouseMove(window, { clientX: 300, clientY: 300 })
     fireEvent.mouseUp(canvas, { clientX: 300, clientY: 300 })
@@ -402,7 +446,7 @@ describe('GeometryEditorDialog', () => {
     fireEvent.click(canvas, { clientX: 300, clientY: 100 })
     fireEvent.click(screen.getByRole('button', { name: '点' }))
     fireEvent.click(canvas.querySelector('line')!)
-    fireEvent.click(screen.getByRole('button', { name: '选择' }))
+     fireEvent.click(screen.getByRole('button', { name: '移动' }))
     fireEvent.click(canvas.querySelector('line')!)
     const input = screen.getByLabelText('长度')
     fireEvent.change(input, { target: { value: '150' } })
@@ -542,7 +586,7 @@ describe('GeometryEditorDialog', () => {
     fireEvent.click(canvas, { clientX: 300, clientY: 100 })
     fireEvent.click(canvas, { clientX: 200, clientY: 300 })
     fireEvent.click(canvas, { clientX: 100, clientY: 100 })
-    fireEvent.click(screen.getByRole('button', { name: '选择' }))
+    fireEvent.click(screen.getByRole('button', { name: '移动' }))
     const polygon = canvas.querySelector('polygon')!
     fireEvent.mouseDown(polygon, { clientX: 200, clientY: 180 })
     fireEvent.mouseMove(window, { clientX: 240, clientY: 210 })
@@ -667,13 +711,13 @@ describe('GeometryEditorDialog', () => {
     expect(screen.getByRole('button', { name: '撤销' })).not.toBeDisabled()
   })
 
-  it('translates a whole segment with the select tool', () => {
+  it('translates a whole segment with the move tool', () => {
     let document = createGeometryDocument()
     document = addPoint(document, 100, 100); document = addPoint(document, 300, 100)
     document = addSegment(document, 'P1', 'P2')
     render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} />)
     const canvas = screen.getByRole('img', { name: '几何图画布' })
-    fireEvent.click(screen.getByRole('button', { name: '选择' }))
+    fireEvent.click(screen.getByRole('button', { name: '移动' }))
     fireEvent.mouseDown(canvas.querySelector('line')!, { clientX: 200, clientY: 100 })
     fireEvent.mouseMove(window, { clientX: 250, clientY: 130 })
     fireEvent.mouseUp(window)
@@ -685,13 +729,31 @@ describe('GeometryEditorDialog', () => {
     expect(screen.getByRole('button', { name: '撤销' })).not.toBeDisabled()
   })
 
-  it('moves a circle by dragging its stroke with the select tool', () => {
+  it('moves a midpoint constraint with the dragged segment', () => {
+    let document = createGeometryDocument()
+    document = addPoint(document, 100, 100)
+    document = addPoint(document, 300, 100)
+    document = addSegment(document, 'P1', 'P2')
+    document = addPoint(document, 200, 100)
+    document = addConstraint(document, { type: 'midpoint', point: 'P3', line: 'S1' })
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} />)
+    const canvas = screen.getByRole('img', { name: '几何图画布' })
+    fireEvent.click(screen.getByRole('button', { name: '移动' }))
+    fireEvent.mouseDown(canvas.querySelector('line')!, { clientX: 200, clientY: 100 })
+    fireEvent.mouseMove(window, { clientX: 250, clientY: 140 })
+    fireEvent.mouseUp(window)
+    const midpoint = [...canvas.querySelectorAll('circle[r="5"]')][2]
+    expect(midpoint.getAttribute('cx')).toBe('250')
+    expect(midpoint.getAttribute('cy')).toBe('140')
+  })
+
+  it('moves a circle by dragging its stroke with the move tool', () => {
     let document = createGeometryDocument()
     document = addPoint(document, 100, 100)
     document = addCircle(document, 'P1', 40)
     render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} />)
     const canvas = screen.getByRole('img', { name: '几何图画布' })
-    fireEvent.click(screen.getByRole('button', { name: '选择' }))
+    fireEvent.click(screen.getByRole('button', { name: '移动' }))
     fireEvent.mouseDown(canvas.querySelector('circle[r="40"]')!, { clientX: 140, clientY: 100 })
     fireEvent.mouseMove(window, { clientX: 160, clientY: 110 })
     fireEvent.mouseUp(window)
@@ -731,7 +793,6 @@ describe('GeometryEditorDialog', () => {
   it('adjusts the selected circle radius with arrow keys', () => {
     render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} />)
     const canvas = screen.getByRole('img', { name: '几何图画布' })
-    fireEvent.click(screen.getByRole('button', { name: '形状' }))
     fireEvent.click(screen.getByRole('option', { name: '圆' }))
     fireEvent.mouseDown(canvas, { clientX: 100, clientY: 100 })
     fireEvent.mouseMove(window, { clientX: 180, clientY: 100 })
@@ -776,7 +837,7 @@ describe('GeometryEditorDialog', () => {
   it('draws a square by dragging with the shape tool', () => {
     render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} />)
     const canvas = screen.getByRole('img', { name: '几何图画布' })
-    fireEvent.click(screen.getByRole('button', { name: '形状' }))
+    fireEvent.click(screen.getByRole('option', { name: '正方形' }))
     fireEvent.mouseDown(canvas, { clientX: 100, clientY: 100 })
     fireEvent.mouseMove(window, { clientX: 300, clientY: 260 })
     fireEvent.mouseUp(canvas, { clientX: 300, clientY: 260 })
@@ -792,7 +853,7 @@ describe('GeometryEditorDialog', () => {
   it('does not start a new shape when pressing near an existing shape', () => {
     render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} />)
     const canvas = screen.getByRole('img', { name: '几何图画布' })
-    fireEvent.click(screen.getByRole('button', { name: '形状' }))
+    fireEvent.click(screen.getByRole('option', { name: '正方形' }))
     fireEvent.mouseDown(canvas, { clientX: 100, clientY: 100 })
     fireEvent.mouseMove(window, { clientX: 300, clientY: 160 })
     fireEvent.mouseUp(canvas, { clientX: 300, clientY: 160 })
@@ -808,7 +869,6 @@ describe('GeometryEditorDialog', () => {
   it('stretches a rectangle from one edge while keeping the opposite edge fixed', () => {
     render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} />)
     const canvas = screen.getByRole('img', { name: '几何图画布' })
-    fireEvent.click(screen.getByRole('button', { name: '形状' }))
     fireEvent.click(screen.getByRole('option', { name: '矩形' }))
     fireEvent.mouseDown(canvas, { clientX: 100, clientY: 100 })
     fireEvent.mouseMove(window, { clientX: 300, clientY: 180 })
@@ -827,10 +887,63 @@ describe('GeometryEditorDialog', () => {
     ])
   })
 
+  it('stretches the matching leg when dragging a right triangle acute vertex', () => {
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} />)
+    const canvas = screen.getByRole('img', { name: '几何图画布' })
+    fireEvent.click(screen.getByRole('option', { name: '直角三角形' }))
+    fireEvent.mouseDown(canvas, { clientX: 100, clientY: 100 })
+    fireEvent.mouseMove(window, { clientX: 300, clientY: 260 })
+    fireEvent.mouseUp(canvas, { clientX: 300, clientY: 260 })
+    fireEvent.click(screen.getByRole('button', { name: '选择' }))
+    const vertices = canvas.querySelectorAll('circle[r="5"]')
+    fireEvent.mouseDown(vertices[1], { clientX: 300, clientY: 100 })
+    fireEvent.mouseMove(window, { clientX: 360, clientY: 100 })
+    fireEvent.mouseUp(window)
+    expect(vertices[1].getAttribute('cx')).toBe('360')
+    expect(vertices[1].getAttribute('cy')).toBe('100')
+    expect(vertices[2].getAttribute('cx')).toBe('100')
+    expect(vertices[2].getAttribute('cy')).toBe('260')
+  })
+
+  it('keeps the right angle when dragging a right triangle hypotenuse', () => {
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} />)
+    const canvas = screen.getByRole('img', { name: '几何图画布' })
+    fireEvent.click(screen.getByRole('option', { name: '直角三角形' }))
+    fireEvent.mouseDown(canvas, { clientX: 100, clientY: 100 })
+    fireEvent.mouseMove(window, { clientX: 300, clientY: 260 })
+    fireEvent.mouseUp(canvas, { clientX: 300, clientY: 260 })
+    fireEvent.click(screen.getByRole('button', { name: '选择' }))
+    const hypotenuse = canvas.querySelectorAll('line:not(.geometry-constraint-marker)')[1]
+    fireEvent.mouseDown(hypotenuse, { clientX: 200, clientY: 180 })
+    fireEvent.mouseMove(window, { clientX: 240, clientY: 220 })
+    fireEvent.mouseUp(window)
+    const points = [...canvas.querySelectorAll('circle[r="5"]')].map((point) => ({ x: Number(point.getAttribute('cx')), y: Number(point.getAttribute('cy')) }))
+    const rightAngle = points.some((right, index) => {
+      const other = points.filter((_point, pointIndex) => pointIndex !== index)
+      return Math.abs((other[0].x - right.x) * (other[1].x - right.x) + (other[0].y - right.y) * (other[1].y - right.y)) < 1e-5
+    })
+    expect(rightAngle).toBe(true)
+  })
+
+  it('moves a selected right triangle as a complete shape', () => {
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} />)
+    const canvas = screen.getByRole('img', { name: '几何图画布' })
+    fireEvent.click(screen.getByRole('option', { name: '直角三角形' }))
+    fireEvent.mouseDown(canvas, { clientX: 100, clientY: 100 })
+    fireEvent.mouseMove(window, { clientX: 300, clientY: 260 })
+    fireEvent.mouseUp(canvas, { clientX: 300, clientY: 260 })
+    fireEvent.click(screen.getByRole('button', { name: '选择' }))
+    const polygon = canvas.querySelector('polygon')!
+    fireEvent.mouseDown(polygon, { clientX: 160, clientY: 130 })
+    fireEvent.mouseMove(window, { clientX: 200, clientY: 170 })
+    fireEvent.mouseUp(window)
+    expect(canvas.querySelectorAll('circle[r="5"]')[0]).toHaveAttribute('cx', '140')
+    expect(canvas.querySelectorAll('circle[r="5"]')[0]).toHaveAttribute('cy', '140')
+  })
+
   it('edits the interior angle of a parallelogram vertex from the side panel', async () => {
     render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} />)
     const canvas = screen.getByRole('img', { name: '几何图画布' })
-    fireEvent.click(screen.getByRole('button', { name: '形状' }))
     fireEvent.click(screen.getByRole('option', { name: '平行四边形' }))
     fireEvent.mouseDown(canvas, { clientX: 100, clientY: 300 })
     fireEvent.mouseMove(window, { clientX: 400, clientY: 200 })
@@ -857,7 +970,7 @@ describe('GeometryEditorDialog', () => {
   it('selects any segment with the select tool and shows its editable length', () => {
     render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} />)
     const canvas = screen.getByRole('img', { name: '几何图画布' })
-    fireEvent.click(screen.getByRole('button', { name: '形状' }))
+    fireEvent.click(screen.getByRole('option', { name: '正方形' }))
     fireEvent.mouseDown(canvas, { clientX: 100, clientY: 100 })
     fireEvent.mouseMove(window, { clientX: 300, clientY: 160 })
     fireEvent.mouseUp(canvas, { clientX: 300, clientY: 160 })
@@ -925,7 +1038,6 @@ describe('GeometryEditorDialog', () => {
   it('shows rectangle corner angles as read-only 90 degrees', () => {
     render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} />)
     const canvas = screen.getByRole('img', { name: '几何图画布' })
-    fireEvent.click(screen.getByRole('button', { name: '形状' }))
     fireEvent.click(screen.getByRole('option', { name: '矩形' }))
     fireEvent.mouseDown(canvas, { clientX: 100, clientY: 100 })
     fireEvent.mouseMove(window, { clientX: 300, clientY: 180 })
@@ -991,7 +1103,6 @@ describe('GeometryEditorDialog', () => {
   it('creates an ellipse by selecting two foci and dragging from the second focus', () => {
     render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} />)
     const canvas = screen.getByRole('img', { name: '几何图画布' })
-    fireEvent.click(screen.getByRole('button', { name: '形状' }))
     fireEvent.click(screen.getByRole('option', { name: '椭圆' }))
     fireEvent.click(canvas, { clientX: 100, clientY: 200 })
     fireEvent.click(canvas, { clientX: 200, clientY: 200 })
@@ -1035,7 +1146,6 @@ describe('GeometryEditorDialog', () => {
   it('creates an ellipse with three clicks', () => {
     render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} />)
     const canvas = screen.getByRole('img', { name: '几何图画布' })
-    fireEvent.click(screen.getByRole('button', { name: '形状' }))
     fireEvent.click(screen.getByRole('option', { name: '椭圆' }))
     fireEvent.click(canvas, { clientX: 100, clientY: 200 })
     fireEvent.click(canvas, { clientX: 300, clientY: 200 })

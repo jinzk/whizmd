@@ -1,5 +1,5 @@
-import { getGeometryObject, type GeometryDocument } from './model'
-import { angleBetweenPoints, intersectSegments, resolvePoint } from './calculations'
+import { getGeometryObject, rebuildGeometryGraphs, type GeometryArc, type GeometryDocument } from './model'
+import { angleBetweenPoints, angleInSpan, intersectSegments, resolvePoint } from './calculations'
 
 export type GeometryConstraint =
   | ({ type: 'coincident'; pointA: string; pointB: string })
@@ -41,14 +41,33 @@ function vector(document: GeometryDocument, id: string) {
 
 function length(value: { x: number; y: number }): number { return Math.hypot(value.x, value.y) }
 
-function radiusOf(document: GeometryDocument, id: string): { center: { x: number; y: number }; radius: number } | null {
+function radiusOf(document: GeometryDocument, id: string): { id: string; center: { x: number; y: number }; radius: number } | null {
   const object = getGeometryObject(document, id)
   if (!object) return null
   if (object.type === 'circle' || object.type === 'arc') {
     const center = resolvePoint(document, object.center)
-    return center ? { center, radius: object.radius } : null
+    return center ? { id: object.id, center, radius: object.radius } : null
   }
   return null
+}
+
+function arcContainsPoint(document: GeometryDocument, id: string, point: { x: number; y: number }): boolean {
+  const object = getGeometryObject(document, id)
+  if (!object || object.type !== 'arc') return true
+  const center = resolvePoint(document, object.center)
+  if (!center) return false
+  const angle = Math.atan2(point.y - center.y, point.x - center.x)
+  const angles = getArcAnglesForConstraint(document, object)
+  return angleInSpan(angle, angles.startAngle, angles.endAngle)
+}
+
+function getArcAnglesForConstraint(document: GeometryDocument, arc: GeometryArc): { startAngle: number; endAngle: number } {
+  const angleFor = (anchorId: string | undefined, fallback: number): number => {
+    const point = anchorId ? resolvePoint(document, anchorId) : null
+    const center = resolvePoint(document, arc.center)
+    return point && center ? Math.atan2(point.y - center.y, point.x - center.x) : fallback
+  }
+  return { startAngle: angleFor(arc.startAnchor, arc.startAngle), endAngle: angleFor(arc.endAnchor, arc.endAngle) }
 }
 
 export function evaluateConstraint(document: GeometryDocument, constraint: GeometryConstraint): ConstraintResult {
@@ -62,7 +81,10 @@ export function evaluateConstraint(document: GeometryDocument, constraint: Geome
       const external = Math.abs(distance - (first.radius + second.radius))
       const internal = Math.abs(distance - Math.abs(first.radius - second.radius))
       const error = Math.min(external, internal)
-      return { valid: error <= EPSILON, error, message: error <= EPSILON ? undefined : 'Curves are not tangent' }
+      const direction = distance ? { x: (second.center.x - first.center.x) / distance, y: (second.center.y - first.center.y) / distance } : { x: 1, y: 0 }
+      const tangentPoints = [1, -1].map((sign) => ({ x: first.center.x + direction.x * first.radius * sign, y: first.center.y + direction.y * first.radius * sign }))
+      const valid = error <= EPSILON && tangentPoints.some((tangentPoint) => arcContainsPoint(document, constraint.curveA, tangentPoint) && arcContainsPoint(document, constraint.curveB, tangentPoint))
+      return { valid, error, message: valid ? undefined : 'Curves are not tangent' }
     }
     const circle = first ?? second
     const line = firstSegment ?? secondSegment
@@ -72,7 +94,14 @@ export function evaluateConstraint(document: GeometryDocument, constraint: Geome
     const cross = (circle.center.x - start.x) * (end.y - start.y) - (circle.center.y - start.y) * (end.x - start.x)
     const length = Math.max(1, Math.hypot(end.x - start.x, end.y - start.y))
     const error = Math.abs(Math.abs(cross) / length - circle.radius)
-    return { valid: error <= EPSILON, error, message: error <= EPSILON ? undefined : 'Line and curve are not tangent' }
+    const projection = (() => {
+      const dx = end.x - start.x; const dy = end.y - start.y
+      const denominator = dx * dx + dy * dy
+      const t = denominator ? ((circle.center.x - start.x) * dx + (circle.center.y - start.y) * dy) / denominator : 0
+      return { x: start.x + t * dx, y: start.y + t * dy }
+    })()
+    const valid = error <= EPSILON && arcContainsPoint(document, circle.id, projection)
+    return { valid, error, message: valid ? undefined : 'Line and curve are not tangent' }
   }
   if (constraint.type === 'symmetric') {
     const a = resolvePoint(document, constraint.a); const b = resolvePoint(document, constraint.b)
@@ -160,7 +189,7 @@ export function evaluateConstraints(document: GeometryDocument, constraints: Geo
 }
 
 export function addConstraint(document: GeometryDocument, constraint: GeometryConstraint): GeometryDocument {
-  return { ...document, constraints: [...document.constraints, constraint] }
+  return rebuildGeometryGraphs({ ...document, constraints: [...document.constraints, constraint] })
 }
 
 export function removeConstraint(document: GeometryDocument, index: number): GeometryDocument {

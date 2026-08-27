@@ -1,34 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
 import { type GeometryToolId } from '../../geometry'
 import { useI18n, type TranslationKey } from '../../i18n'
-import type { ShapeKind } from '../../geometry/core/shapeFactory'
-import { SHAPE_DESCRIPTORS } from '../../geometry/core/shapeDescriptors'
-
-const SHAPE_LABELS: Record<ShapeKind, TranslationKey> = {
-  circle: 'geometryCircle',
-  ellipse: 'geometryShapeEllipse',
-  square: 'geometryShapeSquare',
-  rectangle: 'geometryShapeRectangle',
-  parallelogram: 'geometryShapeParallelogram',
-  rhombus: 'geometryShapeRhombus',
-  equilateral: 'geometryShapeEquilateral',
-  isosceles: 'geometryShapeIsosceles'
-}
 
 type ToolEntry = { id: GeometryToolId; label: TranslationKey }
 
-const DRAW_TOOLS: ToolEntry[] = [
-  { id: 'point', label: 'geometryPoint' },
-  { id: 'segment', label: 'geometrySegment' },
-  { id: 'polygon', label: 'geometryPolygon' },
-  { id: 'arc', label: 'geometryArc' },
-  { id: 'text', label: 'geometryText' }
-]
+function CursorIcon(): React.JSX.Element {
+  return <svg className="geometry-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l13 9-6 1 3 6-3 1-3-6-4 4V3z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>
+}
+
+function HandIcon(): React.JSX.Element {
+  return <svg className="geometry-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12V6a1.5 1.5 0 0 1 3 0v5V5a1.5 1.5 0 0 1 3 0v6V6a1.5 1.5 0 0 1 3 0v7l1-1a1.7 1.7 0 0 1 2.4 2.4l-3.2 4A4 4 0 0 1 14 20h-2.5A4.5 4.5 0 0 1 7 15.5V12a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+}
 
 const CONSTRUCT_TOOLS: ToolEntry[] = [
   { id: 'midpoint', label: 'geometryMidpoint' },
   { id: 'intersection', label: 'geometryIntersection' },
   { id: 'coincident', label: 'geometryCoincident' },
+  { id: 'splitNode', label: 'geometrySplitNode' },
 ]
 
 const CONSTRAINT_TOOLS: ToolEntry[] = [
@@ -47,26 +35,14 @@ type Props = {
   canUndo: boolean
   canRedo: boolean
   onTool: (tool: GeometryToolId) => void
-  onShapeKind: (kind: ShapeKind) => void
   onUndo: () => void
   onRedo: () => void
 }
 
-export function GeometryToolbar({ tool, canUndo, canRedo, onTool, onShapeKind, onUndo, onRedo }: Props): React.JSX.Element {
+export function GeometryToolbar({ tool, canUndo, canRedo, onTool, onUndo, onRedo }: Props): React.JSX.Element {
   const { t } = useI18n()
-  const [shapePickerOpen, setShapePickerOpen] = useState(false)
-  const [openMenu, setOpenMenu] = useState<'construct' | 'constraint' | 'more' | null>(null)
+  const [openMenu, setOpenMenu] = useState<'construct' | 'constraint' | null>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
-  const pickerRef = useRef<HTMLSpanElement>(null)
-
-  useEffect(() => {
-    if (!shapePickerOpen) return
-    const close = (event: MouseEvent): void => {
-      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) setShapePickerOpen(false)
-    }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
-  }, [shapePickerOpen])
 
   useEffect(() => {
     if (!openMenu) return
@@ -83,12 +59,8 @@ export function GeometryToolbar({ tool, canUndo, canRedo, onTool, onShapeKind, o
     </button>
   )
 
-  const drawGroup = (labelKey: TranslationKey, entries: ToolEntry[], shape: React.ReactNode): React.JSX.Element => (
-    <span className="geometry-toolbar-group geometry-toolbar-draw-group">
-      <span className="geometry-toolbar-group-label">{t(labelKey)}</span>
-      {entries.map(({ id, label }) => toolButton(id, label))}
-      {shape}
-    </span>
+  const modeButton = (id: 'select' | 'move', labelKey: TranslationKey, icon: React.ReactNode): React.JSX.Element => (
+    <button key={id} type="button" className={`geometry-mode-button${tool === id ? ' active' : ''}`} aria-label={t(labelKey)} title={t(labelKey)} onClick={() => onTool(id)}>{icon}</button>
   )
 
   const category = (id: 'construct' | 'constraint', labelKey: TranslationKey, entries: ToolEntry[]): React.JSX.Element => {
@@ -117,55 +89,17 @@ export function GeometryToolbar({ tool, canUndo, canRedo, onTool, onShapeKind, o
 
   return (
     <div className="geometry-toolbar" ref={toolbarRef}>
-      <span className="geometry-toolbar-primary-tool">
-        {toolButton('select', 'geometrySelect')}
+      <span className="geometry-toolbar-modes">
+        {modeButton('select', 'geometrySelect', <CursorIcon />)}
+        {modeButton('move', 'geometryMove', <HandIcon />)}
+        <span className="geometry-toolbar-sep" />
+        <button type="button" onClick={onUndo} disabled={!canUndo} aria-label={t('undo')} title={t('undo')}>{t('undo')}</button>
+        <button type="button" onClick={onRedo} disabled={!canRedo} aria-label={t('redo')} title={t('redo')}>{t('redo')}</button>
       </span>
-      {drawGroup('geometryGroupDraw', DRAW_TOOLS, <span className="geometry-shape-wrap" ref={pickerRef}>
-        <button
-          type="button"
-          className={tool === 'shape' ? 'active' : ''}
-          aria-haspopup="listbox"
-          aria-expanded={shapePickerOpen}
-          title={t('geometryShapeHint')}
-          onClick={() => {
-            onTool('shape')
-            setShapePickerOpen((open) => !open)
-          }}
-        >
-          {t('geometryShape')}
-        </button>
-        {shapePickerOpen ? (
-          <span className="geometry-shape-popover" role="listbox" aria-label={t('geometryShape')}>
-            {SHAPE_DESCRIPTORS.map(({ kind }) => (
-              <button
-                key={kind}
-                type="button"
-                role="option"
-                onClick={() => {
-                  onShapeKind(kind)
-                  onTool('shape')
-                  setShapePickerOpen(false)
-                }}
-              >
-                {t(SHAPE_LABELS[kind])}
-              </button>
-            ))}
-          </span>
-        ) : null}
-      </span>)}
-
       {category('construct', 'geometryGroupConstruct', CONSTRUCT_TOOLS)}
       {category('constraint', 'geometryGroupConstraint', CONSTRAINT_TOOLS)}
 
       <span className="geometry-toolbar-spacer" />
-
-      <span className="geometry-toolbar-sep" />
-      <button type="button" onClick={onUndo} disabled={!canUndo}>
-        {t('undo')}
-      </button>
-      <button type="button" onClick={onRedo} disabled={!canRedo}>
-        {t('redo')}
-      </button>
     </div>
   )
 }
