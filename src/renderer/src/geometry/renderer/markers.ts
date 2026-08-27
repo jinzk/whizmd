@@ -1,4 +1,4 @@
-import type { GeometryDocument, GeometrySegment } from '../core/model'
+import { getGeometryObject, type GeometryDocument, type GeometrySegment } from '../core/model'
 import { intersectSegments, resolvePoint } from '../core/calculations'
 
 export type GeometryMarker =
@@ -9,7 +9,7 @@ export type GeometryMarker =
 const TICK_LENGTH = 5
 
 function getSegment(document: GeometryDocument, id: string): GeometrySegment | null {
-  const object = document.objects.find((item) => item.id === id)
+  const object = getGeometryObject(document, id)
   return object?.type === 'segment' ? object : null
 }
 

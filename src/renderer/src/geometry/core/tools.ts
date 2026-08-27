@@ -1,12 +1,11 @@
 export type GeometryToolId =
   | 'point' | 'segment' | 'polygon' | 'arc' | 'text'
-  | 'midpoint' | 'intersection' | 'perpendicularFoot'
+  | 'midpoint' | 'intersection'
   | 'coincident' | 'parallel' | 'perpendicular' | 'equalLength'
   | 'horizontal' | 'vertical'
   | 'tangent' | 'symmetric' | 'angle'
-  | 'splitSegment' | 'splitAtIntersection'
-  | 'move' | 'rotate'
-  | 'shape'
+  | 'select' | 'rotate'
+  | 'shape' | 'mirror' | 'offset' | 'trim'
 
 export type CanvasClickMode = 'draw' | 'selectSequence' | 'singleCurveConstruct' | 'splitIntersection' | 'arcDraft' | 'passive'
 
@@ -30,9 +29,8 @@ export const GEOMETRY_TOOLS: Record<GeometryToolId, GeometryToolProfile> = {
   polygon: { id: 'polygon', canvasClick: 'draw', selects: [['point']], solveOnCreate: false },
   arc: { id: 'arc', canvasClick: 'arcDraft', selects: [['point']], solveOnCreate: false },
   text: { id: 'text', canvasClick: 'draw', selects: [['point']], solveOnCreate: false },
-  midpoint: { id: 'midpoint', canvasClick: 'selectSequence', selects: TWO_POINTS, solveOnCreate: false },
+  midpoint: { id: 'midpoint', canvasClick: 'singleCurveConstruct', selects: [['segment']], solveOnCreate: true },
   intersection: { id: 'intersection', canvasClick: 'selectSequence', selects: TWO_SEGMENTS, solveOnCreate: false },
-  perpendicularFoot: { id: 'perpendicularFoot', canvasClick: 'selectSequence', selects: [['point'], ['segment']], solveOnCreate: false },
   coincident: { id: 'coincident', canvasClick: 'selectSequence', selects: TWO_POINTS, solveOnCreate: false },
   parallel: { id: 'parallel', canvasClick: 'selectSequence', selects: TWO_SEGMENTS, solveOnCreate: true },
   perpendicular: { id: 'perpendicular', canvasClick: 'selectSequence', selects: TWO_SEGMENTS, solveOnCreate: true },
@@ -42,11 +40,12 @@ export const GEOMETRY_TOOLS: Record<GeometryToolId, GeometryToolProfile> = {
   tangent: { id: 'tangent', canvasClick: 'selectSequence', selects: [['circle', 'arc', 'segment'], ['circle', 'arc', 'segment']], solveOnCreate: true },
   symmetric: { id: 'symmetric', canvasClick: 'selectSequence', selects: [['point'], ['point'], ['segment']], solveOnCreate: true },
   angle: { id: 'angle', canvasClick: 'selectSequence', selects: [['point'], ['point'], ['point']], solveOnCreate: false },
-  splitSegment: { id: 'splitSegment', canvasClick: 'singleCurveConstruct', selects: [['segment']], solveOnCreate: false },
-  splitAtIntersection: { id: 'splitAtIntersection', canvasClick: 'splitIntersection', selects: [['point']], solveOnCreate: false },
-  move: { id: 'move', canvasClick: 'passive', selects: [['point', 'segment', 'circle', 'arc']], solveOnCreate: false },
+  select: { id: 'select', canvasClick: 'passive', selects: [['point', 'segment', 'circle', 'arc']], solveOnCreate: false },
   rotate: { id: 'rotate', canvasClick: 'passive', selects: [['point', 'segment']], solveOnCreate: false },
   shape: { id: 'shape', canvasClick: 'passive', selects: [['point', 'segment']], solveOnCreate: true },
+  mirror: { id: 'mirror', canvasClick: 'selectSequence', selects: TWO_POINTS, solveOnCreate: false },
+  offset: { id: 'offset', canvasClick: 'selectSequence', selects: [['segment', 'circle']], solveOnCreate: false },
+  trim: { id: 'trim', canvasClick: 'selectSequence', selects: [['segment']], solveOnCreate: false }
 }
 
 export function isInteractiveCanvasTool(id: GeometryToolId): boolean {

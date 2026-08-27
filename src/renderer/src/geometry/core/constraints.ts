@@ -1,11 +1,13 @@
-import type { GeometryDocument } from './model'
-import { resolvePoint } from './calculations'
+import { getGeometryObject, type GeometryDocument } from './model'
+import { angleBetweenPoints, intersectSegments, resolvePoint } from './calculations'
 
 export type GeometryConstraint =
   | ({ type: 'coincident'; pointA: string; pointB: string })
   | ({ type: 'horizontal'; segment: string })
   | ({ type: 'vertical'; segment: string })
   | ({ type: 'pointOnLine'; point: string; line: string; t?: number })
+  | ({ type: 'midpoint'; point: string; line: string })
+  | ({ type: 'intersection'; point: string; lineA: string; lineB: string })
   | ({ type: 'perpendicular'; lineA: string; lineB: string })
   | ({ type: 'parallel'; lineA: string; lineB: string })
   | ({ type: 'equalLength'; segmentA: string; segmentB: string })
@@ -16,10 +18,17 @@ export type GeometryConstraint =
 
 export type ConstraintResult = { valid: boolean; error: number; message?: string }
 
+export function constraintPriority(constraint: GeometryConstraint): number {
+  if (constraint.type === 'coincident') return 0
+  if (constraint.type === 'pointOnLine' || constraint.type === 'midpoint' || constraint.type === 'intersection') return 3
+  if (constraint.type === 'symmetric') return 2
+  return 1
+}
+
 const EPSILON = 1e-6
 
 function segment(document: GeometryDocument, id: string) {
-  const object = document.objects.find((item) => item.id === id)
+  const object = getGeometryObject(document, id)
   return object?.type === 'segment' ? object : null
 }
 
@@ -33,7 +42,7 @@ function vector(document: GeometryDocument, id: string) {
 function length(value: { x: number; y: number }): number { return Math.hypot(value.x, value.y) }
 
 function radiusOf(document: GeometryDocument, id: string): { center: { x: number; y: number }; radius: number } | null {
-  const object = document.objects.find((item) => item.id === id)
+  const object = getGeometryObject(document, id)
   if (!object) return null
   if (object.type === 'circle' || object.type === 'arc') {
     const center = resolvePoint(document, object.center)
@@ -96,6 +105,24 @@ export function evaluateConstraint(document: GeometryDocument, constraint: Geome
     const error = Math.abs(cross) / Math.max(1, Math.hypot(end.x - start.x, end.y - start.y))
     return { valid: error <= EPSILON, error, message: error <= EPSILON ? undefined : 'Point is not on line' }
   }
+  if (constraint.type === 'midpoint') {
+    const point = resolvePoint(document, constraint.point); const line = segment(document, constraint.line)
+    if (!point || !line) return { valid: false, error: Infinity, message: 'Missing midpoint or line' }
+    const start = resolvePoint(document, line.start); const end = resolvePoint(document, line.end)
+    if (!start || !end) return { valid: false, error: Infinity, message: 'Missing line endpoint' }
+    const expected = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 }
+    const error = Math.hypot(point.x - expected.x, point.y - expected.y)
+    return { valid: error <= EPSILON, error, message: error <= EPSILON ? undefined : 'Point is not the midpoint' }
+  }
+  if (constraint.type === 'intersection') {
+    const point = resolvePoint(document, constraint.point)
+    const first = segment(document, constraint.lineA); const second = segment(document, constraint.lineB)
+    if (!point || !first || !second) return { valid: false, error: Infinity, message: 'Missing intersection or line' }
+    const expected = intersectSegments(document, first, second)
+    if (!expected) return { valid: false, error: Infinity, message: 'Lines do not intersect within their ranges' }
+    const error = Math.hypot(point.x - expected.x, point.y - expected.y)
+    return { valid: error <= EPSILON, error, message: error <= EPSILON ? undefined : 'Point is not at the intersection' }
+  }
   if (constraint.type === 'fixedDistance') {
     const a = resolvePoint(document, constraint.a); const b = resolvePoint(document, constraint.b)
     if (!a || !b) return { valid: false, error: Infinity, message: 'Missing point' }
@@ -105,8 +132,7 @@ export function evaluateConstraint(document: GeometryDocument, constraint: Geome
   if (constraint.type === 'fixedAngle') {
     const a = resolvePoint(document, constraint.a); const vertex = resolvePoint(document, constraint.vertex); const b = resolvePoint(document, constraint.b)
     if (!a || !vertex || !b) return { valid: false, error: Infinity, message: 'Missing point' }
-    const actual = Math.atan2(b.y - vertex.y, b.x - vertex.x) - Math.atan2(a.y - vertex.y, a.x - vertex.x)
-    const normalized = Math.abs(Math.atan2(Math.sin(actual - constraint.value), Math.cos(actual - constraint.value)))
+    const normalized = Math.abs(angleBetweenPoints(a, vertex, b) - Math.abs(constraint.value))
     return { valid: normalized <= EPSILON, error: normalized, message: normalized <= EPSILON ? undefined : 'Angle constraint is not satisfied' }
   }
   if (constraint.type === 'horizontal' || constraint.type === 'vertical') {

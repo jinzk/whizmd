@@ -1,5 +1,5 @@
-import type { GeometryDocument, GeometryPoint, GeometrySegment } from '../core/model'
-import { getArcAngles, resolveArcPoint, resolveEllipseGeometry, resolvePoint } from '../core/calculations'
+import { getGeometryObjects, type GeometryDocument, type GeometrySegment } from '../core/model'
+import { getArcAngles, resolveArcPoint, resolveEllipseGeometry } from '../core/calculations'
 
 type Bounds = { minX: number; minY: number; maxX: number; maxY: number }
 
@@ -19,9 +19,9 @@ function textExtent(text: string): { width: number; height: number } {
 }
 
 function contentBounds(document: GeometryDocument): Bounds | null {
-  const points = new Map(document.objects.filter((object): object is GeometryPoint => object.type === 'point').map((point) => [point.id, point]))
+  const points = new Map(getGeometryObjects(document, 'point').map((point) => [point.id, point]))
   let bounds: Bounds | null = null
-  for (const object of document.objects) {
+  for (const object of [...getGeometryObjects(document, 'point'), ...getGeometryObjects(document, 'segment'), ...getGeometryObjects(document, 'circle'), ...getGeometryObjects(document, 'ellipse'), ...getGeometryObjects(document, 'arc'), ...getGeometryObjects(document, 'text')]) {
     if (object.type === 'point') {
       bounds = growBounds(bounds, object.x - 4, object.y - 4, object.x + 4, object.y + 4)
       if (object.label) {
@@ -33,11 +33,6 @@ function contentBounds(document: GeometryDocument): Bounds | null {
     if (object.type === 'text') {
       const extent = textExtent(object.text)
       bounds = growBounds(bounds, object.x - 2, object.y - extent.height, object.x + extent.width, object.y + 3)
-      continue
-    }
-    if (object.type === 'midpoint' || object.type === 'intersection' || object.type === 'perpendicularFoot') {
-      const point = resolvePoint(document, object.id)
-      if (point) bounds = growBounds(bounds, point.x - 4, point.y - 4, point.x + 4, point.y + 4)
       continue
     }
     if (object.type === 'circle') {
@@ -77,14 +72,10 @@ function contentBounds(document: GeometryDocument): Bounds | null {
 }
 
 export function renderGeometrySvg(document: GeometryDocument): string {
-  const points = new Map(document.objects.filter((object): object is GeometryPoint => object.type === 'point').map((point) => [point.id, point]))
-  const body = document.objects.map((object) => {
+  const points = new Map(getGeometryObjects(document, 'point').map((point) => [point.id, point]))
+  const body = [...getGeometryObjects(document, 'point'), ...getGeometryObjects(document, 'segment'), ...getGeometryObjects(document, 'circle'), ...getGeometryObjects(document, 'ellipse'), ...getGeometryObjects(document, 'arc'), ...getGeometryObjects(document, 'text')].map((object) => {
     if (object.type === 'point') return `<circle cx="${object.x}" cy="${object.y}" r="4" fill="#0969da" />${object.label ? `<text x="${object.x + 8}" y="${object.y - 8}" fill="#24292f">${escapeXml(object.label)}</text>` : ''}`
-    if (object.type === 'text') return `<text x="${object.x}" y="${object.y}" fill="#24292f">${escapeXml(object.text)}</text>`
-    if (object.type === 'midpoint' || object.type === 'intersection' || object.type === 'perpendicularFoot') {
-      const point = resolvePoint(document, object.id)
-      return point ? `<circle cx="${point.x}" cy="${point.y}" r="4" fill="#cf222e" />` : ''
-    }
+    if (object.type === 'text') return `<text x="${object.x}" y="${object.y}" fill="${object.color ?? '#24292f'}" font-size="${object.fontSize ?? 14}"${object.rotation ? ` transform="rotate(${object.rotation} ${object.x} ${object.y})"` : ''}>${escapeXml(object.text)}</text>`
     if (object.type === 'circle') {
       const center = points.get(object.center)
       return center ? `<circle cx="${center.x}" cy="${center.y}" r="${object.radius}" fill="none" stroke="#24292f" stroke-width="2" />` : ''

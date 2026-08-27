@@ -1,106 +1,243 @@
-export type GeometryPoint = { type: 'point'; id: string; x: number; y: number; label?: string }
-export type GeometrySegment = { type: 'segment'; id: string; start: string; end: string }
+export type GeometryRole = 'boundary' | 'construction' | 'attachment'
+export type GeometryShapeKind = 'circle' | 'ellipse' | 'square' | 'rectangle' | 'parallelogram' | 'rhombus' | 'equilateral' | 'isosceles'
+export type GeometryShape = { id: string; kind: GeometryShapeKind; boundaryPointIds: string[]; boundarySegmentIds: string[] }
+export type GeometrySharedNode = { id: string; memberIds: string[] }
+export type GeometryDependency = { id: string; sourceId: string; dependencyIds: string[]; kind: 'midpoint' | 'intersection' | 'pointOnLine' | 'textAnchor' }
+export type GeometryPoint = { type: 'point'; id: string; x: number; y: number; label?: string; ownerId?: string; role?: GeometryRole }
+export type GeometrySegment = { type: 'segment'; id: string; start: string; end: string; ownerId?: string; role?: GeometryRole }
 export type GeometryCircle = { type: 'circle'; id: string; center: string; radius: number }
 export type GeometryEllipse = { type: 'ellipse'; id: string; focusA: string; focusB: string; semiMajor: number }
 export type GeometryArc = { type: 'arc'; id: string; center: string; radius: number; startAngle: number; endAngle: number; startAnchor?: string; endAnchor?: string }
-export type GeometryText = { type: 'text'; id: string; x: number; y: number; text: string }
-export type GeometryMidpoint = { type: 'midpoint'; id: string; a: string; b: string }
-export type GeometryIntersection = { type: 'intersection'; id: string; lineA: string; lineB: string }
-export type GeometryPerpendicularFoot = { type: 'perpendicularFoot'; id: string; point: string; line: string }
-export type GeometryObject = GeometryPoint | GeometrySegment | GeometryCircle | GeometryEllipse | GeometryArc | GeometryText | GeometryMidpoint | GeometryIntersection | GeometryPerpendicularFoot
+export type GeometryTextAnchor = { objectId: string; t: number; offsetX: number; offsetY: number }
+export type GeometryText = { type: 'text'; id: string; x: number; y: number; text: string; fontSize?: number; color?: string; rotation?: number; anchor?: GeometryTextAnchor }
+export type GeometryObject = GeometryPoint | GeometrySegment | GeometryCircle | GeometryEllipse | GeometryArc | GeometryText
+export type GeometryCurveObject = GeometryCircle | GeometryEllipse | GeometryArc
+export type GeometryCollections = {
+  points: GeometryPoint[]
+  segments: GeometrySegment[]
+  curves: GeometryCurveObject[]
+  annotations: GeometryText[]
+}
 import type { GeometryConstraint } from './constraints'
 import { resolvePoint } from './calculations'
 
 export type GeometryTopology = { nodeIds: string[] }
-export type GeometryDocument = { version: 1; width: number; height: number; objects: GeometryObject[]; constraints: GeometryConstraint[]; topology: GeometryTopology }
+export type GeometryDocument = { version: 1; width: number; height: number; points: GeometryPoint[]; segments: GeometrySegment[]; curves: GeometryCurveObject[]; annotations: GeometryText[]; constraints: GeometryConstraint[]; topology: GeometryTopology; shapes: GeometryShape[]; sharedNodes: GeometrySharedNode[]; dependencies: GeometryDependency[] }
 
 export function createGeometryDocument(): GeometryDocument {
-  return { version: 1, width: 800, height: 500, objects: [], constraints: [], topology: { nodeIds: [] } }
+  return { version: 1, width: 800, height: 500, points: [], segments: [], curves: [], annotations: [], constraints: [], topology: { nodeIds: [] }, shapes: [], sharedNodes: [], dependencies: [] }
+}
+
+export function splitGeometryObjects(objects: readonly GeometryObject[]): GeometryCollections {
+  return {
+    points: objects.filter((object): object is GeometryPoint => object.type === 'point'),
+    segments: objects.filter((object): object is GeometrySegment => object.type === 'segment'),
+    curves: objects.filter((object): object is GeometryCurveObject => object.type === 'circle' || object.type === 'ellipse' || object.type === 'arc'),
+    annotations: objects.filter((object): object is GeometryText => object.type === 'text')
+  }
+}
+
+export function buildGeometryObjects(document: Pick<GeometryDocument, 'points' | 'segments' | 'curves' | 'annotations'>): GeometryObject[] { return [...document.points, ...document.segments, ...document.curves, ...document.annotations] }
+
+export function getAllGeometryObjects(document: GeometryDocument): GeometryObject[] {
+  return buildGeometryObjects(document)
 }
 
 export function nextObjectId(document: GeometryDocument, prefix: string): string {
-  const base = document.objects.reduce((max, object) => (object.id.startsWith(prefix) ? Math.max(max, Number(object.id.slice(prefix.length)) || 0) : max), 0)
+  const base = buildGeometryObjects(document).reduce((max, object) => (object.id.startsWith(prefix) ? Math.max(max, Number(object.id.slice(prefix.length)) || 0) : max), 0)
   return `${prefix}${base + 1}`
 }
 
-export function addPoint(document: GeometryDocument, x: number, y: number, label?: string): GeometryDocument {
-  const id = nextObjectId(document, 'P')
-  return { ...document, objects: [...document.objects, { type: 'point', id, x, y, label }], topology: { nodeIds: [...document.topology.nodeIds, id] } }
+export function getGeometryObject(document: GeometryDocument, id: string): GeometryObject | undefined {
+  return getAllGeometryObjects(document).find((object) => object.id === id)
 }
 
-export function addSegment(document: GeometryDocument, start: string, end: string): GeometryDocument {
+export function getGeometryObjects<T extends GeometryObject['type']>(document: GeometryDocument, type: T): Extract<GeometryObject, { type: T }>[] {
+  return getAllGeometryObjects(document).filter((object) => object.type === type) as Extract<GeometryObject, { type: T }>[]
+}
+
+export function addPoint(document: GeometryDocument, x: number, y: number, label?: string, metadata?: Pick<GeometryPoint, 'ownerId' | 'role'>): GeometryDocument {
+  const id = nextObjectId(document, 'P')
+  const point = { type: 'point' as const, id, x, y, label, ...metadata }
+  const points = [...document.points, point]
+  return { ...document, points, topology: { nodeIds: [...document.topology.nodeIds, id] } }
+}
+
+export function addSegment(document: GeometryDocument, start: string, end: string, metadata?: Pick<GeometrySegment, 'ownerId' | 'role'>): GeometryDocument {
   const id = nextObjectId(document, 'S')
-  return { ...document, objects: [...document.objects, { type: 'segment', id, start, end }] }
+  const segment = { type: 'segment' as const, id, start, end, ...metadata }
+  const segments = [...document.segments, segment]
+  return { ...document, segments }
+}
+
+export function addShape(document: GeometryDocument, shape: GeometryShape): GeometryDocument {
+  return { ...document, shapes: [...document.shapes, { ...shape, boundaryPointIds: [...shape.boundaryPointIds], boundarySegmentIds: [...shape.boundarySegmentIds] }] }
+}
+
+export function rebuildGeometryGraphs(document: GeometryDocument): GeometryDocument {
+  const allObjects = buildGeometryObjects(document)
+  const sharedNodes = document.topology.nodeIds.map((id) => ({
+    id,
+    memberIds: allObjects.flatMap((object) => {
+      if (object.type === 'segment' && (object.start === id || object.end === id)) return [object.id]
+      if ((object.type === 'circle' && object.center === id) || (object.type === 'ellipse' && (object.focusA === id || object.focusB === id)) || (object.type === 'arc' && object.center === id)) return [object.id]
+      return []
+    })
+  }))
+  const dependencies = document.constraints.flatMap((constraint, index): GeometryDependency[] => {
+    if (constraint.type === 'midpoint') return [{ id: `D${index + 1}`, sourceId: constraint.point, dependencyIds: [constraint.line], kind: 'midpoint' as const }]
+    if (constraint.type === 'intersection') return [{ id: `D${index + 1}`, sourceId: constraint.point, dependencyIds: [constraint.lineA, constraint.lineB], kind: 'intersection' as const }]
+    if (constraint.type === 'pointOnLine') return [{ id: `D${index + 1}`, sourceId: constraint.point, dependencyIds: [constraint.line], kind: 'pointOnLine' as const }]
+    return []
+  })
+  for (const object of allObjects) {
+    if (object.type === 'text' && object.anchor) dependencies.push({ id: `DT-${object.id}`, sourceId: object.id, dependencyIds: [object.anchor.objectId], kind: 'textAnchor' })
+  }
+  return { ...document, sharedNodes, dependencies }
 }
 
 export function splitSegment(document: GeometryDocument, segmentId: string, pointId: string): GeometryDocument {
-  const segment = document.objects.find((object) => object.type === 'segment' && object.id === segmentId)
+  const segment = document.segments.find((object) => object.id === segmentId)
   if (!segment || segment.type !== 'segment' || segment.start === pointId || segment.end === pointId) return document
-  const remaining = document.objects.filter((object) => object.id !== segmentId)
-  const base = remaining.reduce((max, object) => object.type === 'segment' ? Math.max(max, Number(object.id.slice(1)) || 0) : max, 0)
+  const base = document.segments.filter((object) => object.id !== segmentId).reduce((max, object) => Math.max(max, Number(object.id.slice(1)) || 0), 0)
   const firstId = `S${base + 1}`
   const secondId = `S${base + 2}`
-  return { ...document, objects: [...remaining, { type: 'segment', id: firstId, start: segment.start, end: pointId }, { type: 'segment', id: secondId, start: pointId, end: segment.end }], topology: { nodeIds: document.topology.nodeIds.includes(pointId) ? document.topology.nodeIds : [...document.topology.nodeIds, pointId] } }
+  const shapes = document.shapes.map((shape) => shape.boundarySegmentIds.includes(segmentId)
+    ? { ...shape, boundarySegmentIds: shape.boundarySegmentIds.flatMap((id) => id === segmentId ? [firstId, secondId] : [id]), boundaryPointIds: shape.boundaryPointIds.includes(pointId) ? shape.boundaryPointIds : [...shape.boundaryPointIds, pointId] }
+    : shape)
+  const segments = [...document.segments.filter((item) => item.id !== segmentId), { type: 'segment' as const, id: firstId, start: segment.start, end: pointId }, { type: 'segment' as const, id: secondId, start: pointId, end: segment.end }]
+  return { ...document, segments, shapes, topology: { nodeIds: document.topology.nodeIds.includes(pointId) ? document.topology.nodeIds : [...document.topology.nodeIds, pointId] } }
 }
 
 export function addCircle(document: GeometryDocument, center: string, radius: number): GeometryDocument {
   const id = nextObjectId(document, 'C')
-  return { ...document, objects: [...document.objects, { type: 'circle', id, center, radius }] }
+  const circle = { type: 'circle' as const, id, center, radius }
+  const curves = [...document.curves, circle]
+  return { ...document, curves }
 }
 
 export function addEllipse(document: GeometryDocument, focusA: string, focusB: string, semiMajor: number): GeometryDocument {
   const id = nextObjectId(document, 'E')
-  return { ...document, objects: [...document.objects, { type: 'ellipse', id, focusA, focusB, semiMajor: Math.max(1, semiMajor) }] }
+  const ellipse = { type: 'ellipse' as const, id, focusA, focusB, semiMajor: Math.max(1, semiMajor) }
+  const curves = [...document.curves, ellipse]
+  return { ...document, curves }
 }
 
 export function addArc(document: GeometryDocument, center: string, radius: number, startAngle: number, endAngle: number, anchors?: { startAnchor?: string; endAnchor?: string }): GeometryDocument {
   const id = nextObjectId(document, 'A')
-  return { ...document, objects: [...document.objects, { type: 'arc', id, center, radius, startAngle, endAngle, startAnchor: anchors?.startAnchor, endAnchor: anchors?.endAnchor }] }
+  const arc = { type: 'arc' as const, id, center, radius, startAngle, endAngle, startAnchor: anchors?.startAnchor, endAnchor: anchors?.endAnchor }
+  const curves = [...document.curves, arc]
+  return { ...document, curves }
 }
 
 export function addText(document: GeometryDocument, x: number, y: number, text: string): GeometryDocument {
   const id = nextObjectId(document, 'T')
-  return { ...document, objects: [...document.objects, { type: 'text', id, x, y, text }] }
+  const annotation = { type: 'text' as const, id, x, y, text }
+  const annotations = [...document.annotations, annotation]
+  return { ...document, annotations }
 }
 
 export function movePoint(document: GeometryDocument, id: string, x: number, y: number): GeometryDocument {
-  return { ...document, objects: document.objects.map((object) => object.type === 'point' && object.id === id ? { ...object, x, y } : object) }
+  const points = document.points.map((object) => object.id === id ? { ...object, x, y } : object)
+  return { ...document, points }
 }
 
 export type MergePointsRejection = 'sameSegment' | 'digon'
 
 export function checkMergePoints(document: GeometryDocument, keepId: string, removeId: string): MergePointsRejection | null {
   if (keepId === removeId) return null
-  if (document.objects.some((object) => object.type === 'segment' && pointsOnSameSegment(document, object, keepId, removeId))) return 'sameSegment'
+  const coincidentIntersectionEndpoint = isCoincidentIntersectionEndpoint(document, keepId, removeId)
+  const coincidentEndpoints = isCoincidentEndpoints(document, keepId, removeId)
+  if (!coincidentIntersectionEndpoint && !coincidentEndpoints && document.segments.some((object) => pointsOnSameSegment(document, object, keepId, removeId))) return 'sameSegment'
   if (wouldCreateDigon(document, keepId, removeId)) return 'digon'
   return null
 }
 
+function isCoincidentEndpoints(document: GeometryDocument, firstId: string, secondId: string): boolean {
+  const first = resolvePoint(document, firstId); const second = resolvePoint(document, secondId)
+  if (!first || !second || Math.hypot(first.x - second.x, first.y - second.y) > 1e-6) return false
+  const endpointSegments = (id: string): GeometrySegment[] => document.segments.filter((object) => object.start === id || object.end === id)
+  const firstSegments = endpointSegments(firstId); const secondSegments = endpointSegments(secondId)
+  return firstSegments.length > 0 && secondSegments.length > 0 && !firstSegments.some((segment) => secondSegments.some((other) => segment.id === other.id))
+}
+
+function isCoincidentIntersectionEndpoint(document: GeometryDocument, firstId: string, secondId: string): boolean {
+  const first = resolvePoint(document, firstId); const second = resolvePoint(document, secondId)
+  if (!first || !second || Math.hypot(first.x - second.x, first.y - second.y) > 1e-6) return false
+  const isEndpoint = (id: string): boolean => document.segments.some((object) => object.start === id || object.end === id)
+  const isIntersection = (id: string): boolean => document.constraints.some((constraint) => constraint.type === 'intersection' && constraint.point === id)
+  return (isEndpoint(firstId) && isIntersection(secondId)) || (isEndpoint(secondId) && isIntersection(firstId))
+}
+
 export function mergePoints(document: GeometryDocument, keepId: string, removeId: string): GeometryDocument {
   if (checkMergePoints(document, keepId, removeId)) return document
-  const objects = document.objects.filter((object) => object.id !== removeId).map((object) => {
+  const objects = buildGeometryObjects(document).filter((object) => object.id !== removeId).map((object) => {
     if (object.type === 'segment') return { ...object, start: object.start === removeId ? keepId : object.start, end: object.end === removeId ? keepId : object.end }
     if (object.type === 'circle') return { ...object, center: object.center === removeId ? keepId : object.center }
     if (object.type === 'ellipse') return { ...object, focusA: object.focusA === removeId ? keepId : object.focusA, focusB: object.focusB === removeId ? keepId : object.focusB }
     if (object.type === 'arc') return { ...object, center: object.center === removeId ? keepId : object.center, startAnchor: object.startAnchor === removeId ? keepId : object.startAnchor, endAnchor: object.endAnchor === removeId ? keepId : object.endAnchor }
-    if (object.type === 'midpoint') return { ...object, a: object.a === removeId ? keepId : object.a, b: object.b === removeId ? keepId : object.b }
-    if (object.type === 'perpendicularFoot') return { ...object, point: object.point === removeId ? keepId : object.point }
     return object
   })
   const constraints = document.constraints.filter((constraint) => !(constraint.type === 'coincident' && (constraint.pointA === removeId || constraint.pointB === removeId))).map((constraint) => {
     if (constraint.type === 'coincident') return { ...constraint, pointA: constraint.pointA === removeId ? keepId : constraint.pointA, pointB: constraint.pointB === removeId ? keepId : constraint.pointB }
     if (constraint.type === 'pointOnLine') return { ...constraint, point: constraint.point === removeId ? keepId : constraint.point }
+    if (constraint.type === 'midpoint') return { ...constraint, point: constraint.point === removeId ? keepId : constraint.point }
+    if (constraint.type === 'intersection') return { ...constraint, point: constraint.point === removeId ? keepId : constraint.point }
     if (constraint.type === 'fixedDistance') return { ...constraint, a: constraint.a === removeId ? keepId : constraint.a, b: constraint.b === removeId ? keepId : constraint.b }
     if (constraint.type === 'fixedAngle') return { ...constraint, a: constraint.a === removeId ? keepId : constraint.a, vertex: constraint.vertex === removeId ? keepId : constraint.vertex, b: constraint.b === removeId ? keepId : constraint.b }
     if (constraint.type === 'symmetric') return { ...constraint, a: constraint.a === removeId ? keepId : constraint.a, b: constraint.b === removeId ? keepId : constraint.b }
     return constraint
   })
-  return { ...document, objects, constraints, topology: { nodeIds: document.topology.nodeIds.filter((id) => id !== removeId) } }
+  const collections = splitGeometryObjects(objects)
+  const merged = { ...document, ...collections, constraints, topology: { nodeIds: document.topology.nodeIds.filter((id) => id !== removeId) } }
+  const keep = resolvePoint(merged, keepId)
+  if (!keep) return merged
+  const duplicateIntersection = merged.constraints
+    .filter((constraint): constraint is Extract<GeometryConstraint, { type: 'intersection' }> => constraint.type === 'intersection' && constraint.point !== keepId)
+    .map((constraint) => constraint.point)
+    .find((id) => {
+      const point = resolvePoint(merged, id)
+      return point && Math.hypot(point.x - keep.x, point.y - keep.y) <= 1e-6 &&
+        merged.segments.some((object) => object.start === keepId || object.end === keepId)
+    })
+  return duplicateIntersection ? mergePoints(merged, keepId, duplicateIntersection) : merged
 }
+
+export function mergePointsTopology(document: GeometryDocument, keepId: string, removeId: string): GeometryDocument {
+  const point = document.points.find((object) => object.id === keepId)
+  const removed = document.points.find((object) => object.id === removeId)
+  if (!point || point.type !== 'point' || !removed || removed.type !== 'point') return document
+  const objects = buildGeometryObjects(document).filter((object) => object.id !== removeId).map((object) => {
+    if (object.type === 'segment') return { ...object, start: object.start === removeId ? keepId : object.start, end: object.end === removeId ? keepId : object.end }
+    if (object.type === 'circle') return { ...object, center: object.center === removeId ? keepId : object.center }
+    if (object.type === 'ellipse') return { ...object, focusA: object.focusA === removeId ? keepId : object.focusA, focusB: object.focusB === removeId ? keepId : object.focusB }
+    if (object.type === 'arc') return { ...object, center: object.center === removeId ? keepId : object.center, startAnchor: object.startAnchor === removeId ? keepId : object.startAnchor, endAnchor: object.endAnchor === removeId ? keepId : object.endAnchor }
+    return object
+  })
+  const constraints = document.constraints.map((constraint) => {
+    const replace = (id: string): string => id === removeId ? keepId : id
+    if (constraint.type === 'coincident') return { ...constraint, pointA: replace(constraint.pointA), pointB: replace(constraint.pointB) }
+    if (constraint.type === 'pointOnLine' || constraint.type === 'midpoint' || constraint.type === 'intersection') return { ...constraint, point: replace(constraint.point) }
+    if (constraint.type === 'fixedDistance') return { ...constraint, a: replace(constraint.a), b: replace(constraint.b) }
+    if (constraint.type === 'fixedAngle') return { ...constraint, a: replace(constraint.a), vertex: replace(constraint.vertex), b: replace(constraint.b) }
+    if (constraint.type === 'symmetric') return { ...constraint, a: replace(constraint.a), b: replace(constraint.b) }
+    return constraint
+  })
+  const shapes = document.shapes.map((shape) => ({ ...shape, boundaryPointIds: shape.boundaryPointIds.map((id) => id === removeId ? keepId : id) }))
+  const collections = splitGeometryObjects(objects)
+  return { ...document, ...collections, constraints, shapes, topology: { nodeIds: document.topology.nodeIds.filter((id) => id !== removeId) } }
+}
+
+export function mergePointsWithConstraints(document: GeometryDocument, keepId: string, removeId: string): GeometryDocument {
+  const topology = mergePointsTopology(document, keepId, removeId)
+  const constraints = topology.constraints.filter((constraint) => !(constraint.type === 'coincident' && constraint.pointA === constraint.pointB))
+  return rebuildGeometryGraphs({ ...topology, constraints })
+}
+
 
 function wouldCreateDigon(document: GeometryDocument, keepId: string, removeId: string): boolean {
   const pairs = new Set<string>()
-  for (const object of document.objects) {
+  for (const object of document.segments) {
     if (object.type !== 'segment') continue
     const start = object.start === removeId ? keepId : object.start
     const end = object.end === removeId ? keepId : object.end
@@ -126,11 +263,15 @@ function pointsOnSameSegment(document: GeometryDocument, segment: GeometrySegmen
 }
 
 export function resizeCircle(document: GeometryDocument, id: string, radius: number): GeometryDocument {
-  return { ...document, objects: document.objects.map((object) => object.type === 'circle' && object.id === id ? { ...object, radius: Math.max(1, radius) } : object) }
+  const curves = document.curves.map((object) => object.type === 'circle' && object.id === id ? { ...object, radius: Math.max(1, radius) } : object)
+  return { ...document, curves }
 }
 
 export function removeObject(document: GeometryDocument, id: string): GeometryDocument {
-  return { ...document, objects: document.objects.filter((object) => object.id !== id && !objectReferences(object, id)) }
+  const removedObject = getGeometryObject(document, id)
+  const removedSegment = removedObject?.type === 'segment' ? removedObject.id : null
+  const objects = buildGeometryObjects(document).filter((object) => object.id !== id && !objectReferences(object, id))
+  return { ...document, ...splitGeometryObjects(objects), shapes: document.shapes.filter((shape) => shape.id !== id).map((shape) => ({ ...shape, boundaryPointIds: shape.boundaryPointIds.filter((pointId) => pointId !== id), boundarySegmentIds: shape.boundarySegmentIds.filter((segmentId) => segmentId !== (removedSegment ?? id)) })) }
 }
 
 function objectReferences(object: GeometryObject, id: string): boolean {
@@ -139,37 +280,5 @@ function objectReferences(object: GeometryObject, id: string): boolean {
     (object.type === 'ellipse' && (object.focusA === id || object.focusB === id)) ||
     (object.type === 'arc' && (object.center === id || object.startAnchor === id || object.endAnchor === id)) ||
     (object.type === 'arc' && object.center === id) ||
-    (object.type === 'midpoint' && (object.a === id || object.b === id)) ||
-    (object.type === 'intersection' && (object.lineA === id || object.lineB === id)) ||
-    (object.type === 'perpendicularFoot' && (object.point === id || object.line === id))
-}
-
-export function addMidpoint(document: GeometryDocument, a: string, b: string): GeometryDocument {
-  const id = `M${document.objects.filter((object) => object.type === 'midpoint').length + 1}`
-  return { ...document, objects: [...document.objects, { type: 'midpoint', id, a, b }] }
-}
-
-export function addIntersection(document: GeometryDocument, lineA: string, lineB: string): GeometryDocument {
-  const id = `I${document.objects.filter((object) => object.type === 'intersection').length + 1}`
-  return { ...document, objects: [...document.objects, { type: 'intersection', id, lineA, lineB }] }
-}
-
-export function materializeIntersection(document: GeometryDocument, intersectionId: string): GeometryDocument {
-  const derived = document.objects.find((object) => object.type === 'intersection' && object.id === intersectionId)
-  if (!derived || derived.type !== 'intersection') return document
-  const first = document.objects.find((object) => object.type === 'segment' && object.id === derived.lineA)
-  const second = document.objects.find((object) => object.type === 'segment' && object.id === derived.lineB)
-  if (!first || !second) return document
-  const at = resolvePoint(document, intersectionId)
-  if (!at) return document
-  let next = addPoint(document, at.x, at.y)
-  const pointId = next.objects.at(-1)!.id
-  next = splitSegment(next, derived.lineA, pointId)
-  next = splitSegment(next, derived.lineB, pointId)
-  return { ...next, objects: next.objects.filter((object) => object.id !== intersectionId) }
-}
-
-export function addPerpendicularFoot(document: GeometryDocument, point: string, line: string): GeometryDocument {
-  const id = `H${document.objects.filter((object) => object.type === 'perpendicularFoot').length + 1}`
-  return { ...document, objects: [...document.objects, { type: 'perpendicularFoot', id, point, line }] }
+    false
 }

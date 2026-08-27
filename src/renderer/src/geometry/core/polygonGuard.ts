@@ -25,29 +25,69 @@ export function segmentsProperlyIntersect(a1: CyclePoint, a2: CyclePoint, b1: Cy
   return false
 }
 
-/** Walks a degree-2 closed cycle of segments starting at startPointId. Returns ordered vertex ids, or null. */
+/** Finds a simple closed cycle through a point, ignoring extra edges attached to its vertices. */
 export function findPolygonCycle(document: GeometryDocument, startPointId: string): string[] | null {
-  const segments = document.objects.filter((object): object is GeometrySegment => object.type === 'segment')
+  const segments = document.segments
   if (!segments.length) return null
   const at = (id: string): GeometrySegment[] => segments.filter((segment) => segment.start === id || segment.end === id)
-  const startEdges = at(startPointId)
-  if (startEdges.length !== 2) return null
-  const used = new Set<string>()
-  const order = [startPointId]
-  let currentId = startPointId
-  for (let step = 0; step <= segments.length; step += 1) {
-    const candidates = at(currentId).filter((segment) => !used.has(segment.id))
-    if (candidates.length !== 1 && !(step === 0 && candidates.length === 2)) return null
-    const segment = candidates[0]
-    used.add(segment.id)
-    const nextId = segment.start === currentId ? segment.end : segment.start
-    if (nextId === startPointId) return order.length >= 3 ? order : null
-    if (order.includes(nextId)) return null
-    if (at(nextId).length !== 2) return null
-    order.push(nextId)
-    currentId = nextId
+  const visit = (currentId: string, order: string[], used: Set<string>): string[] | null => {
+    for (const segment of at(currentId)) {
+      if (used.has(segment.id)) continue
+      const nextId = segment.start === currentId ? segment.end : segment.start
+      if (nextId === startPointId) return order.length >= 3 ? order : null
+      if (order.includes(nextId)) continue
+      const nextUsed = new Set(used).add(segment.id)
+      const result = visit(nextId, [...order, nextId], nextUsed)
+      if (result) return result
+    }
+    return null
   }
-  return null
+  return visit(startPointId, [startPointId], new Set())
+}
+
+export function polygonCycleSegmentIds(document: GeometryDocument, vertexIds: readonly string[]): string[] {
+  const vertices = new Set(vertexIds)
+  return document.segments
+    .filter((object): object is GeometrySegment => object.type === 'segment' && vertices.has(object.start) && vertices.has(object.end))
+    .filter((segment) => {
+      const index = vertexIds.indexOf(segment.start)
+      const next = vertexIds[(index + 1) % vertexIds.length]
+      const previous = vertexIds[(index + vertexIds.length - 1) % vertexIds.length]
+      return segment.end === next || segment.end === previous
+    })
+    .map((segment) => segment.id)
+}
+
+function polygonArea(document: GeometryDocument, vertexIds: readonly string[]): number {
+  return Math.abs(vertexIds.reduce((sum, id, index) => {
+    const point = resolvePoint(document, id)
+    const next = resolvePoint(document, vertexIds[(index + 1) % vertexIds.length])
+    return point && next ? sum + point.x * next.y - next.x * point.y : sum
+  }, 0) / 2)
+}
+
+function containsPoint(document: GeometryDocument, vertexIds: readonly string[], point: CyclePoint): boolean {
+  let inside = false
+  for (let index = 0, previous = vertexIds.length - 1; index < vertexIds.length; previous = index++) {
+    const current = resolvePoint(document, vertexIds[index])
+    const prior = resolvePoint(document, vertexIds[previous])
+    if (!current || !prior) continue
+    const crosses = (current.y > point.y) !== (prior.y > point.y)
+    if (crosses && point.x < ((prior.x - current.x) * (point.y - current.y)) / (prior.y - current.y) + current.x) inside = !inside
+  }
+  return inside
+}
+
+/** Returns the smallest simple polygon containing point, or null when the point is outside all cycles. */
+export function findPolygonAtPoint(document: GeometryDocument, point: CyclePoint): string[] | null {
+  const candidates: string[][] = []
+  for (const object of document.points) {
+    if (object.type !== 'point') continue
+    const cycle = findPolygonCycle(document, object.id)
+    if (!cycle || !isSimpleCycle(document, cycle) || !containsPoint(document, cycle, point)) continue
+    if (!candidates.some((candidate) => candidate.length === cycle.length && candidate.every((id) => cycle.includes(id)))) candidates.push(cycle)
+  }
+  return candidates.sort((a, b) => polygonArea(document, a) - polygonArea(document, b))[0] ?? null
 }
 
 /** True when none of the cycle's non-adjacent edges cross each other. */
@@ -78,16 +118,52 @@ export function isSimpleCycle(document: GeometryDocument, vertexIds: string[]): 
  * so free polygons keep per-vertex reshape dragging.
  */
 export function findConstrainedShapeCycle(document: GeometryDocument, startPointId: string): string[] | null {
-  const cycle = findPolygonCycle(document, startPointId)
-  if (!cycle) return null
-  const vertexSet = new Set(cycle)
-  const cycleSegments = document.objects.filter((object): object is GeometrySegment => object.type === 'segment' && vertexSet.has(object.start) && vertexSet.has(object.end))
-  if (cycleSegments.length !== cycle.length) return null
-  const segmentIds = new Set(cycleSegments.map((segment) => segment.id))
-  const constrained = document.constraints.some((constraint) =>
-    Object.values(constraint).some((value) => typeof value === 'string' && segmentIds.has(value))
-  )
-  return constrained ? cycle : null
+  const explicitShape = document.shapes.find((shape) => shape.boundaryPointIds.includes(startPointId))
+  if (explicitShape && explicitShape.boundaryPointIds.length >= 3 && explicitShape.boundarySegmentIds.length === explicitShape.boundaryPointIds.length) {
+    return [...explicitShape.boundaryPointIds]
+  }
+  const startPoint = document.points.find((object) => object.id === startPointId)
+  const owned = startPoint?.type === 'point' ? startPoint.ownerId : undefined
+  if (owned) {
+    const ownedSegments = document.segments.filter((object) => object.ownerId === owned && object.role === 'boundary')
+    const atOwned = (id: string): GeometrySegment[] => ownedSegments.filter((segment) => segment.start === id || segment.end === id)
+    const order = [startPointId]
+    const used = new Set<string>()
+    let current = startPointId
+    while (true) {
+      const nextSegment = atOwned(current).find((segment) => !used.has(segment.id))
+      if (!nextSegment) break
+      used.add(nextSegment.id)
+      const next = nextSegment.start === current ? nextSegment.end : nextSegment.start
+      if (next === startPointId) return order.length >= 3 ? order : null
+      if (order.includes(next)) break
+      order.push(next)
+      current = next
+    }
+    return null
+  }
+  const segments = document.segments
+  const at = (id: string): GeometrySegment[] => segments.filter((segment) => segment.start === id || segment.end === id)
+  const candidates: string[][] = []
+  const visit = (currentId: string, order: string[], used: Set<string>): void => {
+    for (const segment of at(currentId)) {
+      if (used.has(segment.id)) continue
+      const nextId = segment.start === currentId ? segment.end : segment.start
+      if (nextId === startPointId) {
+        if (order.length >= 3 && isSimpleCycle(document, order)) candidates.push(order)
+        continue
+      }
+      if (order.includes(nextId)) continue
+      visit(nextId, [...order, nextId], new Set(used).add(segment.id))
+    }
+  }
+  visit(startPointId, [startPointId], new Set())
+  const scored = candidates.map((cycle) => {
+    const ids = new Set(polygonCycleSegmentIds(document, cycle))
+    const covered = [...ids].filter((id) => document.constraints.some((constraint) => Object.values(constraint).some((value) => value === id))).length
+    return { cycle, covered, coverage: covered / ids.size }
+  }).filter((candidate) => candidate.covered > 0)
+  return scored.sort((a, b) => b.coverage - a.coverage || b.covered - a.covered || b.cycle.length - a.cycle.length)[0]?.cycle ?? null
 }
 
 /**
@@ -100,7 +176,7 @@ export function findConstrainedShapeCycle(document: GeometryDocument, startPoint
 export function isAxisResizableRectangle(document: GeometryDocument, cycle: readonly string[]): boolean {
   if (cycle.length !== 4) return false
   const vertexSet = new Set(cycle)
-  const cycleSegments = document.objects.filter((object): object is GeometrySegment => object.type === 'segment' && vertexSet.has(object.start) && vertexSet.has(object.end))
+  const cycleSegments = document.segments.filter((object) => vertexSet.has(object.start) && vertexSet.has(object.end))
   if (cycleSegments.length !== 4) return false
   const segmentIds = new Set(cycleSegments.map((segment) => segment.id))
   let directional = 0
@@ -124,11 +200,11 @@ export function getVertexAngle(document: GeometryDocument, pointId: string): Ver
   const cycle = findPolygonCycle(document, pointId)
   if (!cycle || cycle.length < 3) return null
   const vertexSet = new Set(cycle)
-  const cycleSegments = document.objects.filter((object): object is GeometrySegment => object.type === 'segment' && vertexSet.has(object.start) && vertexSet.has(object.end))
+  const cycleSegments = document.segments.filter((object) => vertexSet.has(object.start) && vertexSet.has(object.end))
   if (cycleSegments.length !== cycle.length) return null
   const index = cycle.indexOf(pointId)
   const resolve = (id: string) => {
-    const point = document.objects.find((object) => object.type === 'point' && object.id === id)
+    const point = document.points.find((object) => object.id === id)
     return point && point.type === 'point' ? point : null
   }
   const vertex = resolve(pointId)

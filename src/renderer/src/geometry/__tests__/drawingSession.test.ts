@@ -7,6 +7,6 @@ describe('polygon drawing session', () => {
     document = addPoint(document, 0, 0); document = addPoint(document, 10, 0); document = addPoint(document, 5, 10)
     let session = createPolygonDrawingSession()
     session = appendPolygonVertex(session, 'P1'); session = appendPolygonVertex(session, 'P2'); session = appendPolygonVertex(session, 'P3')
-    expect(finishPolygonSession(document, session).objects.filter((object) => object.type === 'segment')).toHaveLength(3)
+    expect(finishPolygonSession(document, session).segments).toHaveLength(3)
   })
 })

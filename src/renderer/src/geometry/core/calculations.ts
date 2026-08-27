@@ -1,27 +1,22 @@
-import type { GeometryArc, GeometryDocument, GeometryEllipse, GeometrySegment } from './model'
+import { getGeometryObject, type GeometryArc, type GeometryDocument, type GeometryEllipse, type GeometrySegment } from './model'
 
 export type Coordinate = { x: number; y: number }
+
+/** Returns the smaller, unsigned angle at vertex. Direction and endpoint order do not affect the result. */
+export function angleBetweenPoints(a: Coordinate, vertex: Coordinate, b: Coordinate): number {
+  const ax = a.x - vertex.x; const ay = a.y - vertex.y
+  const bx = b.x - vertex.x; const by = b.y - vertex.y
+  const denominator = Math.hypot(ax, ay) * Math.hypot(bx, by)
+  if (!denominator) return 0
+  return Math.acos(Math.max(-1, Math.min(1, (ax * bx + ay * by) / denominator)))
+}
 
 export function resolvePoint(document: GeometryDocument, id: string, seen = new Set<string>()): Coordinate | null {
   if (seen.has(id)) return null
   seen.add(id)
-  const object = document.objects.find((item) => item.id === id)
+  const object = getGeometryObject(document, id)
   if (!object) return null
   if (object.type === 'point' || object.type === 'text') return object.type === 'point' ? object : { x: object.x, y: object.y }
-  if (object.type === 'midpoint') {
-    const a = resolvePoint(document, object.a, seen); const b = resolvePoint(document, object.b, seen)
-    return a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : null
-  }
-  if (object.type === 'perpendicularFoot') {
-    const point = resolvePoint(document, object.point, seen); const segment = document.objects.find((item) => item.id === object.line)
-    if (!point || !segment || segment.type !== 'segment') return null
-    return projectPointToSegment(document, point, segment)
-  }
-  if (object.type === 'intersection') {
-    const first = document.objects.find((item) => item.id === object.lineA); const second = document.objects.find((item) => item.id === object.lineB)
-    if (!first || !second || first.type !== 'segment' || second.type !== 'segment') return null
-    return intersectSegments(document, first, second)
-  }
   return null
 }
 

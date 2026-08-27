@@ -42,7 +42,6 @@ describe('geometry tool registry', () => {
     expect(GEOMETRY_TOOLS.parallel.solveOnCreate).toBe(true)
     expect(GEOMETRY_TOOLS.tangent.solveOnCreate).toBe(true)
     expect(GEOMETRY_TOOLS.symmetric.solveOnCreate).toBe(true)
-    expect(GEOMETRY_TOOLS.midpoint.solveOnCreate).toBe(false)
     expect(GEOMETRY_TOOLS.coincident.solveOnCreate).toBe(false)
     expect(GEOMETRY_TOOLS.intersection.solveOnCreate).toBe(false)
     expect(GEOMETRY_TOOLS.rotate.solveOnCreate).toBe(false)

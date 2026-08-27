@@ -1,10 +1,10 @@
-.geometry-dialog { width: min(1080px, calc(100vw - 32px)); }
-.geometry-layout { display: flex; gap: 12px; align-items: stretch; }
-.geometry-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.geometry-dialog { width: min(1080px, calc(100vw - 32px)); max-height: calc(100vh - 32px); display: flex; flex-direction: column; overflow: hidden; }
+.geometry-layout { display: flex; flex: 1 1 auto; gap: 12px; align-items: stretch; min-height: 0; overflow: hidden; }
+.geometry-main { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .geometry-canvas { display: block; width: 100%; min-height: 360px; border: 1px solid var(--md-border); border-radius: 6px; background: repeating-linear-gradient(0deg, transparent 0 24px, color-mix(in srgb, var(--md-border) 30%, transparent) 25px), repeating-linear-gradient(90deg, transparent 0 24px, color-mix(in srgb, var(--md-border) 30%, transparent) 25px); outline: none; }
 .geometry-canvas text { user-select: none; font: 14px/1.2 sans-serif; }
 .geometry-canvas line { pointer-events: stroke; }
-.geometry-canvas-wrap { position: relative; }
+.geometry-canvas-wrap { position: relative; min-height: 0; overflow: auto; }
 .geometry-construction-hint { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 2; max-width: calc(100% - 24px); padding: 4px 12px; border: 1px solid color-mix(in srgb, var(--md-accent) 35%, transparent); border-radius: 6px; background: color-mix(in srgb, var(--md-accent) 14%, var(--md-bg)); box-shadow: 0 2px 8px rgb(0 0 0 / 15%); color: var(--md-text); font-size: 13px; text-align: center; pointer-events: none; }
 .geometry-preview-line { stroke: var(--md-accent); stroke-width: 2; stroke-dasharray: 6 4; pointer-events: none; }
 .geometry-polygon-first-halo { fill: none; stroke: var(--md-accent); stroke-width: 2; pointer-events: none; }
@@ -22,7 +22,8 @@
 .geometry-shape-popover { position: absolute; top: calc(100% + 4px); left: 0; z-index: 40; display: grid; min-width: 108px; padding: 5px; border: 1px solid var(--md-border); border-radius: 6px; background: var(--md-bg); box-shadow: 0 4px 16px rgb(0 0 0 / 18%); }
 .geometry-shape-popover button { width: 100%; text-align: left; }
 .geometry-toolbar-group { display: inline-flex; align-items: center; gap: 4px; }
-.geometry-toolbar-group-label { padding: 0 4px; color: var(--md-text-muted); font-size: 11px; letter-spacing: .04em; }
+.geometry-toolbar-draw-group { gap: 2px; padding: 2px; border: 1px solid var(--md-border); border-radius: 7px; }
+.geometry-toolbar-group-label { padding: 2px 7px 2px 5px; border-right: 1px solid var(--md-border); color: var(--md-text); font-size: 11px; font-weight: 600; letter-spacing: .04em; cursor: default; pointer-events: none; user-select: none; }
 .geometry-category-wrap { position: relative; display: inline-flex; }
 .geometry-category-popover { position: absolute; top: calc(100% + 4px); left: 0; z-index: 40; display: grid; gap: 3px; min-width: 132px; padding: 6px; border: 1px solid var(--md-border); border-radius: 6px; background: var(--md-bg); box-shadow: 0 4px 16px rgb(0 0 0 / 18%); }
 .geometry-category-popover button { width: 100%; text-align: left; }
@@ -31,8 +32,10 @@
 .geometry-more-section-label { margin-bottom: 2px; color: var(--md-text-muted); font-size: 11px; letter-spacing: .04em; }
 .geometry-more-popover button { width: 100%; text-align: left; }
 .geometry-toolbar-comingsoon { opacity: .5; font-style: italic; cursor: not-allowed; }
+.geometry-text-prompt { position: absolute; z-index: 5; pointer-events: none; }
+.geometry-text-prompt input { width: 180px; padding: 2px 4px; border: 1px solid var(--md-accent); border-radius: 3px; outline: none; background: color-mix(in srgb, var(--md-bg) 88%, transparent); box-shadow: 0 1px 4px rgb(0 0 0 / 18%); color: var(--md-text); font: 14px/1.2 sans-serif; pointer-events: auto; }
 .geometry-inspector { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; padding: 8px 10px; border: 1px solid var(--md-border); border-radius: 5px; color: var(--md-text-muted); font-size: 13px; }
-.geometry-side { display: flex; flex-direction: column; gap: 8px; width: 240px; flex-shrink: 0; padding: 10px; border: 1px solid var(--md-border); border-radius: 6px; background: color-mix(in srgb, var(--md-border) 14%, transparent); overflow-y: auto; }
+.geometry-side { display: flex; flex-direction: column; gap: 8px; width: 240px; max-height: 100%; min-height: 0; flex-shrink: 0; padding: 10px; border: 1px solid var(--md-border); border-radius: 6px; background: color-mix(in srgb, var(--md-border) 14%, transparent); overflow-y: auto; }
 .geometry-side-empty-hint { color: var(--md-text-muted); font-size: 12px; text-align: center; padding: 20px 0; }
 .geometry-side strong { font-size: 13px; }
 .geometry-object-details { display: grid; gap: 6px; }
@@ -48,5 +51,6 @@
 .geometry-side .geometry-constraints button { margin-left: auto; }
 .constraint-invalid { color: var(--md-error); }
 .constraint-valid { color: var(--md-success, #1a7f37); }
-.geometry-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.geometry-constraint-detail { color: var(--md-text-muted); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; }
+.geometry-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; flex-shrink: 0; }
 @media (max-width: 720px) { .geometry-dialog { width: calc(100vw - 16px); } .geometry-canvas { min-height: 260px; } .geometry-toolbar { max-height: 120px; overflow-y: auto; } .geometry-inspector { flex-wrap: wrap; } .geometry-layout { flex-direction: column; } .geometry-side { width: 100%; flex-direction: row; flex-wrap: wrap; align-items: flex-start; } .geometry-side > * { flex: 1 1 220px; } }

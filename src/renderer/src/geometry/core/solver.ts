@@ -1,33 +1,42 @@
 import type { GeometryDocument } from './model'
-import { evaluateConstraints, type ConstraintResult, type GeometryConstraint } from './constraints'
-import { movePoint } from './model'
-import { resolvePoint } from './calculations'
+import { constraintPriority, evaluateConstraints, type ConstraintResult, type GeometryConstraint } from './constraints'
+import { getGeometryObject, getGeometryObjects, movePoint } from './model'
+import { intersectSegments, resolvePoint } from './calculations'
 
 export type SolveResult = { status: 'solved' | 'partial' | 'conflict' | 'diverged'; document: GeometryDocument; residual: number; iterations: number; violated: ConstraintResult[] }
+
+export function constraintsByPriority(constraints: readonly GeometryConstraint[]): GeometryConstraint[][] {
+  const groups = new Map<number, GeometryConstraint[]>()
+  for (const constraint of constraints) {
+    const priority = constraintPriority(constraint)
+    groups.set(priority, [...(groups.get(priority) ?? []), constraint])
+  }
+  return [...groups.entries()].sort(([a], [b]) => a - b).map(([, group]) => group)
+}
 
 type Variable = { id: string; axis: 'x' | 'y' }
 
 type Point = { x: number; y: number }
 
 function segmentPoints(document: GeometryDocument, id: string): { startId: string; endId: string; start: Point; end: Point } | null {
-  const object = document.objects.find((item) => item.type === 'segment' && item.id === id)
+  const object = getGeometryObject(document, id)
   if (!object || object.type !== 'segment') return null
-  const start = document.objects.find((item) => item.type === 'point' && item.id === object.start)
-  const end = document.objects.find((item) => item.type === 'point' && item.id === object.end)
+  const start = getGeometryObject(document, object.start)
+  const end = getGeometryObject(document, object.end)
   return start && end && start.type === 'point' && end.type === 'point' ? { startId: start.id, endId: end.id, start, end } : null
 }
 
 function solveDeterministicConstraint(document: GeometryDocument, constraint: GeometryConstraint, lockedPointId?: string): GeometryDocument {
   if (constraint.type === 'coincident') {
-    const first = document.objects.find((item) => item.type === 'point' && item.id === constraint.pointA)
-    const second = document.objects.find((item) => item.type === 'point' && item.id === constraint.pointB)
+    const first = getGeometryObject(document, constraint.pointA)
+    const second = getGeometryObject(document, constraint.pointB)
     if (!first || !second || first.type !== 'point' || second.type !== 'point') return document
     if (lockedPointId === second.id) return movePoint(document, first.id, second.x, second.y)
     return movePoint(document, second.id, first.x, first.y)
   }
   if (constraint.type === 'pointOnLine') {
     const segment = segmentPoints(document, constraint.line)
-    const attached = document.objects.find((item) => item.type === 'point' && item.id === constraint.point)
+    const attached = getGeometryObject(document, constraint.point)
     if (!segment || !attached || attached.type !== 'point') return document
     const dx = segment.end.x - segment.start.x; const dy = segment.end.y - segment.start.y
     const lengthSquared = dx * dx + dy * dy
@@ -42,21 +51,35 @@ function solveDeterministicConstraint(document: GeometryDocument, constraint: Ge
     const moved = movePoint(document, attached.id, segment.start.x + t * dx, segment.start.y + t * dy)
     return constraint.t === undefined ? updatePointOnLineT(moved, constraint, t) : moved
   }
+  if (constraint.type === 'midpoint') {
+    const segment = segmentPoints(document, constraint.line)
+    if (!segment) return document
+    return movePoint(document, constraint.point, (segment.start.x + segment.end.x) / 2, (segment.start.y + segment.end.y) / 2)
+  }
+  if (constraint.type === 'intersection') {
+    if (lockedPointId === constraint.point) return document
+    const first = getGeometryObject(document, constraint.lineA)
+    const second = getGeometryObject(document, constraint.lineB)
+    if (!first || !second || first.type !== 'segment' || second.type !== 'segment') return document
+    const point = intersectSegments(document, first, second)
+    return point ? movePoint(document, constraint.point, point.x, point.y) : document
+  }
   if (constraint.type === 'horizontal' || constraint.type === 'vertical') {
     const segment = segmentPoints(document, constraint.segment)
     if (!segment) return document
+    const originalLength = Math.hypot(segment.end.x - segment.start.x, segment.end.y - segment.start.y)
     if (constraint.type === 'horizontal') {
       return lockedPointId === segment.endId
-        ? movePoint(document, segment.startId, segment.start.x, segment.end.y)
-        : movePoint(document, segment.endId, segment.end.x, segment.start.y)
+        ? movePoint(document, segment.startId, segment.end.x - Math.sign(segment.end.x - segment.start.x || 1) * originalLength, segment.end.y)
+        : movePoint(document, segment.endId, segment.start.x + Math.sign(segment.end.x - segment.start.x || 1) * originalLength, segment.start.y)
     }
     return lockedPointId === segment.endId
-      ? movePoint(document, segment.startId, segment.end.x, segment.start.y)
-      : movePoint(document, segment.endId, segment.start.x, segment.end.y)
+      ? movePoint(document, segment.startId, segment.end.x, segment.end.y - Math.sign(segment.end.y - segment.start.y || 1) * originalLength)
+      : movePoint(document, segment.endId, segment.start.x, segment.start.y + Math.sign(segment.end.y - segment.start.y || 1) * originalLength)
   }
   if (constraint.type === 'fixedDistance') {
-    const first = document.objects.find((item) => item.type === 'point' && item.id === constraint.a)
-    const second = document.objects.find((item) => item.type === 'point' && item.id === constraint.b)
+    const first = getGeometryObject(document, constraint.a)
+    const second = getGeometryObject(document, constraint.b)
     if (!first || !second || first.type !== 'point' || second.type !== 'point') return document
     const dx = second.x - first.x; const dy = second.y - first.y
     const size = Math.hypot(dx, dy)
@@ -65,9 +88,9 @@ function solveDeterministicConstraint(document: GeometryDocument, constraint: Ge
     return movePoint(document, second.id, first.x + ux * constraint.value, first.y + uy * constraint.value)
   }
   if (constraint.type === 'tangent') {
-    const circleObject = document.objects.find((item) => item.id === constraint.curveA && (item.type === 'circle' || item.type === 'arc')) ?? document.objects.find((item) => item.id === constraint.curveB && (item.type === 'circle' || item.type === 'arc'))
+    const circleObject = getGeometryObject(document, constraint.curveA) ?? getGeometryObject(document, constraint.curveB)
     const otherId = circleObject ? (circleObject.id === constraint.curveA ? constraint.curveB : constraint.curveA) : null
-    const lineObject = otherId ? document.objects.find((item) => item.type === 'segment' && item.id === otherId) : null
+    const lineObject = otherId ? getGeometryObject(document, otherId) : null
     if (circleObject && lineObject && (circleObject.type === 'circle' || circleObject.type === 'arc')) {
       const center = resolvePoint(document, circleObject.center)
       const linePoints = segmentPoints(document, lineObject.id)
@@ -83,8 +106,8 @@ function solveDeterministicConstraint(document: GeometryDocument, constraint: Ge
       const movedStart = movePoint(document, linePoints.startId, linePoints.start.x + offsetX, linePoints.start.y + offsetY)
       return movePoint(movedStart, linePoints.endId, linePoints.end.x + offsetX, linePoints.end.y + offsetY)
     }
-    const firstCircle = document.objects.find((item) => item.id === constraint.curveA && (item.type === 'circle' || item.type === 'arc'))
-    const secondCircle = document.objects.find((item) => item.id === constraint.curveB && (item.type === 'circle' || item.type === 'arc'))
+    const firstCircle = getGeometryObject(document, constraint.curveA)
+    const secondCircle = getGeometryObject(document, constraint.curveB)
     if (firstCircle && secondCircle && (firstCircle.type === 'circle' || firstCircle.type === 'arc') && (secondCircle.type === 'circle' || secondCircle.type === 'arc')) {
       const firstCenter = resolvePoint(document, firstCircle.center)
       const secondCenter = resolvePoint(document, secondCircle.center)
@@ -102,25 +125,31 @@ function solveDeterministicConstraint(document: GeometryDocument, constraint: Ge
     return document
   }
   if (constraint.type === 'fixedAngle') {
-    const vertexPoint = document.objects.find((item) => item.type === 'point' && item.id === constraint.vertex)
-    const armA = document.objects.find((item) => item.type === 'point' && item.id === constraint.a)
-    const armB = document.objects.find((item) => item.type === 'point' && item.id === constraint.b)
+    const vertexPoint = getGeometryObject(document, constraint.vertex)
+    const armA = getGeometryObject(document, constraint.a)
+    const armB = getGeometryObject(document, constraint.b)
     if (!vertexPoint || !armA || !armB || vertexPoint.type !== 'point' || armA.type !== 'point' || armB.type !== 'point') return document
     const vertex = { x: vertexPoint.x, y: vertexPoint.y }
+    const requested = Math.abs(constraint.value)
+    const signedCurrent = (): number => {
+      const value = Math.atan2(armB.y - vertex.y, armB.x - vertex.x) - Math.atan2(armA.y - vertex.y, armA.x - vertex.x)
+      return Math.atan2(Math.sin(value), Math.cos(value))
+    }
+    const signedTarget = (): number => (signedCurrent() < 0 ? -requested : requested)
     if (lockedPointId === constraint.a && lockedPointId !== constraint.b) {
       const radiusA = Math.hypot(armA.x - vertex.x, armA.y - vertex.y)
       const angleB = Math.atan2(armB.y - vertex.y, armB.x - vertex.x)
-      const target = angleB - constraint.value
+      const target = angleB - signedTarget()
       return movePoint(document, constraint.a, vertex.x + Math.cos(target) * radiusA, vertex.y + Math.sin(target) * radiusA)
     }
     const radiusB = Math.hypot(armB.x - vertex.x, armB.y - vertex.y)
     const angleA = Math.atan2(armA.y - vertex.y, armA.x - vertex.x)
-    const target = angleA + constraint.value
+    const target = angleA + signedTarget()
     return movePoint(document, constraint.b, vertex.x + Math.cos(target) * radiusB, vertex.y + Math.sin(target) * radiusB)
   }
   if (constraint.type === 'symmetric') {
-    const first = document.objects.find((item) => item.type === 'point' && item.id === constraint.a)
-    const second = document.objects.find((item) => item.type === 'point' && item.id === constraint.b)
+    const first = getGeometryObject(document, constraint.a)
+    const second = getGeometryObject(document, constraint.b)
     const mirror = segmentPoints(document, constraint.mirror)
     if (!first || !second || !mirror || first.type !== 'point' || second.type !== 'point') return document
     const vx = mirror.end.x - mirror.start.x; const vy = mirror.end.y - mirror.start.y
@@ -192,13 +221,13 @@ function updatePointOnLineT(document: GeometryDocument, constraint: GeometryCons
 }
 
 function variables(document: GeometryDocument, lockedPointId?: string, allowedIds?: Set<string>): Variable[] {
-  return document.objects
-    .filter((object) => object.type === 'point' && object.id !== lockedPointId && (!allowedIds || allowedIds.has(object.id)))
+  return getGeometryObjects(document, 'point')
+    .filter((object) => object.id !== lockedPointId && (!allowedIds || allowedIds.has(object.id)))
     .flatMap((point) => [{ id: point.id, axis: 'x' as const }, { id: point.id, axis: 'y' as const }])
 }
 
 function involvedPointIds(document: GeometryDocument, constraints: GeometryConstraint[]): Set<string> {
-  const byId = new Map(document.objects.map((object) => [object.id, object]))
+  const byId = new Map([...document.points, ...document.segments, ...document.curves, ...document.annotations].map((object) => [object.id, object]))
   const ids = new Set<string>()
   const visit = (value: unknown): void => {
     if (typeof value !== 'string' || ids.has(value)) return
@@ -217,20 +246,6 @@ function involvedPointIds(document: GeometryDocument, constraints: GeometryConst
       visit(object.center)
       return
     }
-    if (object.type === 'midpoint') {
-      visit(object.a)
-      visit(object.b)
-      return
-    }
-    if (object.type === 'intersection') {
-      visit(object.lineA)
-      visit(object.lineB)
-      return
-    }
-    if (object.type === 'perpendicularFoot') {
-      visit(object.point)
-      visit(object.line)
-    }
   }
   for (const constraint of constraints) Object.values(constraint).forEach(visit)
   return ids
@@ -248,7 +263,7 @@ function evaluateConstraintResidual(document: GeometryDocument, constraint: Geom
 }
 
 function updateVariable(document: GeometryDocument, variable: Variable, delta: number): GeometryDocument {
-  const point = document.objects.find((object) => object.type === 'point' && object.id === variable.id)
+  const point = getGeometryObject(document, variable.id)
   if (!point || point.type !== 'point') return document
   return movePoint(document, point.id, variable.axis === 'x' ? point.x + delta : point.x, variable.axis === 'y' ? point.y + delta : point.y)
 }
@@ -273,12 +288,28 @@ function solveLinearSystem(matrix: number[][], values: number[]): number[] | nul
 
 export function solveGeometry(document: GeometryDocument, constraints: GeometryConstraint[] = document.constraints, maxIterations = 12, lockedPointId?: string): SolveResult {
   let current = document
-  for (let iteration = 0; iteration < maxIterations; iteration += 1) {
+  let iteration = 0
+  for (const priorityGroup of constraintsByPriority(constraints)) {
+    for (let groupIteration = 0; groupIteration < maxIterations; groupIteration += 1) {
+      iteration += 1
+      const results = evaluateConstraints(current, priorityGroup)
+      const violated = results.filter((result) => !result.valid)
+      if (!violated.length) break
+      const violatedConstraints = priorityGroup.filter((_constraint, index) => !results[index].valid)
+      const deterministic = violatedConstraints.reduce((next, constraint) => solveDeterministicConstraint(next, constraint, lockedPointId), current)
+      if (JSON.stringify(deterministic) !== JSON.stringify(current)) {
+        current = deterministic
+        continue
+      }
+      break
+    }
+  }
+  for (iteration = 0; iteration < maxIterations; iteration += 1) {
     const results = evaluateConstraints(current, constraints)
     const violated = results.filter((result) => !result.valid)
     if (!violated.length) return { status: 'solved', document: current, residual: 0, iterations: iteration, violated: [] }
     // 只投影当前被违反的约束：已满足的约束（可能属于其他图形）不得产生任何位移。
-    const violatedConstraints = constraints.filter((_constraint, index) => !results[index].valid)
+    const violatedConstraints = constraints.filter((_constraint, index) => !results[index].valid).sort((a, b) => constraintPriority(a) - constraintPriority(b))
     const deterministic = violatedConstraints.reduce((next, constraint) => solveDeterministicConstraint(next, constraint, lockedPointId), current)
     if (JSON.stringify(deterministic) !== JSON.stringify(current)) {
       current = deterministic

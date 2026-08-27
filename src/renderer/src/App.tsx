@@ -275,7 +275,7 @@ export function App(): React.JSX.Element {
          onSettings={showSettings}
          onDrawGeometry={handleDrawGeometry}
       />
-      {geometryOpen ? <GeometryEditorDialog existingPath={geometryExistingPath} initialDocument={geometryDocument} onClose={() => { setGeometryOpen(false); setGeometryDocument(undefined); setGeometryExistingPath(undefined) }} onSave={saveGeometry} /> : null}
+       {geometryOpen ? <GeometryEditorDialog existingPath={geometryExistingPath} initialDocument={geometryDocument} initialTool="select" onClose={() => { setGeometryOpen(false); setGeometryDocument(undefined); setGeometryExistingPath(undefined) }} onSave={saveGeometry} /> : null}
 
       <div className="main-layout">
         <FileSidebar

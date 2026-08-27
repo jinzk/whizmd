@@ -5,7 +5,7 @@ describe('geometry commands', () => {
   it('executes and undoes one atomic document change', () => {
     const document = createGeometryDocument()
     const result = executeGeometryCommand(createCommandHistory(), document, createDocumentCommand('add point', (current) => addPoint(current, 10, 20)))
-    expect(result.document.objects).toHaveLength(1)
+    expect(result.document.points).toHaveLength(1)
     expect(undoGeometryCommand(result.history, result.document)?.document).toEqual(document)
   })
 })

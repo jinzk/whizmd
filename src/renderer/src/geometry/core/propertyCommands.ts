@@ -1,12 +1,10 @@
-import type { GeometryArc, GeometryDocument } from './model'
+import type { GeometryArc, GeometryDocument, GeometryTextAnchor } from './model'
 import { addConstraint, type GeometryConstraint } from './constraints'
-import { movePoint, removeObject, resizeCircle } from './model'
+import { getGeometryObject, movePoint, removeObject, resizeCircle } from './model'
 
 export function setPointLabel(document: GeometryDocument, pointId: string, label: string): GeometryDocument {
-  return {
-    ...document,
-    objects: document.objects.map((object) => object.type === 'point' && object.id === pointId ? { ...object, label: label || undefined } : object)
-  }
+  const points = document.points.map((object) => object.id === pointId ? { ...object, label: label || undefined } : object)
+  return { ...document, points }
 }
 
 export function setPointCoordinates(document: GeometryDocument, pointId: string, x: number, y: number): GeometryDocument {
@@ -14,10 +12,24 @@ export function setPointCoordinates(document: GeometryDocument, pointId: string,
 }
 
 export function setTextValue(document: GeometryDocument, textId: string, text: string): GeometryDocument {
-  return {
-    ...document,
-    objects: document.objects.map((object) => object.type === 'text' && object.id === textId ? { ...object, text } : object)
-  }
+  const annotations = document.annotations.map((object) => object.id === textId ? { ...object, text } : object)
+  return { ...document, annotations }
+}
+
+export function setTextPosition(document: GeometryDocument, textId: string, x: number, y: number): GeometryDocument {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return document
+  const annotations = document.annotations.map((object) => object.id === textId ? { ...object, x, y, anchor: undefined } : object)
+  return { ...document, annotations }
+}
+
+export function setTextStyle(document: GeometryDocument, textId: string, patch: { fontSize?: number; color?: string; rotation?: number }): GeometryDocument {
+  const annotations = document.annotations.map((object) => object.id === textId ? { ...object, ...patch } : object)
+  return { ...document, annotations }
+}
+
+export function setTextAnchor(document: GeometryDocument, textId: string, anchor: GeometryTextAnchor | undefined): GeometryDocument {
+  const annotations = document.annotations.map((object) => object.id === textId ? { ...object, anchor } : object)
+  return { ...document, annotations }
 }
 
 export function setCircleRadius(document: GeometryDocument, circleId: string, radius: number): GeometryDocument {
@@ -25,21 +37,19 @@ export function setCircleRadius(document: GeometryDocument, circleId: string, ra
 }
 
 export function setArcProperties(document: GeometryDocument, arcId: string, patch: Partial<GeometryArc>): GeometryDocument {
-  return {
-    ...document,
-    objects: document.objects.map((object) => object.type === 'arc' && object.id === arcId ? { ...object, ...patch } : object)
-  }
+  const curves = document.curves.map((object) => object.type === 'arc' && object.id === arcId ? { ...object, ...patch } : object)
+  return { ...document, curves }
 }
 
 export function setEllipseSemiMajor(document: GeometryDocument, ellipseId: string, semiMajor: number): GeometryDocument {
   return Number.isFinite(semiMajor) && semiMajor > 0
-    ? { ...document, objects: document.objects.map((object) => object.type === 'ellipse' && object.id === ellipseId ? { ...object, semiMajor } : object) }
+    ? (() => { const curves = document.curves.map((object) => object.type === 'ellipse' && object.id === ellipseId ? { ...object, semiMajor } : object); return { ...document, curves } })()
     : document
 }
 
 export function setSegmentLength(document: GeometryDocument, segmentId: string, length: number): GeometryDocument {
   if (!Number.isFinite(length) || length <= 0) return document
-  const segment = document.objects.find((object) => object.type === 'segment' && object.id === segmentId)
+  const segment = getGeometryObject(document, segmentId)
   if (!segment || segment.type !== 'segment') return document
   const index = document.constraints.findIndex((constraint) => constraint.type === 'fixedDistance' && ((constraint.a === segment.start && constraint.b === segment.end) || (constraint.a === segment.end && constraint.b === segment.start)))
   if (index >= 0) {

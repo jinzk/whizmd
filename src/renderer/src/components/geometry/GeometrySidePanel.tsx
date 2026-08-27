@@ -1,8 +1,9 @@
-import { evaluateConstraints, movePoint, removeConstraint, resolvePoint, solveGeometry, type GeometryArc, type GeometryDocument } from '../../geometry'
+import { evaluateConstraints, findPolygonCycle, getGeometryObject, getGeometryObjects, movePoint, removeConstraint, resolvePoint, solveGeometry, type GeometryArc, type GeometryDocument } from '../../geometry'
 import { getArcAngles } from '../../geometry/core/calculations'
 import { getVertexAngle } from '../../geometry/core/polygonGuard'
+import type { GeometryConstraint } from '../../geometry/core/constraints'
 import { useI18n, type TranslationKey } from '../../i18n'
-import { deleteObjects, setArcProperties, setCircleRadius, setEllipseSemiMajor, setPointCoordinates, setPointLabel, setSegmentLength, setTextValue, setVertexAngle } from '../../geometry/core/propertyCommands'
+import { deleteObjects, setArcProperties, setCircleRadius, setEllipseSemiMajor, setPointCoordinates, setPointLabel, setSegmentLength, setTextAnchor, setTextStyle, setTextValue, setVertexAngle } from '../../geometry/core/propertyCommands'
 
 type Props = {
   document: GeometryDocument
@@ -25,13 +26,38 @@ const CONSTRAINT_LABEL_KEYS: Record<string, TranslationKey> = {
   symmetric: 'geometrySymmetric'
 }
 
+function absoluteAngleDegrees(radians: number): number {
+  return Math.round(Math.abs((radians * 180) / Math.PI))
+}
+
+function selectedReferenceIds(document: GeometryDocument, selectedIds: readonly string[]): Set<string> {
+  const references = new Set(selectedIds)
+  for (const object of [...getGeometryObjects(document, 'segment')]) {
+    if (object.type === 'segment' && (selectedIds.includes(object.start) || selectedIds.includes(object.end))) references.add(object.id)
+  }
+  return references
+}
+
 function InspectorSummary({ document, selectedIds, commit, onClearSelection }: Props): React.JSX.Element | null {
   const { t } = useI18n()
   if (!selectedIds.length) return null
-  const primary = document.objects.find((object) => object.id === selectedIds[0])
+  const primary = getGeometryObject(document, selectedIds[0])
   const singlePoint = selectedIds.length === 1 && primary?.type === 'point' ? primary : null
+  const polygon = selectedIds.length > 2 && primary?.type === 'point' ? findPolygonCycle(document, primary.id) : null
+  const polygonSelected = polygon && polygon.every((id) => selectedIds.includes(id))
+  const polygonPoints = polygonSelected ? polygon.map((id) => resolvePoint(document, id)).filter((point): point is { x: number; y: number } => Boolean(point)) : []
+  const polygonArea = polygonPoints.reduce((sum, point, index) => {
+    const next = polygonPoints[(index + 1) % polygonPoints.length]
+    return sum + point.x * next.y - next.x * point.y
+  }, 0)
+  const polygonPerimeter = polygonPoints.reduce((sum, point, index) => {
+    const next = polygonPoints[(index + 1) % polygonPoints.length]
+    return sum + Math.hypot(next.x - point.x, next.y - point.y)
+  }, 0)
   const title = selectedIds.length > 1 ? t('geometrySelectedCount', { count: String(selectedIds.length) }) : primary?.type === 'point' && primary.label ? primary.label : selectedIds[0]
-  const allSatisfied = !evaluateConstraints(document, document.constraints).some((result) => !result.valid)
+  const references = selectedReferenceIds(document, selectedIds)
+  const selectedConstraints = document.constraints.filter((constraint) => Object.values(constraint).some((value) => typeof value === 'string' && references.has(value)))
+  const allSatisfied = !evaluateConstraints(document, selectedConstraints).some((result) => !result.valid)
   return (
     <aside className="geometry-inspector">
       <strong>{title}</strong>
@@ -62,6 +88,14 @@ function InspectorSummary({ document, selectedIds, commit, onClearSelection }: P
           </label>
           <VertexAngleField document={document} pointId={singlePoint.id} commit={commit} />
           <CircleRadiiFields document={document} pointId={singlePoint.id} commit={commit} />
+        </>
+      ) : null}
+      {polygonSelected ? (
+        <>
+          <span>{t('geometryPolygonVertices')}: {polygon.length}</span>
+          <span>{t('geometryPolygonEdges')}: {polygon.length}</span>
+          <span>{t('geometryPolygonArea')}: {Math.abs(polygonArea / 2).toFixed(2)}</span>
+          <span>{t('geometryPolygonPerimeter')}: {polygonPerimeter.toFixed(2)}</span>
         </>
       ) : null}
       <span>
@@ -118,8 +152,7 @@ function CircleRadiiFields({ document, pointId, commit }: { document: GeometryDo
   const { t } = useI18n()
   const point = resolvePoint(document, pointId)
   if (!point) return null
-  const entries = document.objects.flatMap((object) => {
-    if (object.type !== 'circle') return []
+  const entries = getGeometryObjects(document, 'circle').flatMap((object) => {
     const center = resolvePoint(document, object.center)
     if (!center) return []
     const distance = Math.hypot(point.x - center.x, point.y - center.y)
@@ -132,7 +165,7 @@ function CircleRadiiFields({ document, pointId, commit }: { document: GeometryDo
     if (!Number.isFinite(radius) || radius <= 0) return
     let next = setCircleRadius(document, circleId, Math.max(1, radius))
     if (ringPointId) {
-      const circle = next.objects.find((object) => object.id === circleId)
+      const circle = getGeometryObject(next, circleId)
       if (circle && circle.type === 'circle') {
         const center = resolvePoint(next, circle.center)
         const moving = resolvePoint(next, ringPointId)
@@ -167,14 +200,12 @@ function CircleRadiiFields({ document, pointId, commit }: { document: GeometryDo
 function ObjectDetails({ document, selectedIds, commit }: Props): React.JSX.Element | null {
   const { t } = useI18n()
   if (selectedIds.length !== 1) return null
-  const object = document.objects.find((item) => item.id === selectedIds[0])
+  const object = getGeometryObject(document, selectedIds[0])
   if (!object) return null
   const point = object.type === 'point' ? resolvePoint(document, object.id) : null
   const segment = object.type === 'segment' ? { start: resolvePoint(document, object.start), end: resolvePoint(document, object.end) } : null
   const length = segment?.start && segment.end ? Math.hypot(segment.end.x - segment.start.x, segment.end.y - segment.start.y) : null
   const center = object.type === 'circle' ? resolvePoint(document, object.center) : null
-  const dependency =
-    object.type === 'midpoint' ? `${object.a}, ${object.b}` : object.type === 'intersection' ? `${object.lineA}, ${object.lineB}` : object.type === 'perpendicularFoot' ? `${object.point}, ${object.line}` : null
 
   const applySegmentLength = (segmentId: string, value: number): void => {
     const next = setSegmentLength(document, segmentId, value)
@@ -220,20 +251,22 @@ function ObjectDetails({ document, selectedIds, commit }: Props): React.JSX.Elem
       ) : null}
       {object.type === 'arc' ? <ArcFields document={document} arcId={object.id} commit={commit} /> : null}
       {object.type === 'text' ? (
-        <label>
-          {t('geometryTextValue')}{' '}
-          <input
-            value={object.text}
-            onChange={(event) =>
-              commit(setTextValue(document, object.id, event.target.value))
-            }
-          />
-        </label>
-      ) : null}
-      {dependency ? (
-        <span>
-          {t('geometryDependencies')}: {dependency}
-        </span>
+        <>
+          <label>{t('geometryTextValue')}{' '}<input value={object.text} onChange={(event) => commit(setTextValue(document, object.id, event.target.value))} /></label>
+          <label>{t('geometryFontSize')}{' '}<input aria-label={t('geometryFontSize')} type="number" min="1" value={object.fontSize ?? 14} onChange={(event) => commit(setTextStyle(document, object.id, { fontSize: Math.max(1, Number(event.target.value)) }))} /></label>
+          <label>{t('geometryTextColor')}{' '}<input aria-label={t('geometryTextColor')} type="color" value={object.color ?? '#24292f'} onChange={(event) => commit(setTextStyle(document, object.id, { color: event.target.value }))} /></label>
+          <label>{t('geometryTextRotation')}{' '}<input aria-label={t('geometryTextRotation')} type="number" value={object.rotation ?? 0} onChange={(event) => commit(setTextStyle(document, object.id, { rotation: Number(event.target.value) || 0 }))} /></label>
+          <label>{t('geometryTextAnchor')}{' '}<select aria-label={t('geometryTextAnchor')} value={object.anchor?.objectId ?? ''} onChange={(event) => {
+            const segment = getGeometryObject(document, event.target.value)
+            if (!segment || segment.type !== 'segment') return commit(setTextAnchor(document, object.id, undefined))
+            const start = resolvePoint(document, segment.start); const end = resolvePoint(document, segment.end)
+            const lengthSquared = start && end ? Math.max(1e-12, (end.x - start.x) ** 2 + (end.y - start.y) ** 2) : 1
+            const tValue = start && end ? Math.max(0, Math.min(1, ((object.x - start.x) * (end.x - start.x) + (object.y - start.y) * (end.y - start.y)) / lengthSquared)) : 0.5
+            const anchorX = start && end ? start.x + (end.x - start.x) * tValue : object.x
+            const anchorY = start && end ? start.y + (end.y - start.y) * tValue : object.y
+            commit(setTextAnchor(document, object.id, { objectId: segment.id, t: tValue, offsetX: object.x - anchorX, offsetY: object.y - anchorY }))
+          }}><option value="">{t('geometryTextUnanchored')}</option>{getGeometryObjects(document, 'segment').map((segment) => <option key={segment.id} value={segment.id}>{segment.id}</option>)}</select></label>
+        </>
       ) : null}
     </aside>
   )
@@ -241,7 +274,7 @@ function ObjectDetails({ document, selectedIds, commit }: Props): React.JSX.Elem
 
 function ArcFields({ document, arcId, commit }: { document: GeometryDocument; arcId: string; commit: (next: GeometryDocument) => void }): React.JSX.Element | null {
   const { t } = useI18n()
-  const arc = document.objects.find((item) => item.id === arcId)
+  const arc = getGeometryObject(document, arcId)
   if (!arc || arc.type !== 'arc') return null
   const angles = getArcAngles(document, arc)
   const setArc = (patch: Partial<GeometryArc>): void =>
@@ -279,26 +312,62 @@ function ArcFields({ document, arcId, commit }: { document: GeometryDocument; ar
   )
 }
 
-function ConstraintsList({ document, commit }: Props): React.JSX.Element | null {
+function ConstraintsList({ document, selectedIds, commit }: Props): React.JSX.Element | null {
   const { t } = useI18n()
-  if (!document.constraints.length) return null
+  const references = selectedReferenceIds(document, selectedIds)
+  const constraints = document.constraints.filter((constraint) => Object.values(constraint).some((value) => typeof value === 'string' && references.has(value)))
+  if (!constraints.length) return null
   const label = (type: string): string => t(CONSTRAINT_LABEL_KEYS[type] ?? ('' as TranslationKey)) || type
+  const pointLabel = (id: string): string => {
+    const point = getGeometryObject(document, id)
+    return point?.type === 'point' && point.label ? point.label : id
+  }
+  const objectLabel = (id: string): string => {
+    const object = getGeometryObject(document, id)
+    if (!object) return id
+    if (object.type === 'segment') return `${pointLabel(object.start)}-${pointLabel(object.end)}`
+    if (object.type === 'circle') return `${t('geometryCircle')} ${id}`
+    if (object.type === 'arc') return `${t('geometryArc')} ${id}`
+    if (object.type === 'point') return pointLabel(id)
+    return id
+  }
+  const detail = (constraint: GeometryConstraint): string => {
+    switch (constraint.type) {
+      case 'coincident': return `${pointLabel(constraint.pointA)} = ${pointLabel(constraint.pointB)}`
+      case 'horizontal':
+      case 'vertical': return objectLabel(constraint.segment)
+      case 'pointOnLine': return `${pointLabel(constraint.point)} ∈ ${objectLabel(constraint.line)}`
+      case 'midpoint': return `${pointLabel(constraint.point)} = mid(${objectLabel(constraint.line)})`
+      case 'intersection': return `${pointLabel(constraint.point)} ∈ ${objectLabel(constraint.lineA)} ∩ ${objectLabel(constraint.lineB)}`
+      case 'parallel':
+      case 'perpendicular': return `${objectLabel(constraint.lineA)} / ${objectLabel(constraint.lineB)}`
+      case 'equalLength': return `${objectLabel(constraint.segmentA)} = ${objectLabel(constraint.segmentB)}`
+      case 'fixedDistance': return `${pointLabel(constraint.a)}-${pointLabel(constraint.b)} = ${constraint.value.toFixed(2)}`
+      case 'fixedAngle': return `∠${pointLabel(constraint.a)}${pointLabel(constraint.vertex)}${pointLabel(constraint.b)} = ${absoluteAngleDegrees(constraint.value)}°`
+      case 'tangent': return `${objectLabel(constraint.curveA)} / ${objectLabel(constraint.curveB)}`
+      case 'symmetric': return `${pointLabel(constraint.a)}, ${pointLabel(constraint.b)} ↔ ${objectLabel(constraint.mirror)}`
+      default: return ''
+    }
+  }
   return (
     <aside className="geometry-constraints">
       <strong>{t('geometryConstraints')}</strong>
-      {document.constraints.map((constraint, index) => {
+      {constraints.map((constraint) => {
+        const index = document.constraints.indexOf(constraint)
         const result = evaluateConstraints(document, [constraint])[0]
         return (
           <div key={`${constraint.type}-${index}`} className={result.valid ? 'constraint-valid' : 'constraint-invalid'}>
             <span>
-              {label(constraint.type)}: {result.valid ? t('geometrySatisfied') : result.message ?? t('geometryUnsatisfied')}
+              <strong>{label(constraint.type)}</strong>{' '}
+              <span className="geometry-constraint-detail">({detail(constraint)})</span>{' '}
+              {result.valid ? t('geometrySatisfied') : result.message ?? t('geometryUnsatisfied')}
             </span>
             {constraint.type === 'fixedAngle' ? (
               <input
                 aria-label={`${t('geometryAngle')}-${index}`}
                 type="number"
                 style={{ width: 64 }}
-                value={Math.round((constraint.value * 180) / Math.PI)}
+                value={absoluteAngleDegrees(constraint.value)}
                 onChange={(event) => {
                   const degrees = Number(event.target.value)
                   if (!Number.isFinite(degrees)) return

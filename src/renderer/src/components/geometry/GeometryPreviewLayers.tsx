@@ -1,5 +1,5 @@
 import { buildShape, type ShapeKind } from '../../geometry/core/shapeFactory'
-import { addEllipse, addPoint, createGeometryDocument, resolveEllipseGeometry, type GeometryDocument } from '../../geometry'
+import { addEllipse, addPoint, createGeometryDocument, getGeometryObject, getGeometryObjects, resolveEllipseGeometry, type GeometryDocument } from '../../geometry'
 
 type Point = { x: number; y: number }
 type Box = { x: number; y: number; width: number; height: number }
@@ -16,6 +16,7 @@ type Props = {
   shapeAnchor: Point | null
   shapeCursor: Point | null
   ellipsePreview: { focusA: Point; focusB: Point; semiMajor: number } | null
+  segmentDraft: { start: Point; cursor: Point } | null
 }
 
 function ArcDraftPreview({ view, cursor }: { view: NonNullable<Props['arcDraftView']>; cursor: Point }): React.JSX.Element {
@@ -45,15 +46,15 @@ function ArcDraftPreview({ view, cursor }: { view: NonNullable<Props['arcDraftVi
 function ShapeDraftPreview({ kind, anchor, cursor }: { kind: ShapeKind; anchor: Point; cursor: Point }): React.JSX.Element | null {
   const preview = buildShape(createGeometryDocument(), kind, anchor.x, anchor.y, cursor.x, cursor.y)
   if (kind === 'circle') {
-    const circle = preview.objects.find((object) => object.type === 'circle')
-    const center = preview.objects.find((object) => object.id === (circle as { center: string } | undefined)?.center)
+    const circle = getGeometryObjects(preview, 'circle')[0]
+    const center = circle ? getGeometryObject(preview, circle.center) : undefined
     if (circle && circle.type === 'circle' && center && center.type === 'point') {
       return <circle className="geometry-preview-line" cx={center.x} cy={center.y} r={circle.radius} fill="none" />
     }
     return null
   }
-  const byId = new Map(preview.objects.map((object) => [object.id, object]))
-  const segments = preview.objects.filter((object): object is { type: 'segment'; id: string; start: string; end: string } => object.type === 'segment')
+  const byId = new Map([...preview.points, ...preview.segments].map((object) => [object.id, object]))
+  const segments = preview.segments
   return (
     <g className="geometry-preview-line">
       {segments.map((segment) => {
@@ -67,7 +68,7 @@ function ShapeDraftPreview({ kind, anchor, cursor }: { kind: ShapeKind; anchor: 
 }
 
 export function GeometryPreviewLayers(props: Props): React.JSX.Element {
-  const { selectionBox, polygonRubberFrom, polygonCursor, polygonFirstVertex, snapHint, arcDraftView, arcCursor, shapeKind, shapeAnchor, shapeCursor, ellipsePreview } = props
+  const { selectionBox, polygonRubberFrom, polygonCursor, polygonFirstVertex, snapHint, arcDraftView, arcCursor, shapeKind, shapeAnchor, shapeCursor, ellipsePreview, segmentDraft } = props
   return (
     <>
       {selectionBox ? <rect className="geometry-selection-box" x={selectionBox.x} y={selectionBox.y} width={selectionBox.width} height={selectionBox.height} /> : null}
@@ -79,6 +80,12 @@ export function GeometryPreviewLayers(props: Props): React.JSX.Element {
       {arcDraftView && arcCursor ? <ArcDraftPreview view={arcDraftView} cursor={arcCursor} /> : null}
       {shapeAnchor && shapeCursor ? <ShapeDraftPreview kind={shapeKind} anchor={shapeAnchor} cursor={shapeCursor} /> : null}
       {ellipsePreview ? <EllipseDraftPreview preview={ellipsePreview} /> : null}
+      {segmentDraft ? (
+        <>
+          <line className="geometry-preview-line" x1={segmentDraft.start.x} y1={segmentDraft.start.y} x2={segmentDraft.cursor.x} y2={segmentDraft.cursor.y} />
+          <circle className="geometry-snap-halo" cx={segmentDraft.start.x} cy={segmentDraft.start.y} r="5" />
+        </>
+      ) : null}
     </>
   )
 }
@@ -87,7 +94,7 @@ function EllipseDraftPreview({ preview }: { preview: NonNullable<Props['ellipseP
   let withA = addPoint(createGeometryDocument(), preview.focusA.x, preview.focusA.y)
   withA = addPoint(withA, preview.focusB.x, preview.focusB.y)
   withA = addEllipse(withA, 'P1', 'P2', preview.semiMajor)
-  const ellipse = withA.objects.find((object) => object.type === 'ellipse')
+  const ellipse = getGeometryObjects(withA, 'ellipse')[0]
   if (!ellipse || ellipse.type !== 'ellipse') return <></>
   const geometry = resolveEllipseGeometry(withA, ellipse)
   if (!geometry) return <></>
@@ -96,7 +103,7 @@ function EllipseDraftPreview({ preview }: { preview: NonNullable<Props['ellipseP
 
 export function findPoint(document: GeometryDocument, id: string | undefined): Point | null {
   if (!id) return null
-  const point = document.objects.find((object) => object.type === 'point' && object.id === id)
+  const point = getGeometryObject(document, id)
   return point && point.type === 'point' ? { x: point.x, y: point.y } : null
 }
 

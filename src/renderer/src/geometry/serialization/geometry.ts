@@ -7,7 +7,13 @@ export function serializeGeometry(document: GeometryDocument): string {
 export function deserializeGeometry(value: string): GeometryDocument | null {
   try {
     const parsed = JSON.parse(value) as GeometryDocument
-    return parsed?.version === 1 && Array.isArray(parsed.objects) ? { ...parsed, constraints: parsed.constraints ?? [], topology: parsed.topology ?? { nodeIds: parsed.objects.filter((object) => object.type === 'point').map((object) => object.id) } } : null
+    if (parsed?.version !== 1) return null
+    const points = parsed.points ?? []
+    const segments = parsed.segments ?? []
+    const curves = parsed.curves ?? []
+    const annotations = parsed.annotations ?? []
+    if (!Array.isArray(points) || !Array.isArray(segments) || !Array.isArray(curves) || !Array.isArray(annotations)) return null
+    return { ...parsed, points, segments, curves, annotations, constraints: parsed.constraints ?? [], topology: parsed.topology ?? { nodeIds: points.map((object) => object.id) }, shapes: parsed.shapes ?? [], sharedNodes: parsed.sharedNodes ?? [], dependencies: parsed.dependencies ?? [] }
   } catch {
     return null
   }

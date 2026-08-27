@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Dialog } from './Dialog'
 import {
   GEOMETRY_TOOLS,
@@ -6,12 +6,10 @@ import {
   addArc,
   addEllipse,
   addConstraint,
-  addIntersection,
-  addMidpoint,
-  addPerpendicularFoot,
   addPoint,
   addSegment,
   addText,
+  angleBetweenPoints,
   appendPolygonVertex,
   buildShape,
   canFinishPolygon,
@@ -23,18 +21,27 @@ import {
   createPolygonDrawingSession,
   executeGeometryCommand,
   findConstrainedShapeCycle,
+  findPolygonAtPoint,
   findPolygonCycle,
+  getGeometryObject,
+  getGeometryObjects,
+  intersectSegments,
+  mirrorObjects,
   hitTest,
   isAxisResizableRectangle,
   isInteractiveCanvasTool,
   isSimpleCycle,
-  materializeIntersection,
   mergePoints,
+  mergePointsWithConstraints,
   movePoint,
+  offsetCircle,
+  offsetSegment,
+  polygonCycleSegmentIds,
   pickGeometryTarget,
   redoGeometryCommand,
   removeConstraint,
   removeObject,
+  rebuildGeometryGraphs,
   renderGeometrySvg,
   resizeCircle,
   resolvePoint,
@@ -42,12 +49,14 @@ import {
   scaleAboutAnchor,
   solveGeometry,
   stretchAboutAnchor,
+  trimSegmentAt,
   undoGeometryCommand,
   type GeometryDocument,
   type GeometryToolId,
   type TargetKind
 } from '../geometry'
 import type { ShapeKind } from '../geometry/core/shapeFactory'
+import { setCircleRadius, setEllipseSemiMajor, setTextPosition, setTextStyle } from '../geometry/core/propertyCommands'
 import { useI18n } from '../i18n'
 import { ConstructionHintBar } from './geometry/ConstructionHintBar'
 import { GeometryToolbar } from './geometry/GeometryToolbar'
@@ -57,14 +66,14 @@ import { GeometryConstraintMarkers } from './geometry/GeometryConstraintMarkers'
 import { GeometrySidePanel } from './geometry/GeometrySidePanel'
 import { useGeometryDrag } from '../hooks/useGeometryDrag'
 
-type Props = { onClose: () => void; onSave: (svg: string) => void | Promise<void>; initialDocument?: GeometryDocument; existingPath?: string }
+type Props = { onClose: () => void; onSave: (svg: string) => void | Promise<void>; initialDocument?: GeometryDocument; initialTool?: GeometryToolId; existingPath?: string }
 
-export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props): React.JSX.Element {
+export function GeometryEditorDialog({ onClose, onSave, initialDocument, initialTool = 'point' }: Props): React.JSX.Element {
   const { t } = useI18n()
   const { beginWindowDrag } = useGeometryDrag()
   const [document, setDocument] = useState<GeometryDocument>(initialDocument ?? createGeometryDocument)
   const documentRef = useRef<GeometryDocument>(document)
-  const [tool, setTool] = useState<GeometryToolId>('point')
+  const [tool, setTool] = useState<GeometryToolId>(initialTool)
   const [shapeKind, setShapeKind] = useState<ShapeKind>('square')
   const [shapeAnchor, setShapeAnchor] = useState<{ x: number; y: number } | null>(null)
   const [shapeCursor, setShapeCursor] = useState<{ x: number; y: number } | null>(null)
@@ -75,9 +84,17 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
   const dragCycleRef = useRef<string[] | null>(null)
   const dragStartDocument = useRef<GeometryDocument | null>(null)
   const firstPoint = useRef<string | null>(null)
+  const segmentDraft = useRef<{ startId: string; start: { x: number; y: number }; temporary: boolean } | null>(null)
+  const segmentClickConsumed = useRef(false)
+  const [segmentCursor, setSegmentCursor] = useState<{ start: { x: number; y: number }; cursor: { x: number; y: number } } | null>(null)
   const [polygonSession, setPolygonSession] = useState(createPolygonDrawingSession)
   const [polygonCursor, setPolygonCursor] = useState<{ x: number; y: number } | null>(null)
   const [mergeNotice, setMergeNotice] = useState<string | null>(null)
+  const [textDraft, setTextDraft] = useState<{ x: number; y: number; value: string } | null>(null)
+  const textComposing = useRef(false)
+  const finishTextDraftRef = useRef<(draft: typeof textDraft, switchTool?: boolean) => void>(() => undefined)
+  const textPromptRef = useRef<HTMLDivElement>(null)
+  const mirrorSourceIds = useRef<string[]>([])
   const [snapHint, setSnapHint] = useState<{ x: number; y: number } | null>(null)
   const selectedObjects = useRef<string[]>([])
   const [constructionSelectionCount, setConstructionSelectionCount] = useState(0)
@@ -110,16 +127,46 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
     return { x: clientX - rect.left, y: clientY - rect.top }
   }
 
-  const nextPointLabel = (doc: GeometryDocument): string => `P${doc.objects.filter((object) => object.type === 'point').length + 1}`
+  const nextPointLabel = (doc: GeometryDocument): string => `P${getGeometryObjects(doc, 'point').length + 1}`
+
   const updateDocument = (next: GeometryDocument): void => {
-    documentRef.current = next
-    setDocument(next)
+    const indexed = rebuildGeometryGraphs(next)
+    documentRef.current = indexed
+    setDocument(indexed)
   }
   const previewDocument = (next: GeometryDocument): void => updateDocument(next)
   const commit = (next: GeometryDocument): void => {
     setHistory((current) => executeGeometryCommand(current, documentRef.current, createDocumentCommand('update', () => next)).history)
     updateDocument(next)
   }
+
+  const returnToSelection = (): void => setTool('select')
+
+  const finishTextDraft = (draft: typeof textDraft, switchTool = true): void => {
+    if (!draft) return
+    if (draft.value.trim()) {
+      const next = addText(documentRef.current, draft.x, draft.y, draft.value)
+      const textId = next.annotations.at(-1)!.id
+      commit(next)
+      setSelectedId(textId)
+      setSelectedIds([textId])
+    }
+    setTextDraft(null)
+    if (switchTool) returnToSelection()
+  }
+  useEffect(() => {
+    finishTextDraftRef.current = finishTextDraft
+  })
+
+  useEffect(() => {
+    if (!textDraft) return
+    const finishOutside = (event: MouseEvent): void => {
+      if (textPromptRef.current?.contains(event.target as Node)) return
+      finishTextDraftRef.current(textDraft)
+    }
+    globalThis.document.addEventListener('mousedown', finishOutside)
+    return () => globalThis.document.removeEventListener('mousedown', finishOutside)
+  }, [textDraft])
 
   const discardPolygonDraft = (): void => {
     const base = polygonBaseDocument.current
@@ -154,7 +201,7 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
       } else {
         const next = addPoint(document, target.x, target.y, nextPointLabel(document))
         commit(next)
-        arcDraft.current = { centerId: next.objects.at(-1)!.id, cx: target.x, cy: target.y, radius: 0, startAngle: 0 }
+        arcDraft.current = { centerId: next.points.at(-1)!.id, cx: target.x, cy: target.y, radius: 0, startAngle: 0 }
       }
       setArcStage(1)
       setArcDraftView({ ...arcDraft.current })
@@ -174,6 +221,7 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
     }
     commit(addArc(document, draft.centerId, draft.radius, draft.startAngle, Math.atan2(target.y - draft.cy, target.x - draft.cx), { startAnchor: draft.startAnchorId, endAnchor: target.id ?? undefined }))
     cancelArcDraft()
+    returnToSelection()
   }
   const handleArcCanvasClick = (event: React.MouseEvent<SVGSVGElement>): void => {
     const local = toLocal(event.clientX, event.clientY)
@@ -192,6 +240,19 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
     setEllipsePreview(null)
     ellipseRadiusDragging.current = false
   }
+  const finishEllipse = (semiMajor: number): void => {
+    const draft = ellipseDraft.current
+    if (!draft?.focusB) return
+    const focusA = resolvePoint(documentRef.current, draft.focusA)
+    const focusB = resolvePoint(documentRef.current, draft.focusB)
+    if (!focusA || !focusB) return
+    commit(addEllipse(documentRef.current, draft.focusA, draft.focusB, Math.max(1, semiMajor)))
+    ellipseBaseDocument.current = null
+    ellipseDraft.current = null
+    setEllipsePreview(null)
+    ellipseRadiusDragging.current = false
+    returnToSelection()
+  }
   const handleEllipseClick = (event: React.MouseEvent<SVGSVGElement>): void => {
     const local = toLocal(event.clientX, event.clientY)
     const target = pickGeometryTarget(document, local)
@@ -199,15 +260,22 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
     if (!ellipseDraft.current) {
       ellipseBaseDocument.current = documentRef.current
       const next = point ? document : addPoint(document, local.x, local.y, nextPointLabel(document))
-      ellipseDraft.current = { focusA: point?.id ?? next.objects.at(-1)!.id }
+      ellipseDraft.current = { focusA: point?.id ?? next.points.at(-1)!.id }
       updateDocument(next)
       return
     }
     if (!ellipseDraft.current.focusB) {
       const next = point ? document : addPoint(document, local.x, local.y, nextPointLabel(document))
-      ellipseDraft.current = { ...ellipseDraft.current, focusB: point?.id ?? next.objects.at(-1)!.id }
+      ellipseDraft.current = { ...ellipseDraft.current, focusB: point?.id ?? next.points.at(-1)!.id }
       updateDocument(next)
       return
+    }
+    const focusA = resolvePoint(document, ellipseDraft.current.focusA)
+    const focusB = resolvePoint(document, ellipseDraft.current.focusB)
+    if (focusA && focusB) {
+      const focalDistance = Math.hypot(focusB.x - focusA.x, focusB.y - focusA.y)
+      const semiMajor = (Math.hypot(local.x - focusA.x, local.y - focusA.y) + Math.hypot(local.x - focusB.x, local.y - focusB.y)) / 2
+      finishEllipse(Math.max(semiMajor, focalDistance / 2))
     }
   }
   const startEllipseRadiusDrag = (event: React.MouseEvent): void => {
@@ -232,7 +300,76 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
       ellipseBaseDocument.current = null
       ellipseDraft.current = null
       setEllipsePreview(null)
+      returnToSelection()
     })
+  }
+  const startEllipseResize = (id: string, event: React.MouseEvent<SVGCircleElement>): void => {
+    const base = documentRef.current
+    const ellipse = getGeometryObject(base, id)
+    if (!ellipse || ellipse.type !== 'ellipse') return
+    const focusA = resolvePoint(base, ellipse.focusA)
+    const focusB = resolvePoint(base, ellipse.focusB)
+    if (!focusA || !focusB) return
+    event.stopPropagation()
+    const center = { x: (focusA.x + focusB.x) / 2, y: (focusA.y + focusB.y) / 2 }
+    const rotation = Math.atan2(focusB.y - focusA.y, focusB.x - focusA.x)
+    const minimum = Math.hypot(focusB.x - focusA.x, focusB.y - focusA.y) / 2
+    let changed = false
+    beginWindowDrag((nextEvent) => {
+      const local = toLocal(nextEvent.clientX, nextEvent.clientY)
+      const projection = (local.x - center.x) * Math.cos(rotation) + (local.y - center.y) * Math.sin(rotation)
+      const semiMajor = Math.max(minimum, Math.abs(projection))
+      if (semiMajor === ellipse.semiMajor) return
+      changed = true
+      updateDocument(setEllipseSemiMajor(documentRef.current, id, semiMajor))
+    }, () => {
+      if (changed) setHistory((items) => ({ past: [...items.past, base], future: [] }))
+    })
+  }
+  const startTextDrag = (id: string, event: React.MouseEvent<SVGTextElement>): void => {
+    if (tool !== 'select') return
+    const text = getGeometryObject(documentRef.current, id)
+    if (!text || text.type !== 'text') return
+    event.stopPropagation()
+    const base = documentRef.current
+    const origin = toLocal(event.clientX, event.clientY)
+    let moved = false
+    beginWindowDrag((nextEvent) => {
+      const current = toLocal(nextEvent.clientX, nextEvent.clientY)
+      const next = setTextPosition(documentRef.current, id, text.x + current.x - origin.x, text.y + current.y - origin.y)
+      moved = true
+      updateDocument(next)
+    }, () => {
+      if (moved) setHistory((items) => ({ past: [...items.past, base], future: [] }))
+    })
+  }
+  const startTextRotate = (id: string, event: React.MouseEvent<SVGTextElement>): void => {
+    if (tool !== 'rotate') return
+    const base = documentRef.current
+    const text = getGeometryObject(base, id)
+    if (!text || text.type !== 'text') return
+    event.stopPropagation()
+    const start = toLocal(event.clientX, event.clientY)
+    const startAngle = Math.atan2(start.y - text.y, start.x - text.x)
+    const initialRotation = text.rotation ?? 0
+    let changed = false
+    beginWindowDrag((nextEvent) => {
+      const current = toLocal(nextEvent.clientX, nextEvent.clientY)
+      const angle = ((Math.atan2(current.y - text.y, current.x - text.x) - startAngle) * 180) / Math.PI
+      changed = true
+      updateDocument(setTextStyle(documentRef.current, id, { rotation: initialRotation + angle }))
+    }, () => {
+      if (changed) setHistory((items) => ({ past: [...items.past, base], future: [] }))
+    })
+  }
+  const addPointOnSegment = (id: string, event: React.MouseEvent<SVGLineElement>): void => {
+    if (tool !== 'point') return
+    event.stopPropagation()
+    const local = toLocal(event.clientX, event.clientY)
+    const target = pickGeometryTarget(documentRef.current, local)
+    if (target.type !== 'curve' || target.curveId !== id) return
+    const pointDocument = addPoint(documentRef.current, target.point.x, target.point.y, nextPointLabel(documentRef.current))
+    commit(addConstraint(pointDocument, { type: 'pointOnLine', point: pointDocument.points.at(-1)!.id, line: id, t: target.parameter }))
   }
   // 形状工具只允许从空白区域起笔创建；落在已有图元附近时不吸附、不新建，
   // 交还给默认的框选行为。
@@ -251,6 +388,7 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
     setShapeCursor(null)
     if (Math.hypot(end.x - anchor.x, end.y - anchor.y) < 6) return
     commit(buildShape(document, shapeKind, anchor.x, anchor.y, end.x, end.y))
+    returnToSelection()
   }
 
   const startTranslate = (pointIds: string[], event: React.MouseEvent): void => {
@@ -275,6 +413,8 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
   }
 
   const activateTool = (nextTool: GeometryToolId): void => {
+    if (textDraft) finishTextDraft(textDraft, false)
+    if (nextTool === 'mirror') mirrorSourceIds.current = selectedIds.filter((id) => { const object = getGeometryObject(document, id); return Boolean(object && ['point', 'segment', 'circle'].includes(object.type)) })
     if (tool === 'polygon' && nextTool !== 'polygon' && polygonSession.vertexIds.length) discardPolygonDraft()
     if (tool === 'arc' && nextTool !== 'arc') cancelArcDraft()
     if (tool === 'shape' && nextTool !== 'shape' && ellipseDraft.current) cancelEllipseDraft()
@@ -290,6 +430,7 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
     if (firstPoint.current && firstPoint.current !== pointId) {
       commit(addSegment(document, firstPoint.current, pointId))
       firstPoint.current = null
+      returnToSelection()
     } else {
       firstPoint.current = pointId
     }
@@ -297,6 +438,7 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
   const continuePolygon = (pointId: string): void => {
     if (polygonSession.vertexIds.length >= 3 && pointId === polygonSession.vertexIds[0]) {
       finalizePolygon()
+      returnToSelection()
       return
     }
     if (!polygonSession.vertexIds.includes(pointId)) {
@@ -323,40 +465,116 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
     }
     const x = Math.max(0, Math.min(document.width, local.x))
     const y = Math.max(0, Math.min(document.height, local.y))
+    if (tool === 'point') {
+      const target = pickGeometryTarget(document, local)
+      if (target.type === 'curve') {
+        const segment = getGeometryObject(document, target.curveId)
+        if (segment?.type === 'segment') {
+          const pointDocument = addPoint(document, target.point.x, target.point.y, nextPointLabel(document))
+           commit(addConstraint(pointDocument, { type: 'pointOnLine', point: pointDocument.points.at(-1)!.id, line: segment.id, t: target.parameter }))
+           returnToSelection()
+           return
+        }
+      }
+    }
     if (tool === 'text') {
-      const text = window.prompt(t('geometryTextPrompt'), 'A')
-      if (text) commit(addText(document, x, y, text))
+      setTextDraft({ x, y, value: '' })
       return
     }
     const next = addPoint(document, x, y, nextPointLabel(document))
+    if (tool === 'point') {
+      commit(next)
+      setSelectedId(next.points.at(-1)!.id)
+      setSelectedIds([next.points.at(-1)!.id])
+      returnToSelection()
+      return
+    }
     if (tool === 'polygon') {
       const firstVertexId = polygonSession.vertexIds[0]
-      const firstVertex = document.objects.find((object) => object.type === 'point' && object.id === firstVertexId)
+      const firstVertex = getGeometryObject(document, firstVertexId)
       if (polygonSession.vertexIds.length >= 3 && firstVertex && firstVertex.type === 'point' && Math.hypot(x - firstVertex.x, y - firstVertex.y) <= 12) {
         finalizePolygon()
+        returnToSelection()
         return
       }
       if (!polygonBaseDocument.current) polygonBaseDocument.current = documentRef.current
-      const pointId = next.objects.at(-1)!.id
+      const pointId = next.points.at(-1)!.id
       const prev = polygonSession.vertexIds.at(-1)
       previewDocument(prev ? addSegment(next, prev, pointId) : next)
       setPolygonSession(appendPolygonVertex(polygonSession, pointId))
       return
     }
     if (tool === 'segment' && firstPoint.current) {
-      commit(addSegment(next, firstPoint.current, next.objects.at(-1)!.id))
+      commit(addSegment(next, firstPoint.current, next.points.at(-1)!.id))
       firstPoint.current = null
+      returnToSelection()
     } else {
       commit(next)
-      setSelectedId(next.objects.at(-1)!.id)
-      setSelectedIds([next.objects.at(-1)!.id])
-      if (tool === 'segment') firstPoint.current = next.objects.at(-1)!.id
+      setSelectedId(next.points.at(-1)!.id)
+      setSelectedIds([next.points.at(-1)!.id])
+      if (tool === 'segment') firstPoint.current = next.points.at(-1)!.id
     }
+  }
+
+  const startSegmentDraft = (event: React.MouseEvent<SVGSVGElement>): void => {
+    if (tool !== 'segment') return
+    event.stopPropagation()
+    const local = toLocal(event.clientX, event.clientY)
+    const snap = pickGeometryTarget(documentRef.current, local)
+    if (snap.type === 'endpoint' || snap.type === 'point') {
+      const point = resolvePoint(documentRef.current, snap.pointId)
+      if (point) segmentDraft.current = { startId: snap.pointId, start: point, temporary: false }
+    } else {
+      const x = Math.max(0, Math.min(document.width, local.x)); const y = Math.max(0, Math.min(document.height, local.y))
+      const next = addPoint(documentRef.current, x, y, nextPointLabel(documentRef.current))
+      const pointId = next.points.at(-1)!.id
+      segmentDraft.current = { startId: pointId, start: { x, y }, temporary: true }
+      updateDocument(next)
+    }
+    setSegmentCursor({ start: segmentDraft.current?.start ?? { x: local.x, y: local.y }, cursor: local })
+  }
+
+  const startSegmentDraftFromPoint = (id: string, event: React.MouseEvent): void => {
+    const point = resolvePoint(documentRef.current, id)
+    if (tool !== 'segment' || !point) return
+    event.stopPropagation()
+    segmentDraft.current = { startId: id, start: point, temporary: false }
+    setSegmentCursor({ start: point, cursor: point })
+  }
+
+  const finishSegmentDraft = (event: React.MouseEvent<SVGSVGElement>): void => {
+    const draft = segmentDraft.current
+    if (!draft || tool !== 'segment') return
+    const local = toLocal(event.clientX, event.clientY)
+    if (Math.hypot(local.x - draft.start.x, local.y - draft.start.y) < 6) {
+      if (draft.temporary) updateDocument(removeObject(documentRef.current, draft.startId))
+      segmentDraft.current = null
+      setSegmentCursor(null)
+      returnToSelection()
+      return
+    }
+    const snap = pickGeometryTarget(documentRef.current, local)
+    let endId: string | null = null
+    if (snap.type === 'endpoint' || snap.type === 'point') endId = snap.pointId
+    if (!endId) {
+      const x = Math.max(0, Math.min(document.width, local.x)); const y = Math.max(0, Math.min(document.height, local.y))
+      const next = addPoint(documentRef.current, x, y, nextPointLabel(documentRef.current))
+      endId = next.points.at(-1)!.id
+      updateDocument(next)
+    }
+    if (endId !== draft.startId) {
+      commit(addSegment(documentRef.current, draft.startId, endId))
+      segmentClickConsumed.current = true
+    }
+    segmentDraft.current = null
+    setSegmentCursor(null)
+    returnToSelection()
   }
 
   const finishPolygon = (): void => {
     if (tool !== 'polygon') return
     finalizePolygon()
+    returnToSelection()
   }
 
   const undo = (): void => {
@@ -374,7 +592,7 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
 
   const resizeSelectedCircle = (event: React.KeyboardEvent<SVGSVGElement>): void => {
     if (!selectedId || !['ArrowUp', 'ArrowDown'].includes(event.key)) return
-    const circle = document.objects.find((object) => object.id === selectedId)
+    const circle = selectedId ? getGeometryObject(document, selectedId) : undefined
     if (!circle || circle.type !== 'circle') return
     event.preventDefault()
     const delta = event.key === 'ArrowUp' ? 5 : -5
@@ -382,10 +600,32 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
   }
 
   const selectObject = (id: string, event: React.MouseEvent): void => {
-    if (['segment', 'polygon', 'text'].includes(tool)) return
+    if (tool === 'text') {
+      return
+    }
+    if (tool === 'segment' || tool === 'polygon') return
     event.stopPropagation()
     setSelectedId(id)
     setSelectedIds((current) => (event.shiftKey ? (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]) : [id]))
+  }
+
+  const selectPolygon = (cycle: string[], event: React.MouseEvent): void => {
+    if (tool !== 'select') return
+    event.stopPropagation()
+    const ids = [...cycle, ...polygonCycleSegmentIds(document, cycle)]
+    const nextIds = event.shiftKey
+      ? (selectedIds.some((id) => ids.includes(id)) ? selectedIds.filter((id) => !ids.includes(id)) : [...selectedIds, ...ids])
+      : ids
+    setSelectedIds(nextIds)
+    setSelectedId(nextIds[0] ?? null)
+  }
+
+  const selectPolygonAt = (event: React.MouseEvent<SVGSVGElement>): boolean => {
+    if (tool !== 'select' || event.target !== event.currentTarget) return false
+    const cycle = findPolygonAtPoint(document, toLocal(event.clientX, event.clientY))
+    if (!cycle) return false
+    selectPolygon(cycle, event)
+    return true
   }
 
   const startSelectionBox = (event: React.MouseEvent<SVGSVGElement>): void => {
@@ -406,13 +646,23 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
     }, () => {
       if (selectionDrag.current && selectionBoxRef.current) {
         const box = selectionBoxRef.current
-        const selected = document.objects
+        const selected = [...getGeometryObjects(document, 'point'), ...getGeometryObjects(document, 'text')]
           .filter((object) => {
             const point = object.type === 'point' ? { x: object.x, y: object.y } : object.type === 'text' ? { x: object.x, y: object.y } : null
             return point && point.x >= box.x && point.x <= box.x + box.width && point.y >= box.y && point.y <= box.y + box.height
           })
           .map((object) => object.id)
-        const ids = selectionDrag.current.additive ? [...new Set([...selectedIds, ...selected])] : selected
+        const selectedSet = new Set(selected)
+        const polygonIds = new Set<string>()
+        for (const object of getGeometryObjects(document, 'point')) {
+          if (object.type !== 'point' || !selectedSet.has(object.id)) continue
+          const cycle = findPolygonCycle(document, object.id)
+          if (!cycle || !cycle.every((id) => selectedSet.has(id))) continue
+          for (const id of cycle) polygonIds.add(id)
+          for (const id of polygonCycleSegmentIds(document, cycle)) polygonIds.add(id)
+        }
+        const grouped = [...new Set([...selected, ...polygonIds])]
+        const ids = selectionDrag.current.additive ? [...new Set([...selectedIds, ...grouped])] : grouped
         setSelectedIds(ids)
         setSelectedId(ids[0] ?? null)
       }
@@ -432,7 +682,7 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
     setSelectedId(id)
     if (selected.length < profile.selects.length) return
     if (tool === 'coincident') {
-      const rejection = checkMergePoints(document, selected[0], selected[1])
+      const rejection = checkMergePoints(documentRef.current, selected[0], selected[1])
       if (rejection) {
         setMergeNotice(t(rejection === 'sameSegment' ? 'geometryMergeSameSegment' : 'geometryMergeDigon'))
         resetConstructionSelection()
@@ -442,6 +692,7 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
     const solved = profile.solveOnCreate ? solveGeometry(buildFromSelection(tool, selected)).document : buildFromSelection(tool, selected)
     commit(solved)
     resetConstructionSelection()
+    returnToSelection()
   }
   const resetConstructionSelection = (): void => {
     selectedObjects.current = []
@@ -449,10 +700,29 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
     setSelectedIds([])
   }
 
+  const constructMidpoint = (segmentId: string): void => {
+    const base = documentRef.current
+    const segment = getGeometryObject(base, segmentId)
+    if (!segment || segment.type !== 'segment') return
+    const start = resolvePoint(base, segment.start); const end = resolvePoint(base, segment.end)
+    if (!start || !end) return
+    const pointDocument = addPoint(base, (start.x + end.x) / 2, (start.y + end.y) / 2, nextPointLabel(base))
+    const pointId = pointDocument.points.at(-1)!.id
+    commit(addConstraint(pointDocument, { type: 'midpoint', point: pointId, line: segment.id }))
+    returnToSelection()
+  }
+
   const selectForConstruction = (id: string, event: React.MouseEvent): void => {
     const profile = GEOMETRY_TOOLS[tool]
+    if (tool === 'text') {
+      return
+    }
+    if (tool === 'select') {
+      selectObject(id, event)
+      return
+    }
     if (profile.canvasClick === 'draw') {
-      const objectType = document.objects.find((object) => object.id === id)?.type
+      const objectType = getGeometryObject(document, id)?.type
       if (tool === 'point' && objectType === 'point') {
         event.stopPropagation()
         selectObject(id, event)
@@ -476,28 +746,75 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
       return
     }
     event.stopPropagation()
+    if (tool === 'midpoint') {
+      const object = getGeometryObject(documentRef.current, id)
+      if (object?.type === 'segment') constructMidpoint(object.id)
+      return
+    }
     if (profile.canvasClick === 'arcDraft') {
-      const point = document.objects.find((object) => object.type === 'point' && object.id === id)
+      const point = getGeometryObject(document, id)
       if (point && point.type === 'point') advanceArc({ id: point.id, x: point.x, y: point.y })
       return
     }
     setMergeNotice(null)
-    const targetKind = document.objects.find((object) => object.id === id)?.type as TargetKind | undefined
+    const object = getGeometryObject(document, id)
+     const targetKind = object?.type as TargetKind | undefined
     if (!targetKind || !acceptsTarget(profile, selectedObjects.current.length, targetKind)) return
+    if (tool === 'offset' || tool === 'trim') {
+      const value = Number(window.prompt(tool === 'offset' ? t('geometryOffsetPrompt') : t('geometryTrimPrompt'), tool === 'offset' ? '10' : '0.5'))
+      if (!Number.isFinite(value)) return
+       const object = getGeometryObject(document, id)
+      if (tool === 'offset') {
+        if (object?.type === 'segment') commit(offsetSegment(document, id, value))
+        if (object?.type === 'circle') commit(offsetCircle(document, id, value))
+      } else if (object?.type === 'segment') {
+        commit(trimSegmentAt(document, id, value))
+      }
+      resetConstructionSelection()
+      return
+    }
     advanceConstructionSelection(id)
   }
 
   const buildFromSelection = (id: GeometryToolId, selection: string[]): GeometryDocument => {
     const base = documentRef.current
     switch (id) {
-      case 'midpoint':
-        return addMidpoint(base, selection[0], selection[1])
       case 'intersection':
-        return addIntersection(base, selection[0], selection[1])
-      case 'perpendicularFoot':
-        return addPerpendicularFoot(base, selection[0], selection[1])
+        {
+          const first = getGeometryObject(base, selection[0])
+          const second = getGeometryObject(base, selection[1])
+          if (!first || !second || first.type !== 'segment' || second.type !== 'segment') return base
+          const point = intersectSegments(base, first, second)
+          if (!point) return base
+          const firstEndpointId = [first.start, first.end].find((id) => {
+            const endpoint = resolvePoint(base, id)
+            return endpoint && Math.hypot(endpoint.x - point.x, endpoint.y - point.y) <= 1e-6
+          })
+          const secondEndpointId = [second.start, second.end].find((id) => {
+            const endpoint = resolvePoint(base, id)
+            return endpoint && Math.hypot(endpoint.x - point.x, endpoint.y - point.y) <= 1e-6
+          })
+          let pointDocument = base
+          let pointId: string
+          if (firstEndpointId && secondEndpointId) {
+            pointId = firstEndpointId
+            pointDocument = firstEndpointId === secondEndpointId ? base : mergePoints(base, firstEndpointId, secondEndpointId)
+          } else if (firstEndpointId || secondEndpointId) {
+            pointId = firstEndpointId ?? secondEndpointId!
+          } else {
+            pointDocument = addPoint(base, point.x, point.y, nextPointLabel(base))
+            pointId = pointDocument.points.at(-1)!.id
+          }
+          return addConstraint(pointDocument, { type: 'intersection', point: pointId, lineA: first.id, lineB: second.id })
+        }
       case 'coincident':
-        return mergePoints(base, selection[0], selection[1])
+        {
+          const firstShape = findConstrainedShapeCycle(base, selection[0])
+          const secondShape = findConstrainedShapeCycle(base, selection[1])
+          const keep = firstShape ? selection[0] : secondShape ? selection[1] : selection[0]
+          const remove = keep === selection[0] ? selection[1] : selection[0]
+          return solveGeometry(mergePointsWithConstraints(base, keep, remove)).document
+        }
       case 'parallel':
         return addConstraint(base, { type: 'parallel', lineA: selection[0], lineB: selection[1] })
       case 'perpendicular':
@@ -509,12 +826,18 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
       case 'symmetric':
         return addConstraint(base, { type: 'symmetric', a: selection[0], b: selection[1], mirror: selection[2] })
       case 'angle': {
-        const vertex = base.objects.find((object) => object.type === 'point' && object.id === selection[1])
-        const armA = base.objects.find((object) => object.type === 'point' && object.id === selection[0])
-        const armB = base.objects.find((object) => object.type === 'point' && object.id === selection[2])
+        const vertex = getGeometryObject(base, selection[1])
+        const armA = getGeometryObject(base, selection[0])
+        const armB = getGeometryObject(base, selection[2])
         if (!vertex || vertex.type !== 'point' || !armA || armA.type !== 'point' || !armB || armB.type !== 'point') return base
-        const current = Math.atan2(armB.y - vertex.y, armB.x - vertex.x) - Math.atan2(armA.y - vertex.y, armA.x - vertex.x)
-        return addConstraint(base, { type: 'fixedAngle', a: selection[0], vertex: selection[1], b: selection[2], value: Math.atan2(Math.sin(current), Math.cos(current)) })
+         return addConstraint(base, { type: 'fixedAngle', a: selection[0], vertex: selection[1], b: selection[2], value: angleBetweenPoints(armA, vertex, armB) })
+      }
+      case 'mirror': {
+        const first = getGeometryObject(base, selection[0])
+        const second = getGeometryObject(base, selection[1])
+        return first?.type === 'point' && second?.type === 'point'
+          ? mirrorObjects(base, mirrorSourceIds.current, first, second)
+          : base
       }
       default:
         return base
@@ -522,19 +845,31 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
   }
 
   const handleConstructionCanvasClick = (event: React.MouseEvent<SVGSVGElement>): void => {
-    if (tool === 'splitAtIntersection') return
     if (tool === 'horizontal' || tool === 'vertical') {
       const target = pickGeometryTarget(document, toLocal(event.clientX, event.clientY))
-      if (target.type !== 'curve' || !document.objects.some((object) => object.type === 'segment' && object.id === target.curveId)) return
+      if (target.type !== 'curve' || !document.segments.some((object) => object.id === target.curveId)) return
       commit(solveGeometry(addConstraint(document, { type: tool, segment: target.curveId })).document)
+      returnToSelection()
       return
     }
-    if (tool === 'splitSegment') {
+    if (tool === 'midpoint') {
       const target = pickGeometryTarget(document, toLocal(event.clientX, event.clientY))
-      if (target.type !== 'curve' || !document.objects.some((object) => object.type === 'segment' && object.id === target.curveId)) return
-      const pointDocument = addPoint(document, target.point.x, target.point.y, nextPointLabel(document))
-      commit(addConstraint(pointDocument, { type: 'pointOnLine', point: pointDocument.objects.at(-1)!.id, line: target.curveId, t: target.parameter }))
-      return
+      if (target.type !== 'curve' || !document.segments.some((object) => object.id === target.curveId)) return
+      constructMidpoint(target.curveId)
+       return
+    }
+    if (tool === 'offset' || tool === 'trim') {
+      const target = pickGeometryTarget(document, toLocal(event.clientX, event.clientY))
+      if (target.type !== 'curve') return
+      const value = Number(window.prompt(tool === 'offset' ? t('geometryOffsetPrompt') : t('geometryTrimPrompt'), tool === 'offset' ? '10' : '0.5'))
+      if (!Number.isFinite(value)) return
+       const object = getGeometryObject(document, target.curveId)
+       if (tool === 'offset') {
+         if (object?.type === 'segment') commit(offsetSegment(document, object.id, value))
+         if (object?.type === 'circle') commit(offsetCircle(document, object.id, value))
+       } else if (object?.type === 'segment') commit(trimSegmentAt(document, object.id, value))
+       returnToSelection()
+       return
     }
     if (!isInteractiveCanvasTool(tool)) return
     const local = toLocal(event.clientX, event.clientY)
@@ -542,7 +877,7 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
     const hits = hitTest(document, local, 24)
     const profile = GEOMETRY_TOOLS[tool]
     const hit = hits.find((candidate) => {
-      const object = document.objects.find((item) => item.id === candidate.id)
+       const object = getGeometryObject(document, candidate.id)
       if (!object) return false
       return acceptsTarget(profile, selectedObjects.current.length, object.type as TargetKind)
     })
@@ -596,6 +931,7 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
   // 「旋转」工具下的拖拽 = 绕图形质心刚体旋转。两者均为相似/刚体变换，
   // 天然满足形状全部约束，无需求解器参与。
   const startShapeRotateDrag = (cycle: string[], event: React.MouseEvent): void => {
+    event.stopPropagation()
     const base = documentRef.current
     const vertices = cycle.map((vertexId) => ({ vertexId, point: resolvePoint(base, vertexId) })).filter((item): item is { vertexId: string; point: { x: number; y: number } } => Boolean(item.point))
     if (vertices.length < cycle.length) return
@@ -620,12 +956,138 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
     })
   }
 
+  const startShapeEdgeDrag = (segmentId: string, event: React.MouseEvent): boolean => {
+    const base = documentRef.current
+    const segment = getGeometryObject(base, segmentId)
+    if (!segment || segment.type !== 'segment') return false
+    const cycle = findConstrainedShapeCycle(base, segment.start) ?? findConstrainedShapeCycle(base, segment.end) ?? findPolygonCycle(base, segment.start)
+    if (!cycle) return false
+    const cycleSegmentIds = new Set(polygonCycleSegmentIds(base, cycle))
+    if (!base.constraints.some((constraint) => Object.values(constraint).some((value) => typeof value === 'string' && cycleSegmentIds.has(value)))) return false
+    let index = cycle.findIndex((id, current) => {
+      const next = cycle[(current + 1) % cycle.length]
+      return (id === segment.start && next === segment.end) || (id === segment.end && next === segment.start)
+    })
+    if (index < 0) {
+      index = cycle.findIndex((id, current) => {
+        const previous = cycle[(current + cycle.length - 1) % cycle.length]
+        return (id === segment.start && previous === segment.end) || (id === segment.end && previous === segment.start)
+      })
+    }
+    if (index < 0) return false
+    const edgeStartId = cycle[index]
+    const edgeEndId = cycle[(index + 1) % cycle.length] === segment.start || cycle[(index + 1) % cycle.length] === segment.end
+      ? cycle[(index + 1) % cycle.length]
+      : cycle[(index + cycle.length - 1) % cycle.length]
+    const points = cycle.map((id) => resolvePoint(base, id))
+    if (points.some((point) => !point)) return false
+    const resolved = points as { x: number; y: number }[]
+    const start = toLocal(event.clientX, event.clientY)
+    const a = resolvePoint(base, edgeStartId); const b = resolvePoint(base, edgeEndId)
+    if (!a || !b) return false
+    const center = resolved.reduce((sum, point) => ({ x: sum.x + point.x / cycle.length, y: sum.y + point.y / cycle.length }), { x: 0, y: 0 })
+    const hasEqualLength = base.constraints.some((constraint) => constraint.type === 'equalLength' && (cycleSegmentIds.has(constraint.segmentA) || cycleSegmentIds.has(constraint.segmentB)))
+    const isParallelogram = !base.constraints.some((constraint) => constraint.type === 'perpendicular' && cycleSegmentIds.has(constraint.lineA) && cycleSegmentIds.has(constraint.lineB))
+    const originalDistance = Math.hypot((a.x + b.x) / 2 - center.x, (a.y + b.y) / 2 - center.y) || 1
+    let changed = false
+    beginWindowDrag((nextEvent) => {
+      const local = toLocal(nextEvent.clientX, nextEvent.clientY)
+      let next: GeometryDocument
+      if (hasEqualLength) {
+        const distance = Math.hypot(local.x - center.x, local.y - center.y)
+        next = scaleAboutAnchor(base, cycle, center, Math.max(0.02, distance / originalDistance))
+      } else if (isParallelogram) {
+        const dx = local.x - start.x; const dy = local.y - start.y
+        next = movePoint(movePoint(base, edgeStartId, a.x + dx, a.y + dy), edgeEndId, b.x + dx, b.y + dy)
+      } else {
+        const ex = b.x - a.x; const ey = b.y - a.y
+        const length = Math.hypot(ex, ey) || 1
+        const nx = -ey / length; const ny = ex / length
+        const delta = (local.x - start.x) * nx + (local.y - start.y) * ny
+        next = movePoint(movePoint(base, edgeStartId, a.x + nx * delta, a.y + ny * delta), edgeEndId, b.x + nx * delta, b.y + ny * delta)
+      }
+      changed = true
+      updateDocument(next)
+    }, () => {
+      if (changed) setHistory((items) => ({ past: [...items.past, base], future: [] }))
+    })
+    return true
+  }
+
+  const startCurveResize = (id: string, event: React.MouseEvent): boolean => {
+    const base = documentRef.current
+    const object = getGeometryObject(base, id)
+    if (!object || (object.type !== 'circle' && object.type !== 'ellipse')) return false
+    const center = object.type === 'circle'
+      ? resolvePoint(base, object.center)
+      : (() => {
+          const focusA = resolvePoint(base, object.focusA); const focusB = resolvePoint(base, object.focusB)
+          return focusA && focusB ? { x: (focusA.x + focusB.x) / 2, y: (focusA.y + focusB.y) / 2 } : null
+        })()
+    if (!center) return false
+    event.stopPropagation()
+    let changed = false
+    beginWindowDrag((nextEvent) => {
+      const local = toLocal(nextEvent.clientX, nextEvent.clientY)
+      if (object.type === 'circle') {
+        const radius = Math.max(1, Math.hypot(local.x - center.x, local.y - center.y))
+        updateDocument(setCircleRadius(documentRef.current, id, radius))
+      } else {
+        const focusB = resolvePoint(base, object.focusB)
+        if (!focusB) return
+        const dx = focusB.x - center.x; const dy = focusB.y - center.y
+        const length = Math.hypot(dx, dy) || 1
+        const projection = ((local.x - center.x) * dx + (local.y - center.y) * dy) / length
+        updateDocument(setEllipseSemiMajor(documentRef.current, id, Math.max(length / 2, Math.abs(projection))))
+      }
+      changed = true
+    }, () => {
+      if (changed) setHistory((items) => ({ past: [...items.past, base], future: [] }))
+    })
+    return true
+  }
+
+  const startEllipseFocusDrag = (ellipseId: string, focusId: string, event: React.MouseEvent): boolean => {
+    const base = documentRef.current
+    const ellipse = getGeometryObject(base, ellipseId)
+    const focus = getGeometryObject(base, focusId)
+    if (!ellipse || ellipse.type !== 'ellipse' || !focus || focus.type !== 'point') return false
+    event.stopPropagation()
+    const origin = toLocal(event.clientX, event.clientY)
+    let changed = false
+    beginWindowDrag((nextEvent) => {
+      const local = toLocal(nextEvent.clientX, nextEvent.clientY)
+      updateDocument(movePoint(documentRef.current, focusId, focus.x + local.x - origin.x, focus.y + local.y - origin.y))
+      changed = true
+    }, () => {
+      if (changed) setHistory((items) => ({ past: [...items.past, base], future: [] }))
+    })
+    return true
+  }
+
   const grabRigid = (pointIds: string[], event: React.MouseEvent): void => {
-    if (tool === 'move') {
-      // 拖动受约束闭合图形的边 = 整体平移该图形，避免拉成平行四边形。
+    if (tool === 'select') {
       const shapeCycle = pointIds
         .map((pointId) => findConstrainedShapeCycle(documentRef.current, pointId))
         .find((cycle) => cycle !== null)
+      if (shapeCycle) {
+        const local = toLocal(event.clientX, event.clientY)
+        const points = shapeCycle.map((id) => resolvePoint(documentRef.current, id))
+        const distanceToSegment = (a: { x: number; y: number }, b: { x: number; y: number }): number => {
+          const dx = b.x - a.x; const dy = b.y - a.y
+          const lengthSquared = dx * dx + dy * dy
+          const t = lengthSquared ? Math.max(0, Math.min(1, ((local.x - a.x) * dx + (local.y - a.y) * dy) / lengthSquared)) : 0
+          return Math.hypot(local.x - (a.x + t * dx), local.y - (a.y + t * dy))
+        }
+        const edgeIndex = points.findIndex((point, index) => point && points[(index + 1) % points.length] && distanceToSegment(point, points[(index + 1) % points.length]!) <= 12)
+        if (edgeIndex >= 0) {
+          const segments = documentRef.current.segments
+          const a = shapeCycle[edgeIndex]; const b = shapeCycle[(edgeIndex + 1) % shapeCycle.length]
+          const edge = segments.find((segment) => (segment.start === a && segment.end === b) || (segment.start === b && segment.end === a))
+          if (edge && startShapeEdgeDrag(edge.id, event)) return
+        }
+      }
+      // 拖动受约束闭合图形的内部 = 整体平移。
       startTranslate(shapeCycle ?? pointIds, event)
       return
     }
@@ -639,21 +1101,28 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
   }
 
   const onSegmentEndpointPress = (segmentId: string, endpoint: 'start' | 'end', event: React.MouseEvent): void => {
-    const segment = document.objects.find((object) => object.type === 'segment' && object.id === segmentId)
+    const segment = getGeometryObject(document, segmentId)
     if (!segment || segment.type !== 'segment') return
     const pointId = endpoint === 'start' ? segment.start : segment.end
-    if (tool === 'rotate') {
-      const cycle = findConstrainedShapeCycle(documentRef.current, pointId)
-      if (cycle) {
-        startShapeRotateDrag(cycle, event)
-        return
-      }
+    if (tool === 'segment') {
+      startSegmentDraftFromPoint(pointId, event)
+      return
+    }
+    if (tool !== 'select') {
+      event.stopPropagation()
+      return
+    }
+    const cycle = findConstrainedShapeCycle(documentRef.current, pointId)
+    if (cycle) {
+      startShapeRotateDrag(cycle, event)
+      return
     }
     startSegmentEndpointDrag(segmentId, endpoint, event)
   }
 
   const startDrag = (id: string, event: React.MouseEvent): void => {
-    const point = document.objects.find((object) => object.type === 'point' && object.id === id)
+    if (tool !== 'select') return
+    const point = getGeometryObject(document, id)
     if (!point || point.type !== 'point' || !canvasRef.current) return
     const shapeCycle = findConstrainedShapeCycle(documentRef.current, id)
     if (shapeCycle) {
@@ -689,8 +1158,28 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
   }
 
   const onPointMouseDown = (id: string, event: React.MouseEvent<SVGCircleElement>): void => {
-    if (tool === 'move') {
-      startTranslate([id], event)
+    if (tool === 'text') {
+      event.stopPropagation()
+      return
+    }
+    if (tool === 'segment') {
+      startSegmentDraftFromPoint(id, event)
+      return
+    }
+    if (tool !== 'select' && tool !== 'rotate' && !(tool === 'shape' && shapeKind === 'ellipse' && ellipseDraft.current?.focusB === id)) {
+      event.stopPropagation()
+      selectObject(id, event)
+      return
+    }
+    if (tool === 'select') {
+      const ellipse = documentRef.current.curves.find((object) => object.type === 'ellipse' && (object.focusA === id || object.focusB === id))
+      if (ellipse?.type === 'ellipse' && startEllipseFocusDrag(ellipse.id, id, event)) return
+      const cycle = findConstrainedShapeCycle(documentRef.current, id)
+      if (cycle) {
+        startShapeRotateDrag(cycle, event)
+        return
+      }
+      startDrag(id, event)
       return
     }
     if (tool === 'rotate') {
@@ -709,14 +1198,34 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
   }
 
   const startSegmentEndpointDrag = (segmentId: string, endpoint: 'start' | 'end', event: React.MouseEvent): void => {
-    const segment = document.objects.find((object) => object.type === 'segment' && object.id === segmentId)
+    if (tool !== 'select') return
+    const segment = getGeometryObject(document, segmentId)
     if (!segment || segment.type !== 'segment') return
-    startDrag(endpoint === 'start' ? segment.start : segment.end, event)
+    const pointId = endpoint === 'start' ? segment.start : segment.end
+    const cycle = findConstrainedShapeCycle(documentRef.current, pointId)
+    if (cycle) {
+      startShapeRotateDrag(cycle, event)
+      return
+    }
+    const fixedId = endpoint === 'start' ? segment.end : segment.start
+    const point = resolvePoint(documentRef.current, pointId)
+    if (!point || !resolvePoint(documentRef.current, fixedId)) return
+    event.stopPropagation()
+    const origin = toLocal(event.clientX, event.clientY)
+    const base = documentRef.current
+    let changed = false
+    beginWindowDrag((nextEvent) => {
+      const local = toLocal(nextEvent.clientX, nextEvent.clientY)
+      updateDocument(movePoint(documentRef.current, pointId, point.x + local.x - origin.x, point.y + local.y - origin.y))
+      changed = true
+    }, () => {
+      if (changed) setHistory((items) => ({ past: [...items.past, base], future: [] }))
+    })
   }
 
   const startCircleResize = (id: string, event: React.MouseEvent): void => {
     event.stopPropagation()
-    const circle = document.objects.find((object) => object.type === 'circle' && object.id === id)
+    const circle = getGeometryObject(document, id)
     if (!circle || circle.type !== 'circle') return
     const center = resolvePoint(document, circle.center)
     if (!center) return
@@ -732,7 +1241,7 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
 
   const startArcHandleDrag = (id: string, kind: 'start' | 'end' | 'radius', event: React.MouseEvent): void => {
     event.stopPropagation()
-    const arc = document.objects.find((object) => object.type === 'arc' && object.id === id)
+    const arc = getGeometryObject(document, id)
     if (!arc || arc.type !== 'arc') return
     const center = resolvePoint(document, arc.center)
     if (!center) return
@@ -741,31 +1250,46 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
       const local = toLocal(nextEvent.clientX, nextEvent.clientY)
       const dx = local.x - center.x
       const dy = local.y - center.y
-      updateDocument({
-        ...documentRef.current,
-        objects: documentRef.current.objects.map((object) => {
-          if (object.id !== id || object.type !== 'arc') return object
-          if (kind === 'radius') return { ...object, radius: Math.max(1, Math.hypot(dx, dy)) }
-          if (kind === 'start') return { ...object, startAngle: Math.atan2(dy, dx), startAnchor: undefined }
-          return { ...object, endAngle: Math.atan2(dy, dx), endAnchor: undefined }
-        })
+      const curves = documentRef.current.curves.map((object) => {
+        if (object.id !== id || object.type !== 'arc') return object
+        if (kind === 'radius') return { ...object, radius: Math.max(1, Math.hypot(dx, dy)) }
+        if (kind === 'start') return object.startAnchor ? object : { ...object, startAngle: Math.atan2(dy, dx) }
+        return object.endAnchor ? object : { ...object, endAngle: Math.atan2(dy, dx) }
       })
+      if (kind !== 'radius') {
+        const currentArc = documentRef.current.curves.find((object): object is Extract<typeof object, { type: 'arc' }> => object.id === id && object.type === 'arc')
+        const anchorId = currentArc ? kind === 'start' ? currentArc.startAnchor : currentArc.endAnchor : undefined
+        if (anchorId && currentArc) {
+          const length = Math.hypot(dx, dy) || 1
+          updateDocument(movePoint(documentRef.current, anchorId, center.x + (dx / length) * currentArc.radius, center.y + (dy / length) * currentArc.radius))
+          return
+        }
+      }
+      updateDocument({ ...documentRef.current, curves })
     }, () => {
       setHistory((items) => ({ past: [...items.past, base], future: [] }))
     })
   }
 
-  const onDerivedPointClick = (id: string, event: React.MouseEvent<SVGCircleElement>): void => {
+  const selectArcEndpoint = (id: string, kind: 'start' | 'end', event: React.MouseEvent): void => {
+    const arc = getGeometryObject(documentRef.current, id)
+    if (!arc || arc.type !== 'arc') return
     event.stopPropagation()
-    if (tool === 'splitAtIntersection') {
-      const next = materializeIntersection(document, id)
-      if (next !== document) commit(next)
-      return
+    let pointId = kind === 'start' ? arc.startAnchor : arc.endAnchor
+    if (!pointId) {
+      const center = resolvePoint(documentRef.current, arc.center)
+      if (!center) return
+      const angle = kind === 'start' ? arc.startAngle : arc.endAngle
+      const endpoint = { x: center.x + arc.radius * Math.cos(angle), y: center.y + arc.radius * Math.sin(angle) }
+      const withPoint = addPoint(documentRef.current, endpoint.x, endpoint.y, nextPointLabel(documentRef.current))
+      pointId = withPoint.points.at(-1)!.id
+      const curves = withPoint.curves.map((curve) => curve.id === id && curve.type === 'arc' ? { ...curve, ...(kind === 'start' ? { startAnchor: pointId } : { endAnchor: pointId }) } : curve)
+      commit({ ...withPoint, curves })
     }
-    selectObject(id, event)
+    selectForConstruction(pointId, event)
   }
 
-  const constructionTool = isInteractiveCanvasTool(tool)
+  const constructionTool = tool !== 'select' && isInteractiveCanvasTool(tool)
   const polygonHint = tool === 'polygon' && polygonSession.vertexIds.length ? t('geometryPolygonHint') : null
   const arcHint = tool === 'arc' && arcStage > 0 ? t('geometryArcHint') : null
   const targetKindLabels: Record<TargetKind, string> = {
@@ -781,10 +1305,31 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
       ? null
       : `${t(stepKeys[constructionSelectionCount])}（${profile.selects[constructionSelectionCount].map((kind) => targetKindLabels[kind]).join(' / ')}）`
     : null
-  const hintText = mergeNotice ?? (constructionHint ? `${t('geometryConstructionStep')}: ${constructionHint}` : polygonHint ?? arcHint)
+    const hintText = mergeNotice ?? (constructionHint ? `${t('geometryConstructionStep')}: ${constructionHint}` : polygonHint ?? arcHint)
+  const handleEscape = (): boolean => {
+    const hasActiveAction = polygonSession.vertexIds.length > 0 || arcStage > 0 || Boolean(shapeAnchor) || Boolean(ellipseDraft.current) || constructionSelectionCount > 0 || Boolean(textDraft)
+    if (!hasActiveAction) return false
+    cancelPolygon()
+    cancelArcDraft()
+    cancelShapeDraft()
+    cancelEllipseDraft()
+    resetConstructionSelection()
+    setTextDraft(null)
+    return true
+  }
+  const handleCancel = (event: React.MouseEvent<HTMLButtonElement>): void => {
+    event.preventDefault()
+    event.stopPropagation()
+    cancelPolygon()
+    cancelArcDraft()
+    cancelShapeDraft()
+    cancelEllipseDraft()
+    setTextDraft(null)
+    onClose()
+  }
 
   return (
-    <Dialog title={t('drawGeometry')} className="geometry-dialog" onBackdropClick={onClose}>
+    <Dialog title={t('drawGeometry')} className="geometry-dialog" onBackdropClick={onClose} onEscape={handleEscape}>
       <div className="geometry-layout">
         <div className="geometry-main">
           <GeometryToolbar
@@ -797,6 +1342,9 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
             onRedo={redo}
           />
           <div className="geometry-canvas-wrap">
+            {textDraft ? <div ref={textPromptRef} className="geometry-text-prompt" role="dialog" aria-label={t('geometryTextPrompt')} style={{ left: `${(textDraft.x / document.width) * 100}%`, top: `${(textDraft.y / document.height) * 100}%` }}>
+              <input autoFocus aria-label={t('geometryTextPrompt')} placeholder={t('geometryTextPrompt')} value={textDraft.value} onChange={(event) => setTextDraft({ ...textDraft, value: event.target.value })} onCompositionStart={() => { textComposing.current = true }} onCompositionEnd={() => { textComposing.current = false }} onBlur={() => finishTextDraft(textDraft)} onKeyDown={(event) => { if (event.key !== 'Enter') return; if (textComposing.current || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) { event.preventDefault(); event.currentTarget.focus(); return }; event.preventDefault(); finishTextDraft(textDraft) }} onClick={(event) => event.stopPropagation()} />
+            </div> : null}
             <ConstructionHintBar text={hintText} />
             <svg
               ref={canvasRef}
@@ -806,10 +1354,18 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
               aria-label="几何图画布"
               tabIndex={0}
               onClick={(event) => {
+                if (textDraft) {
+                  finishTextDraft(textDraft)
+                  return
+                }
                 // 命中缩放/端点/弧手柄的点击只属于拖拽手势，不得触发画布级创建。
                 if ((event.target as Element).closest?.('[data-handle]')) return
                 if (ellipseClickConsumed.current) {
                   ellipseClickConsumed.current = false
+                  return
+                }
+                if (segmentClickConsumed.current) {
+                  segmentClickConsumed.current = false
                   return
                 }
                 if (GEOMETRY_TOOLS[tool].canvasClick === 'arcDraft') {
@@ -820,6 +1376,7 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
                   handleEllipseClick(event)
                   return
                 }
+                if (selectPolygonAt(event)) return
                 if (isInteractiveCanvasTool(tool)) {
                   handleConstructionCanvasClick(event)
                   return
@@ -829,20 +1386,30 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
                 addAt(event)
               }}
               onMouseDown={(event) => {
+                if (textDraft) {
+                  finishTextDraft(textDraft)
+                  return
+                }
                 if (GEOMETRY_TOOLS[tool].canvasClick === 'passive' && tool === 'shape' && shapeKind === 'ellipse' && ellipseDraft.current?.focusB) {
                   startEllipseRadiusDrag(event)
                   return
                 }
                 if (GEOMETRY_TOOLS[tool].canvasClick === 'passive' && tool === 'shape' && shapeKind !== 'ellipse' && beginShapeDraft(event)) return
+                if (tool === 'segment') {
+                  startSegmentDraft(event)
+                  return
+                }
                 startSelectionBox(event)
               }}
               onMouseUp={(event) => {
-                if (tool === 'shape' && shapeAnchor) handleShapeMouseUp(event)
+                 if (tool === 'shape' && shapeAnchor) handleShapeMouseUp(event)
+                 if (tool === 'segment') finishSegmentDraft(event)
               }}
               onMouseMove={(event) => {
                 const local = toLocal(event.clientX, event.clientY)
                 if (tool === 'polygon' && polygonSession.vertexIds.length) setPolygonCursor(local)
-                if (tool === 'shape' && shapeAnchor) setShapeCursor(local)
+                 if (tool === 'shape' && shapeAnchor) setShapeCursor(local)
+                 if (tool === 'segment' && segmentDraft.current) setSegmentCursor({ start: segmentDraft.current.start, cursor: local })
                 if (tool === 'arc' && arcDraftView) setArcCursor(local)
                 if (tool === 'shape' && shapeKind === 'ellipse' && ellipseDraft.current?.focusB) {
                   const focusA = resolvePoint(document, ellipseDraft.current.focusA)
@@ -864,6 +1431,8 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
                 resizeSelectedCircle(event)
                 if (event.key === 'Enter') finishPolygon()
                 if (event.key === 'Escape') {
+                  event.preventDefault()
+                  event.stopPropagation()
                   cancelPolygon()
                   cancelArcDraft()
                   cancelShapeDraft()
@@ -887,31 +1456,39 @@ export function GeometryEditorDialog({ onClose, onSave, initialDocument }: Props
                 shapeKind={shapeKind}
                 shapeAnchor={shapeAnchor}
                 shapeCursor={shapeCursor}
-                ellipsePreview={ellipsePreview}
+                 ellipsePreview={ellipsePreview}
+                 segmentDraft={segmentCursor}
               />
               <GeometryConstraintMarkers document={document} onRemove={(index) => commit(removeConstraint(document, index))} />
               <GeometryObjects
                 document={document}
                 tool={tool}
-                selectedId={selectedId}
+                 selectedIds={selectedIds}
                 polygonVertexIds={polygonSession.vertexIds}
                 constructionTool={constructionTool}
                 onSelectForConstruction={selectForConstruction}
                 onSelectObject={selectObject}
-                onPointMouseDown={onPointMouseDown}
+                 onPointMouseDown={onPointMouseDown}
+                 onPointOnSegment={addPointOnSegment}
                 onGrabRigid={grabRigid}
                 onSegmentEndpointPress={onSegmentEndpointPress}
                 onStartCircleResize={startCircleResize}
-                onStartArcHandleDrag={startArcHandleDrag}
-                onDerivedPointClick={onDerivedPointClick}
-              />
+                   onStartArcHandleDrag={startArcHandleDrag}
+                   onSelectArcEndpoint={selectArcEndpoint}
+                 onStartEllipseResize={startEllipseResize}
+                 onShapeEdgeDrag={startShapeEdgeDrag}
+                 onCurveResize={startCurveResize}
+                 onSelectPolygon={selectPolygon}
+                 onTextMouseDown={startTextDrag}
+                 onTextRotateMouseDown={startTextRotate}
+               />
             </svg>
           </div>
         </div>
         <GeometrySidePanel document={document} selectedIds={selectedIds} commit={commit} onClearSelection={() => { setSelectedIds([]); setSelectedId(null) }} />
       </div>
       <div className="geometry-dialog-actions">
-        <button type="button" onClick={onClose}>取消</button>
+        <button type="button" onClick={handleCancel}>取消</button>
         <button type="button" onClick={() => onSave(renderGeometrySvg(document))}>插入</button>
       </div>
     </Dialog>

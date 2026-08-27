@@ -20,7 +20,7 @@ function segmentProjection(document: GeometryDocument, segment: GeometrySegment,
 }
 
 export function getGeometryCurves(document: GeometryDocument): GeometryCurve[] {
-  return document.objects.flatMap((object): GeometryCurve[] => {
+  return [...document.segments, ...document.curves].flatMap((object): GeometryCurve[] => {
     if (object.type === 'segment') return [{ id: object.id, kind: 'segment', project: (point) => segmentProjection(document, object, point) }]
     if (object.type === 'circle') {
       const center = resolvePoint(document, object.center)

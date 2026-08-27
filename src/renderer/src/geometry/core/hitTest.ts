@@ -10,7 +10,7 @@ function distanceToSegment(point: { x: number; y: number }, a: { x: number; y: n
   return Math.hypot(point.x - (a.x + t * dx), point.y - (a.y + t * dy))
 }
 export function hitTest(document: GeometryDocument, point: { x: number; y: number }, tolerance = 8): GeometryHit[] {
-  return document.objects.map((object) => {
+  return [...document.points, ...document.segments, ...document.curves].map((object) => {
     if (object.type === 'point') return { id: object.id, distance: Math.hypot(point.x - object.x, point.y - object.y) }
     if (object.type === 'segment') { const a = resolvePoint(document, object.start); const b = resolvePoint(document, object.end); return { id: object.id, distance: a && b ? distanceToSegment(point, a, b) : Infinity } }
     if (object.type === 'circle') { const center = resolvePoint(document, object.center); return { id: object.id, distance: center ? Math.abs(Math.hypot(point.x - center.x, point.y - center.y) - object.radius) : Infinity } }
@@ -25,8 +25,7 @@ export function hitTest(document: GeometryDocument, point: { x: number; y: numbe
       const end = resolveArcPoint(center, object.radius, endAngle)
       return { id: object.id, distance: Math.min(Math.hypot(point.x - start.x, point.y - start.y), Math.hypot(point.x - end.x, point.y - end.y)) }
     }
-    const resolved = resolvePoint(document, object.id)
-    return { id: object.id, distance: resolved ? Math.hypot(point.x - resolved.x, point.y - resolved.y) : Infinity }
+    return { id: object.id, distance: Infinity }
   }).filter((hit) => hit.distance <= tolerance).sort((a, b) => a.distance - b.distance)
 }
 

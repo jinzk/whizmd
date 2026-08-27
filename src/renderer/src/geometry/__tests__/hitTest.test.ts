@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addCircle, addPoint, addSegment, createGeometryDocument, hitTest, pickGeometryTarget } from '../index'
+import { addArc, addCircle, addPoint, addSegment, createGeometryDocument, hitTest, pickGeometryTarget } from '../index'
 
 describe('geometry hit testing', () => {
   it('detects points, segment edges, and circle edges', () => {
@@ -15,5 +15,16 @@ describe('geometry hit testing', () => {
     document = addPoint(document, 0, 0); document = addPoint(document, 100, 0); document = addSegment(document, 'P1', 'P2')
     expect(pickGeometryTarget(document, { x: 0, y: 0 }).type).toBe('endpoint')
     expect(pickGeometryTarget(document, { x: 50, y: 2 }).type).toBe('curve')
+  })
+
+  it('returns anchored arc endpoints as semantic endpoint targets', () => {
+    let document = createGeometryDocument()
+    document = addPoint(document, 0, 0)
+    document = addPoint(document, 50, 0)
+    document = addPoint(document, 0, 50)
+    document = addArc(document, 'P1', 50, 0, Math.PI / 2, { startAnchor: 'P2', endAnchor: 'P3' })
+    expect(pickGeometryTarget(document, { x: 50, y: 0 }).type).toBe('endpoint')
+    expect(pickGeometryTarget(document, { x: 50, y: 0 })).toMatchObject({ pointId: 'P2', curveId: 'A1', endpoint: 'start' })
+    expect(pickGeometryTarget(document, { x: 0, y: 50 })).toMatchObject({ pointId: 'P3', curveId: 'A1', endpoint: 'end' })
   })
 })
