@@ -78,7 +78,7 @@ function contentBounds(document: GeometryDocument): Bounds | null {
 export function renderGeometrySvg(document: GeometryDocument): string {
   const points = new Map(getGeometryObjects(document, 'point').map((point) => [point.id, point]))
   const body = getRenderableGeometryObjects(document).map((object) => {
-    if (object.type === 'point') return `<circle cx="${object.x}" cy="${object.y}" r="4" fill="#0969da" />${object.label ? `<text x="${object.x + 8}" y="${object.y - 8}" fill="#24292f">${escapeXml(object.label)}</text>` : ''}`
+    if (object.type === 'point') return `<circle cx="${object.x}" cy="${object.y}" r="${object.size ?? 5}" fill="${object.color ?? '#0969da'}" />${object.label ? `<text x="${object.x + 8}" y="${object.y - 8}" fill="#24292f">${escapeXml(object.label)}</text>` : ''}`
     if (object.type === 'text') return `<text x="${object.x}" y="${object.y}" fill="${object.color ?? '#24292f'}" font-size="${object.fontSize ?? 14}"${object.rotation ? ` transform="rotate(${object.rotation} ${object.x} ${object.y})"` : ''}>${escapeXml(object.text)}</text>`
     if (object.type === 'circle') {
       const center = points.get(object.center)
@@ -104,7 +104,8 @@ export function renderGeometrySvg(document: GeometryDocument): string {
     const segment = object as GeometrySegment
     const start = points.get(segment.start)
     const end = points.get(segment.end)
-    return start && end ? `<line x1="${start.x}" y1="${start.y}" x2="${end.x}" y2="${end.y}" stroke="#24292f" stroke-width="2" />` : ''
+    const dash = segment.lineStyle === 'dashed' ? ' stroke-dasharray="8 6"' : segment.lineStyle === 'dotted' ? ' stroke-dasharray="2 5"' : ''
+    return start && end ? `<line x1="${start.x}" y1="${start.y}" x2="${end.x}" y2="${end.y}" stroke="${segment.color ?? '#24292f'}" stroke-width="${segment.lineWidth ?? 2}"${dash} />` : ''
   }).join('')
   const metadata = escapeXml(JSON.stringify(document))
 

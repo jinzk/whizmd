@@ -1,4 +1,4 @@
-import type { GeometryArc, GeometryDocument, GeometryTextAnchor } from './model'
+import type { GeometryArc, GeometryDocument, GeometryLineStyle, GeometryTextAnchor } from './model'
 import { addConstraint, type GeometryConstraint } from './constraints'
 import { getGeometryObject, movePoint, removeObject, resizeCircle } from './model'
 
@@ -9,6 +9,18 @@ export function setPointLabel(document: GeometryDocument, pointId: string, label
 
 export function setPointCoordinates(document: GeometryDocument, pointId: string, x: number, y: number): GeometryDocument {
   return Number.isFinite(x) && Number.isFinite(y) ? movePoint(document, pointId, x, y) : document
+}
+
+export function setPointStyle(document: GeometryDocument, pointId: string, patch: { color?: string; size?: number }): GeometryDocument {
+  const safePatch = { ...patch, size: patch.size === undefined ? undefined : Math.max(1, Number.isFinite(patch.size) ? patch.size : 1) }
+  const points = document.points.map((object) => object.id === pointId ? { ...object, ...safePatch } : object)
+  return { ...document, points }
+}
+
+export function setSegmentStyle(document: GeometryDocument, segmentId: string, patch: { color?: string; lineWidth?: number; lineStyle?: GeometryLineStyle }): GeometryDocument {
+  const safePatch = { ...patch, lineWidth: patch.lineWidth === undefined ? undefined : Math.max(0.25, Number.isFinite(patch.lineWidth) ? patch.lineWidth : 0.25) }
+  const segments = document.segments.map((object) => object.id === segmentId ? { ...object, ...safePatch } : object)
+  return { ...document, segments }
 }
 
 export function setTextValue(document: GeometryDocument, textId: string, text: string): GeometryDocument {

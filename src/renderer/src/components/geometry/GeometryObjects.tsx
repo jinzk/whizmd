@@ -68,6 +68,7 @@ function PolygonHitAreas(props: Props): React.JSX.Element {
 
 function PointObject(props: Props & { id: string; x: number; y: number; label?: string }): React.JSX.Element {
   const { id, x, y, label } = props
+  const point = props.document.points.find((item) => item.id === id)
   return (
     <g key={id}>
       {props.document.points.find((point) => point.id === id)?.attachment?.kind && props.document.points.find((point) => point.id === id)?.attachment?.kind !== 'segment' ? (
@@ -84,9 +85,9 @@ function PointObject(props: Props & { id: string; x: number; y: number; label?: 
       <circle
         cx={x}
         cy={y}
-        r="5"
+        r={point?.size ?? 5}
         data-attachment-kind={props.document.points.find((point) => point.id === id)?.attachment?.kind}
-        fill={props.selectedIds.includes(id) ? SELECTED_COLOR : HANDLE_COLOR}
+        fill={props.selectedIds.includes(id) ? SELECTED_COLOR : point?.color ?? HANDLE_COLOR}
         onClick={(event) => props.onSelectForConstruction(id, event)}
         onMouseDown={(event) => props.document.points.find((point) => point.id === id)?.attachment ? props.onAttachedPointMouseDown(id, event) : props.onPointMouseDown(id, event)}
       />
@@ -148,11 +149,13 @@ function SegmentObject(props: Props & { id: string; startId: string; endId: stri
   const start = getGeometryObject(document, startId)
   const end = getGeometryObject(document, endId)
   if (!(start && end && start.type === 'point' && end.type === 'point')) return null
+  const segment = document.segments.find((item) => item.id === id)
+  const dasharray = segment?.lineStyle === 'dashed' ? '8 6' : segment?.lineStyle === 'dotted' ? '2 5' : undefined
   const select = (pointId: string) => (event: React.MouseEvent<SVGCircleElement>) => (props.constructionTool ? props.onSelectForConstruction(pointId, event) : props.onSelectObject(pointId, event))
   if (isPolygonDraftEdge(props, startId, endId)) {
     return (
       <g key={id}>
-        <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} stroke={DEFAULT_COLOR} strokeWidth="2" pointerEvents="none" />
+        <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} stroke={segment?.color ?? DEFAULT_COLOR} strokeWidth={segment?.lineWidth ?? 2} strokeDasharray={dasharray} pointerEvents="none" />
       </g>
     )
   }
@@ -193,8 +196,9 @@ function SegmentObject(props: Props & { id: string; startId: string; endId: stri
         y1={start.y}
         x2={end.x}
         y2={end.y}
-         stroke={props.selectedIds.includes(id) ? SELECTED_COLOR : DEFAULT_COLOR}
-        strokeWidth="2"
+          stroke={props.selectedIds.includes(id) ? SELECTED_COLOR : segment?.color ?? DEFAULT_COLOR}
+         strokeWidth={segment?.lineWidth ?? 2}
+         strokeDasharray={dasharray}
           onClick={handleClick}
           onMouseDown={handleMouseDown}
        />

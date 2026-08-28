@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addArc, addCircle, addEllipse, addPoint, addSegment, createGeometryDocument, getGeometryObject, setArcProperties, setCircleRadius, setEllipseSemiMajor, setPointCoordinates, setPointLabel, setSegmentLength, setTextValue, setVertexAngle } from '../index'
+import { addArc, addCircle, addEllipse, addPoint, addSegment, createGeometryDocument, getGeometryObject, setArcProperties, setCircleRadius, setEllipseSemiMajor, setPointCoordinates, setPointLabel, setPointStyle, setSegmentLength, setSegmentStyle, setTextValue, setVertexAngle } from '../index'
 
 describe('geometry property commands', () => {
   it('updates point and text properties without changing unrelated objects', () => {
@@ -39,5 +39,23 @@ describe('geometry property commands', () => {
     expect(document.constraints.filter((constraint) => constraint.type === 'fixedDistance')).toHaveLength(1)
     expect(document.constraints.find((constraint) => constraint.type === 'fixedDistance')).toMatchObject({ value: 60 })
     expect(document.constraints.find((constraint) => constraint.type === 'fixedAngle')).toMatchObject({ vertex: 'P2', value: Math.PI / 4 })
+  })
+
+  it('updates point and segment visual styles', () => {
+    let document = addPoint(createGeometryDocument(), 0, 0)
+    document = addPoint(document, 100, 0)
+    document = addSegment(document, 'P1', 'P2')
+    document = setPointStyle(document, 'P1', { color: '#ff0000', size: 8 })
+    document = setSegmentStyle(document, 'S1', { color: '#00ff00', lineWidth: 4, lineStyle: 'dashed' })
+    expect(getGeometryObject(document, 'P1')).toMatchObject({ color: '#ff0000', size: 8 })
+    expect(getGeometryObject(document, 'S1')).toMatchObject({ color: '#00ff00', lineWidth: 4, lineStyle: 'dashed' })
+  })
+
+  it('rejects an invalid segment width without changing the existing width', () => {
+    let document = addPoint(createGeometryDocument(), 0, 0)
+    document = addPoint(document, 10, 0)
+    document = addSegment(document, 'P1', 'P2')
+    document = setSegmentStyle(document, 'S1', { lineWidth: -3 })
+    expect(getGeometryObject(document, 'S1')).toMatchObject({ lineWidth: 0.25 })
   })
 })

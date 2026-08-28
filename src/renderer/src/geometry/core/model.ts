@@ -1,11 +1,12 @@
 export type GeometryRole = 'boundary' | 'construction' | 'attachment'
+export type GeometryLineStyle = 'solid' | 'dashed' | 'dotted'
 export type GeometryShapeKind = 'circle' | 'ellipse' | 'square' | 'rectangle' | 'parallelogram' | 'rhombus' | 'equilateral' | 'isosceles' | 'rightTriangle'
 export type GeometryShape = { id: string; kind: GeometryShapeKind; boundaryPointIds: string[]; boundarySegmentIds: string[] }
 export type GeometrySharedNode = { id: string; memberIds: string[] }
 export type GeometryDependency = { id: string; sourceId: string; dependencyIds: string[]; kind: 'midpoint' | 'intersection' | 'pointOnLine' | 'textAnchor' }
 export type GeometryPointAttachment = { objectId: string; kind: 'segment' | 'circle' | 'arc' | 'ellipse'; parameter: number }
-export type GeometryPoint = { type: 'point'; id: string; x: number; y: number; label?: string; ownerId?: string; role?: GeometryRole; attachment?: GeometryPointAttachment }
-export type GeometrySegment = { type: 'segment'; id: string; start: string; end: string; ownerId?: string; role?: GeometryRole }
+export type GeometryPoint = { type: 'point'; id: string; x: number; y: number; label?: string; color?: string; size?: number; ownerId?: string; role?: GeometryRole; attachment?: GeometryPointAttachment }
+export type GeometrySegment = { type: 'segment'; id: string; start: string; end: string; color?: string; lineWidth?: number; lineStyle?: GeometryLineStyle; ownerId?: string; role?: GeometryRole }
 export type GeometryCircle = { type: 'circle'; id: string; center: string; radius: number }
 export type GeometryEllipse = { type: 'ellipse'; id: string; focusA: string; focusB: string; semiMajor: number }
 export type GeometryArc = { type: 'arc'; id: string; center: string; radius: number; startAngle: number; endAngle: number; startAnchor?: string; endAnchor?: string }

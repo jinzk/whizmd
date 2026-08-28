@@ -3,7 +3,7 @@ import { getArcAngles } from '../../geometry/core/calculations'
 import { getVertexAngle } from '../../geometry/core/polygonGuard'
 import type { GeometryConstraint } from '../../geometry/core/constraints'
 import { useI18n, type TranslationKey } from '../../i18n'
-import { deleteObjects, setArcProperties, setCircleRadius, setEllipseSemiMajor, setPointCoordinates, setPointLabel, setSegmentLength, setTextAnchor, setTextStyle, setTextValue, setVertexAngle } from '../../geometry/core/propertyCommands'
+import { deleteObjects, setArcProperties, setCircleRadius, setEllipseSemiMajor, setPointCoordinates, setPointLabel, setPointStyle, setSegmentLength, setSegmentStyle, setTextAnchor, setTextStyle, setTextValue, setVertexAngle } from '../../geometry/core/propertyCommands'
 
 type Props = {
   document: GeometryDocument
@@ -88,6 +88,7 @@ function InspectorSummary({ document, selectedIds, commit, onClearSelection }: P
           </label>
           <VertexAngleField document={document} pointId={singlePoint.id} commit={commit} />
           <CircleRadiiFields document={document} pointId={singlePoint.id} commit={commit} />
+          <PointStyleFields document={document} pointId={singlePoint.id} commit={commit} />
         </>
       ) : null}
       {polygonSelected ? (
@@ -236,6 +237,7 @@ function ObjectDetails({ document, selectedIds, commit }: Props): React.JSX.Elem
           />
         </label>
       ) : null}
+      {object.type === 'segment' ? <SegmentStyleFields document={document} segmentId={object.id} commit={commit} /> : null}
       {center ? (
         <span>
           {t('geometryCenter')}: {center.x.toFixed(2)}, {center.y.toFixed(2)}
@@ -272,6 +274,27 @@ function ObjectDetails({ document, selectedIds, commit }: Props): React.JSX.Elem
       ) : null}
     </aside>
   )
+}
+
+function PointStyleFields({ document, pointId, commit }: { document: GeometryDocument; pointId: string; commit: (next: GeometryDocument) => void }): React.JSX.Element {
+  const { t } = useI18n()
+  const point = getGeometryObject(document, pointId)
+  if (!point || point.type !== 'point') return <></>
+  return <>
+    <label>{t('geometryColor')} <input aria-label={t('geometryColor')} type="color" value={point.color ?? '#0969da'} onChange={(event) => commit(setPointStyle(document, pointId, { color: event.target.value }))} /></label>
+    <label>{t('geometryPointSize')} <input aria-label={t('geometryPointSize')} type="number" min="1" step="1" value={point.size ?? 5} onChange={(event) => commit(setPointStyle(document, pointId, { size: Math.max(1, Number(event.target.value) || 1) }))} /></label>
+  </>
+}
+
+function SegmentStyleFields({ document, segmentId, commit }: { document: GeometryDocument; segmentId: string; commit: (next: GeometryDocument) => void }): React.JSX.Element {
+  const { t } = useI18n()
+  const segment = getGeometryObject(document, segmentId)
+  if (!segment || segment.type !== 'segment') return <></>
+  return <>
+    <label>{t('geometryColor')} <input aria-label={t('geometryColor')} type="color" value={segment.color ?? '#24292f'} onChange={(event) => commit(setSegmentStyle(document, segmentId, { color: event.target.value }))} /></label>
+    <label>{t('geometryLineWidth')} <input aria-label={t('geometryLineWidth')} type="number" min="0.25" step="0.25" value={segment.lineWidth ?? 2} onChange={(event) => commit(setSegmentStyle(document, segmentId, { lineWidth: Number(event.target.value) }))} /></label>
+    <label>{t('geometryLineStyle')} <select aria-label={t('geometryLineStyle')} value={segment.lineStyle ?? 'solid'} onChange={(event) => commit(setSegmentStyle(document, segmentId, { lineStyle: event.target.value as 'solid' | 'dashed' | 'dotted' }))}><option value="solid">{t('geometryLineSolid')}</option><option value="dashed">{t('geometryLineDashed')}</option><option value="dotted">{t('geometryLineDotted')}</option></select></label>
+  </>
 }
 
 function ArcFields({ document, arcId, commit }: { document: GeometryDocument; arcId: string; commit: (next: GeometryDocument) => void }): React.JSX.Element | null {
