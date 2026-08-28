@@ -112,7 +112,9 @@ function TextObject(props: Props & { id: string; x: number; y: number; text: str
 function CircleObject(props: Props & { id: string; centerId: string; radius: number }): React.JSX.Element | null {
   const { document, id, centerId, radius } = props
   const center = resolvePoint(document, centerId)
+  const circle = document.curves.find((item) => item.type === 'circle' && item.id === id)
   if (!center) return null
+  const dasharray = circle?.lineStyle === 'dashed' ? '8 6' : circle?.lineStyle === 'dotted' ? '2 5' : undefined
   return (
     <g key={id}>
       <circle
@@ -120,8 +122,9 @@ function CircleObject(props: Props & { id: string; centerId: string; radius: num
         cy={center.y}
         r={radius}
         fill="none"
-         stroke={props.selectedIds.includes(id) ? SELECTED_COLOR : DEFAULT_COLOR}
-        strokeWidth="2"
+         stroke={props.selectedIds.includes(id) ? SELECTED_COLOR : circle?.color ?? DEFAULT_COLOR}
+        strokeWidth={circle?.lineWidth ?? 2}
+        strokeDasharray={dasharray}
         onClick={(event) => props.tool === 'point' ? props.onPointOnSegment(id, event) : props.onSelectObject(id, event)}
          onMouseDown={(event) => {
            if (props.tool === 'move') event.stopPropagation()
@@ -229,13 +232,15 @@ function ArcObject(props: Props & { id: string; centerId: string; radius: number
   const span = ((angles.endAngle - angles.startAngle) % twoPi + twoPi) % twoPi
   const mx = center.x + radius * Math.cos(arc.startAngle + span / 2)
   const my = center.y + radius * Math.sin(arc.startAngle + span / 2)
+  const dasharray = arc.lineStyle === 'dashed' ? '8 6' : arc.lineStyle === 'dotted' ? '2 5' : undefined
   return (
     <g key={id}>
       <path
         d={`M ${sx} ${sy} A ${radius} ${radius} 0 ${span > Math.PI ? 1 : 0} 1 ${ex} ${ey}`}
         fill="none"
-         stroke={props.selectedIds.includes(id) ? SELECTED_COLOR : DEFAULT_COLOR}
-        strokeWidth="2"
+         stroke={props.selectedIds.includes(id) ? SELECTED_COLOR : arc.color ?? DEFAULT_COLOR}
+        strokeWidth={arc.lineWidth ?? 2}
+        strokeDasharray={dasharray}
         onClick={(event) => props.tool === 'point' ? props.onPointOnSegment(id, event) : props.onSelectObject(id, event)}
          onMouseDown={(event) => {
            if (props.tool === 'move') {
@@ -273,6 +278,7 @@ function EllipseObject(props: Props & { id: string; focusA: string; focusB: stri
   const degrees = (geometry.rotation * 180) / Math.PI
   const handleX = geometry.center.x + geometry.radiusX * Math.cos(geometry.rotation)
   const handleY = geometry.center.y + geometry.radiusX * Math.sin(geometry.rotation)
+  const dasharray = ellipse.lineStyle === 'dashed' ? '8 6' : ellipse.lineStyle === 'dotted' ? '2 5' : undefined
   return (
     <g key={id}>
     <ellipse
@@ -283,8 +289,9 @@ function EllipseObject(props: Props & { id: string; focusA: string; focusB: stri
       ry={geometry.radiusY}
       transform={`rotate(${degrees} ${geometry.center.x} ${geometry.center.y})`}
       fill="none"
-       stroke={props.selectedIds.includes(id) ? SELECTED_COLOR : DEFAULT_COLOR}
-      strokeWidth="2"
+       stroke={props.selectedIds.includes(id) ? SELECTED_COLOR : ellipse.color ?? DEFAULT_COLOR}
+      strokeWidth={ellipse.lineWidth ?? 2}
+      strokeDasharray={dasharray}
        onClick={(event) => props.tool === 'point' ? props.onPointOnSegment(id, event) : props.onSelectObject(id, event)}
        onMouseDown={(event) => {
          if (props.tool === 'move') {

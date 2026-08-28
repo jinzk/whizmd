@@ -23,6 +23,12 @@ export function setSegmentStyle(document: GeometryDocument, segmentId: string, p
   return { ...document, segments }
 }
 
+export function setCurveStyle(document: GeometryDocument, curveId: string, patch: { color?: string; lineWidth?: number; lineStyle?: GeometryLineStyle }): GeometryDocument {
+  const safePatch = { ...patch, lineWidth: patch.lineWidth === undefined ? undefined : Math.max(0.25, Number.isFinite(patch.lineWidth) ? patch.lineWidth : 0.25) }
+  const curves = document.curves.map((object) => object.id === curveId ? { ...object, ...safePatch } : object)
+  return { ...document, curves }
+}
+
 export function setTextValue(document: GeometryDocument, textId: string, text: string): GeometryDocument {
   const annotations = document.annotations.map((object) => object.id === textId ? { ...object, text } : object)
   return { ...document, annotations }

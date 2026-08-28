@@ -82,13 +82,16 @@ export function renderGeometrySvg(document: GeometryDocument): string {
     if (object.type === 'text') return `<text x="${object.x}" y="${object.y}" fill="${object.color ?? '#24292f'}" font-size="${object.fontSize ?? 14}"${object.rotation ? ` transform="rotate(${object.rotation} ${object.x} ${object.y})"` : ''}>${escapeXml(object.text)}</text>`
     if (object.type === 'circle') {
       const center = points.get(object.center)
-      return center ? `<circle cx="${center.x}" cy="${center.y}" r="${object.radius}" fill="none" stroke="#24292f" stroke-width="2" />` : ''
+      if (!center) return ''
+      const dash = object.lineStyle === 'dashed' ? ' stroke-dasharray="8 6"' : object.lineStyle === 'dotted' ? ' stroke-dasharray="2 5"' : ''
+      return `<circle cx="${center.x}" cy="${center.y}" r="${object.radius}" fill="none" stroke="${object.color ?? '#24292f'}" stroke-width="${object.lineWidth ?? 2}"${dash} />`
     }
     if (object.type === 'ellipse') {
       const geometry = resolveEllipseGeometry(document, object)
       if (!geometry) return ''
       const degrees = (geometry.rotation * 180) / Math.PI
-      return `<ellipse cx="${geometry.center.x}" cy="${geometry.center.y}" rx="${geometry.radiusX}" ry="${geometry.radiusY}" transform="rotate(${degrees} ${geometry.center.x} ${geometry.center.y})" fill="none" stroke="#24292f" stroke-width="2" />`
+      const dash = object.lineStyle === 'dashed' ? ' stroke-dasharray="8 6"' : object.lineStyle === 'dotted' ? ' stroke-dasharray="2 5"' : ''
+      return `<ellipse cx="${geometry.center.x}" cy="${geometry.center.y}" rx="${geometry.radiusX}" ry="${geometry.radiusY}" transform="rotate(${degrees} ${geometry.center.x} ${geometry.center.y})" fill="none" stroke="${object.color ?? '#24292f'}" stroke-width="${object.lineWidth ?? 2}"${dash} />`
     }
     if (object.type === 'arc') {
       const center = points.get(object.center)
@@ -99,7 +102,8 @@ export function renderGeometrySvg(document: GeometryDocument): string {
       const twoPi = Math.PI * 2
       const span = ((endAngle - startAngle) % twoPi + twoPi) % twoPi
       const largeArc = span > Math.PI ? 1 : 0
-      return `<path d="M ${start.x} ${start.y} A ${object.radius} ${object.radius} 0 ${largeArc} 1 ${end.x} ${end.y}" fill="none" stroke="#24292f" stroke-width="2" />`
+      const dash = object.lineStyle === 'dashed' ? ' stroke-dasharray="8 6"' : object.lineStyle === 'dotted' ? ' stroke-dasharray="2 5"' : ''
+      return `<path d="M ${start.x} ${start.y} A ${object.radius} ${object.radius} 0 ${largeArc} 1 ${end.x} ${end.y}" fill="none" stroke="${object.color ?? '#24292f'}" stroke-width="${object.lineWidth ?? 2}"${dash} />`
     }
     const segment = object as GeometrySegment
     const start = points.get(segment.start)

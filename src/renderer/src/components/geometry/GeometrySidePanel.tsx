@@ -3,7 +3,7 @@ import { getArcAngles } from '../../geometry/core/calculations'
 import { getVertexAngle } from '../../geometry/core/polygonGuard'
 import type { GeometryConstraint } from '../../geometry/core/constraints'
 import { useI18n, type TranslationKey } from '../../i18n'
-import { deleteObjects, setArcProperties, setCircleRadius, setEllipseSemiMajor, setPointCoordinates, setPointLabel, setPointStyle, setSegmentLength, setSegmentStyle, setTextAnchor, setTextStyle, setTextValue, setVertexAngle } from '../../geometry/core/propertyCommands'
+import { deleteObjects, setArcProperties, setCircleRadius, setCurveStyle, setEllipseSemiMajor, setPointCoordinates, setPointLabel, setPointStyle, setSegmentLength, setSegmentStyle, setTextAnchor, setTextStyle, setTextValue, setVertexAngle } from '../../geometry/core/propertyCommands'
 
 type Props = {
   document: GeometryDocument
@@ -244,16 +244,27 @@ function ObjectDetails({ document, selectedIds, commit }: Props): React.JSX.Elem
         </span>
       ) : null}
       {object.type === 'circle' ? (
-        <label>
+        <>
+          <label>
           <span>{t('geometryRadius')}</span><span aria-hidden="true"> (cm)</span> <input aria-label={t('geometryRadius')} type="number" min="0.01" step="0.01" value={Math.round((object.radius / GEOMETRY_UNITS_PER_CM) * 100) / 100} onChange={(event) => commit(setCircleRadius(document, object.id, Number(event.target.value) * GEOMETRY_UNITS_PER_CM))} />
-        </label>
+          </label>
+          <CurveStyleFields document={document} curveId={object.id} commit={commit} />
+        </>
       ) : null}
       {object.type === 'ellipse' ? (
-        <label>
+        <>
+          <label>
           <span>{t('geometrySemiMajor')}</span><span aria-hidden="true"> (cm)</span> <input aria-label={t('geometrySemiMajor')} type="number" min="0.01" step="0.01" value={Math.round((object.semiMajor / GEOMETRY_UNITS_PER_CM) * 100) / 100} onChange={(event) => commit(setEllipseSemiMajor(document, object.id, Number(event.target.value) * GEOMETRY_UNITS_PER_CM))} />
-        </label>
+          </label>
+          <CurveStyleFields document={document} curveId={object.id} commit={commit} />
+        </>
       ) : null}
-      {object.type === 'arc' ? <ArcFields document={document} arcId={object.id} commit={commit} /> : null}
+      {object.type === 'arc' ? (
+        <>
+          <ArcFields document={document} arcId={object.id} commit={commit} />
+          <CurveStyleFields document={document} curveId={object.id} commit={commit} />
+        </>
+      ) : null}
       {object.type === 'text' ? (
         <>
           <label>{t('geometryTextValue')}{' '}<input value={object.text} onChange={(event) => commit(setTextValue(document, object.id, event.target.value))} /></label>
@@ -294,6 +305,17 @@ function SegmentStyleFields({ document, segmentId, commit }: { document: Geometr
     <label>{t('geometryColor')} <input aria-label={t('geometryColor')} type="color" value={segment.color ?? '#24292f'} onChange={(event) => commit(setSegmentStyle(document, segmentId, { color: event.target.value }))} /></label>
     <label>{t('geometryLineWidth')} <input aria-label={t('geometryLineWidth')} type="number" min="0.25" step="0.25" value={segment.lineWidth ?? 2} onChange={(event) => commit(setSegmentStyle(document, segmentId, { lineWidth: Number(event.target.value) }))} /></label>
     <label>{t('geometryLineStyle')} <select aria-label={t('geometryLineStyle')} value={segment.lineStyle ?? 'solid'} onChange={(event) => commit(setSegmentStyle(document, segmentId, { lineStyle: event.target.value as 'solid' | 'dashed' | 'dotted' }))}><option value="solid">{t('geometryLineSolid')}</option><option value="dashed">{t('geometryLineDashed')}</option><option value="dotted">{t('geometryLineDotted')}</option></select></label>
+  </>
+}
+
+function CurveStyleFields({ document, curveId, commit }: { document: GeometryDocument; curveId: string; commit: (next: GeometryDocument) => void }): React.JSX.Element {
+  const { t } = useI18n()
+  const object = getGeometryObject(document, curveId)
+  if (!object || (object.type !== 'circle' && object.type !== 'ellipse' && object.type !== 'arc')) return <></>
+  return <>
+    <label>{t('geometryColor')} <input aria-label={t('geometryColor')} type="color" value={object.color ?? '#24292f'} onChange={(event) => commit(setCurveStyle(document, curveId, { color: event.target.value }))} /></label>
+    <label>{t('geometryLineWidth')} <input aria-label={t('geometryLineWidth')} type="number" min="0.25" step="0.25" value={object.lineWidth ?? 2} onChange={(event) => commit(setCurveStyle(document, curveId, { lineWidth: Number(event.target.value) }))} /></label>
+    <label>{t('geometryLineStyle')} <select aria-label={t('geometryLineStyle')} value={object.lineStyle ?? 'solid'} onChange={(event) => commit(setCurveStyle(document, curveId, { lineStyle: event.target.value as 'solid' | 'dashed' | 'dotted' }))}><option value="solid">{t('geometryLineSolid')}</option><option value="dashed">{t('geometryLineDashed')}</option><option value="dotted">{t('geometryLineDotted')}</option></select></label>
   </>
 }
 
