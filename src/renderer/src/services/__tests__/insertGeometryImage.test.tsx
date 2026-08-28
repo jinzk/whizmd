@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Editor } from '@tiptap/core'
 import { WysiwygEditor } from '../../components/WysiwygEditor'
 import { insertGeometryImage } from '../insertGeometryImage'
+import { resetMediaVersions } from '../mediaRefresh'
 import type { MarkdownAppApi } from '../../../../shared/types'
 
 const ASSET_PATH = 'C:\\Users\\alex\\AppData\\Roaming\\whizmd\\assets\\geometry-1.svg'
@@ -56,6 +57,7 @@ async function mountEditor(onUpdate: (markdown: string) => void): Promise<Editor
 describe('insertGeometryImage', () => {
   afterEach(() => {
     cleanup()
+    resetMediaVersions()
     vi.restoreAllMocks()
   })
 
@@ -82,7 +84,7 @@ describe('insertGeometryImage', () => {
       const img = document.querySelector('.image-node .image-preview img')
       expect(img).not.toBeNull()
     })
-    expect(document.querySelector('.image-node .image-preview img')!.getAttribute('src')).toBe(MEDIA_SRC)
+    expect(document.querySelector('.image-node .image-preview img')!.getAttribute('src')).toBe(`${MEDIA_SRC}?v=1`)
   })
 
   it('keeps the image interactive after a content round-trip', async () => {
@@ -112,7 +114,7 @@ describe('insertGeometryImage', () => {
       const img = document.querySelector('.image-node .image-preview img')
       expect(img).not.toBeNull()
     })
-    expect(document.querySelector('.image-node .image-preview img')!.getAttribute('src')).toBe(MEDIA_SRC)
+    expect(document.querySelector('.image-node .image-preview img')!.getAttribute('src')).toBe(`${MEDIA_SRC}?v=1`)
   })
 
   it('falls back to appending markdown when no live editor exists', async () => {
@@ -147,5 +149,117 @@ describe('insertGeometryImage', () => {
     })
     expect(storedSrc).toBe('assets/geometry-1.svg')
     expect(appendMarkdown).toHaveBeenCalledWith('![几何图](assets/geometry-1.svg)')
+  })
+
+  function countImages(editor: Editor): { count: number; srcs: string[] } {
+    const srcs: string[] = []
+    const walk = (nodes: unknown): void => {
+      if (!Array.isArray(nodes)) return
+      for (const node of nodes as Array<{ type?: string; attrs?: { src?: string }; content?: unknown }>) {
+        if (node.type === 'image') srcs.push(String(node.attrs?.src ?? ''))
+        walk(node.content)
+      }
+    }
+    walk(editor.getJSON().content)
+    return { count: srcs.length, srcs }
+  }
+
+  it('replaces the existing geometry node instead of inserting a duplicate after re-saving a saved document', async () => {
+    setupApi()
+    const saveGeometry = window.markdownApp.file.saveGeometry as ReturnType<typeof vi.fn>
+    saveGeometry.mockResolvedValue({ markdownPath: 'assets/geometry-1.svg', absolutePath: ASSET_PATH })
+    const editor = await mountEditor(vi.fn())
+    await act(async () => {
+      editor.commands.setContent([
+        { type: 'paragraph', content: [{ type: 'image', attrs: { src: 'assets/geometry-1.svg', alt: '几何图' } }] }
+      ], { emitUpdate: false })
+    })
+
+    await act(async () => {
+      await insertGeometryImage({
+        svg: '<svg/>',
+        docPath: 'C:/docs/guide.md',
+        existingPath: 'assets/geometry-1.svg',
+        editor,
+        activeDocumentId: 'doc-1',
+        hasActiveDocument: true,
+        onStagedNotice: () => undefined,
+        appendMarkdown: vi.fn()
+      })
+    })
+
+    expect(countImages(editor)).toEqual({ count: 1, srcs: ['assets/geometry-1.svg'] })
+    await waitFor(() => {
+      expect(document.querySelector('.image-node .image-preview img')?.getAttribute('src')).toContain('?v=1')
+    })
+  })
+
+  it('does not append a second image when an existing image cannot be located', async () => {
+    setupApi()
+    const editor = await mountEditor(vi.fn())
+    await expect(insertGeometryImage({
+      svg: '<svg/>',
+      docPath: 'C:/docs/guide.md',
+      existingPath: 'assets/missing.svg',
+      editor,
+      activeDocumentId: 'doc-1',
+      hasActiveDocument: true,
+      onStagedNotice: () => undefined,
+      appendMarkdown: vi.fn()
+    })).rejects.toThrow('无法定位正在编辑的几何图片')
+    expect(editor.getMarkdown()).not.toContain('几何图')
+  })
+
+  it('replaces the geometry node in place and bumps the media version for untitled documents', async () => {
+    setupApi()
+    const editor = await mountEditor(vi.fn())
+
+    let storedSrc = ''
+    await act(async () => {
+      storedSrc = await insertGeometryImage({
+        svg: '<svg/>',
+        docPath: null,
+        editor,
+        activeDocumentId: 'doc-1',
+        hasActiveDocument: true,
+        onStagedNotice: () => undefined,
+        appendMarkdown: vi.fn()
+      })
+    })
+    expect(countImages(editor)).toEqual({ count: 1, srcs: [MEDIA_SRC] })
+
+    await act(async () => {
+      await insertGeometryImage({
+        svg: '<svg/>',
+        docPath: null,
+        existingPath: storedSrc,
+        editor,
+        activeDocumentId: 'doc-1',
+        hasActiveDocument: true,
+        onStagedNotice: () => undefined,
+        appendMarkdown: vi.fn()
+      })
+    })
+
+    expect(countImages(editor)).toEqual({ count: 1, srcs: [MEDIA_SRC] })
+    await waitFor(() => {
+      expect(document.querySelector('.image-node .image-preview img')?.getAttribute('src')).toContain('?v=2')
+    })
+  })
+
+  it('preserves image-link attributes while replacing its geometry source', async () => {
+    setupApi()
+    const saveGeometry = window.markdownApp.file.saveGeometry as ReturnType<typeof vi.fn>
+    saveGeometry.mockResolvedValue({ markdownPath: 'assets/geometry-1.svg', absolutePath: ASSET_PATH })
+    const editor = await mountEditor(vi.fn())
+    await act(async () => {
+      editor.commands.setContent([{ type: 'paragraph', content: [{ type: 'imageLinkNode', attrs: { src: 'assets/geometry-1.svg', alt: '旧图', title: null, href: 'https://example.com', reference: null } }] }], { emitUpdate: false })
+      await insertGeometryImage({
+        svg: '<svg/>', docPath: 'C:/docs/guide.md', existingPath: 'assets/geometry-1.svg', editor,
+        activeDocumentId: 'doc-1', hasActiveDocument: true, onStagedNotice: () => undefined, appendMarkdown: vi.fn()
+      })
+    })
+    const node = editor.getJSON().content?.[0]?.content?.[0]
+    expect(node).toMatchObject({ type: 'imageLinkNode', attrs: { src: 'assets/geometry-1.svg', href: 'https://example.com', alt: '旧图' } })
   })
 })

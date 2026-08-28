@@ -33,7 +33,9 @@ export function App(): React.JSX.Element {
   const [geometryOpen, setGeometryOpen] = useState(false)
   const [geometryDocument, setGeometryDocument] = useState<GeometryDocument | undefined>()
   const [geometryExistingPath, setGeometryExistingPath] = useState<string | undefined>()
+  const [geometryExistingPosition, setGeometryExistingPosition] = useState<number | undefined>()
   const geometryEditorRef = useRef<Editor | null>(null)
+  const geometryTargetEditorRef = useRef<Editor | null>(null)
   const [settingsDraft, setSettingsDraft] = useState<AppConfig | null>(null)
   const [notices, setNotices] = useState<AppNotice[]>([])
   const [recentFiles, setRecentFiles] = useState<string[]>([])
@@ -84,12 +86,19 @@ export function App(): React.JSX.Element {
 
   useEffect(() => {
     const openGeometry = async (event: Event): Promise<void> => {
-      const src = (event as CustomEvent<{ src: string }>).detail?.src
+      const detail = (event as CustomEvent<{ src: string; position?: number; editor?: Editor }>).detail
+      const src = detail?.src
       if (!src) return
       try {
       const svg = await window.markdownApp.file.readGeometry(src, docPath)
         const document = svg ? deserializeGeometrySvg(svg) : null
-        if (document) { setGeometryDocument(document); setGeometryExistingPath(src); setGeometryOpen(true) }
+        if (document) {
+          setGeometryDocument(document)
+          setGeometryExistingPath(src)
+          setGeometryExistingPosition(detail.position)
+          geometryTargetEditorRef.current = detail.editor ?? geometryEditorRef.current
+          setGeometryOpen(true)
+        }
       } catch { /* External or unavailable SVG remains a normal image. */ }
     }
     window.addEventListener('whizmd:edit-geometry', openGeometry)
@@ -202,15 +211,29 @@ export function App(): React.JSX.Element {
     [activeDocument, exportDefaultPath, exportTitle]
   )
   const handleInsertAction = useCallback((action: EditorInsertAction): void => {
-    if (action === 'geometry') setGeometryOpen(true)
+    if (action === 'geometry') {
+      setGeometryDocument(undefined)
+      setGeometryExistingPath(undefined)
+      setGeometryExistingPosition(undefined)
+      geometryTargetEditorRef.current = null
+      setGeometryOpen(true)
+    }
   }, [])
-  const handleDrawGeometry = useCallback((): void => setGeometryOpen(true), [])
+  const handleDrawGeometry = useCallback((): void => {
+    setGeometryDocument(undefined)
+    setGeometryExistingPath(undefined)
+    setGeometryExistingPosition(undefined)
+    geometryTargetEditorRef.current = null
+    setGeometryOpen(true)
+  }, [])
   const saveGeometry = useCallback(async (svg: string): Promise<void> => {
     try {
       await insertGeometryImage({
         svg,
         docPath,
         existingPath: geometryExistingPath,
+        existingPosition: geometryExistingPosition,
+        existingEditor: geometryTargetEditorRef.current,
         editor: geometryEditorRef.current,
         activeDocumentId: activeDocument?.id ?? '',
         hasActiveDocument: Boolean(activeDocument),
@@ -218,10 +241,14 @@ export function App(): React.JSX.Element {
         appendMarkdown: (image) => handleUpdate(activeDocument?.content ? `${activeDocument.content}\n\n${image}` : image)
       })
       setGeometryOpen(false)
+      setGeometryDocument(undefined)
+      setGeometryExistingPath(undefined)
+      setGeometryExistingPosition(undefined)
+      geometryTargetEditorRef.current = null
     } catch (error) {
       notify(`几何图保存失败：${error instanceof Error ? error.message : String(error)}`)
     }
-  }, [activeDocument, docPath, geometryExistingPath, handleUpdate, notify, t])
+  }, [activeDocument, docPath, geometryExistingPath, geometryExistingPosition, handleUpdate, notify, t])
 
   useEffect(() => {
     const actions: Record<MenuCommand, () => void> = {
@@ -275,7 +302,7 @@ export function App(): React.JSX.Element {
          onSettings={showSettings}
          onDrawGeometry={handleDrawGeometry}
       />
-       {geometryOpen ? <GeometryEditorDialog existingPath={geometryExistingPath} initialDocument={geometryDocument} initialTool="select" onClose={() => { setGeometryOpen(false); setGeometryDocument(undefined); setGeometryExistingPath(undefined) }} onSave={saveGeometry} /> : null}
+       {geometryOpen ? <GeometryEditorDialog existingPath={geometryExistingPath} initialDocument={geometryDocument} initialTool="select" onClose={() => { setGeometryOpen(false); setGeometryDocument(undefined); setGeometryExistingPath(undefined); setGeometryExistingPosition(undefined); geometryTargetEditorRef.current = null }} onSave={saveGeometry} /> : null}
 
       <div className="main-layout">
         <FileSidebar

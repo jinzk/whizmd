@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildShape, createGeometryDocument, evaluateConstraints, getGeometryObject, getGeometryObjects } from '../index'
+import { addPoint, addSegment, buildShape, createGeometryDocument, evaluateConstraints, getGeometryObject, getGeometryObjects } from '../index'
 
 function segmentVector(document: ReturnType<typeof createGeometryDocument>, id: string) {
   const object = getGeometryObject(document, id)
@@ -32,6 +32,8 @@ describe('shape factory', () => {
     const s3 = segmentVector(built, 'S3')!
     expect(s1.length).toBeCloseTo(base, 6)
     expect(s2.length).toBeCloseTo(s3.length, 6)
+    expect(s1.length).toBeCloseTo(s2.length, 6)
+    expect(built.constraints.filter((c) => c.type === 'equalLength')).toHaveLength(2)
     expect(evaluateConstraints(built, built.constraints).every((result) => result.valid)).toBe(true)
   })
 
@@ -82,5 +84,16 @@ describe('shape factory', () => {
     expect(built.segments).toHaveLength(3)
     expect(built.constraints).toContainEqual({ type: 'perpendicular', lineA: 'S1', lineB: 'S2' })
     expect(evaluateConstraints(built, built.constraints).every((result) => result.valid)).toBe(true)
+  })
+
+  it('references the created base side when building a right triangle after existing geometry', () => {
+    let document = addPoint(createGeometryDocument(), 0, 0)
+    document = addPoint(document, 20, 0)
+    document = addSegment(document, 'P1', 'P2')
+    document = buildShape(document, 'rightTriangle', 100, 100, 300, 260)
+    const triangle = document.shapes.find((shape) => shape.kind === 'rightTriangle')!
+    const triangleSides = new Set(triangle.boundarySegmentIds)
+    expect(document.constraints).toContainEqual({ type: 'perpendicular', lineA: 'S2', lineB: 'S3' })
+    expect([...triangleSides]).toEqual(expect.arrayContaining(['S2', 'S3']))
   })
 })

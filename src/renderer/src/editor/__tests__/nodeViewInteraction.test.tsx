@@ -179,7 +179,7 @@ describe('NodeView DOM interactions', () => {
     window.addEventListener('whizmd:edit-geometry', listener)
     await mount([{ type: 'paragraph', content: [{ type: 'image', attrs: { src: 'assets/geometry.svg', alt: 'geometry', width: null, title: null, reference: null } }] }], [...baseExtensions, Image])
     await event(() => fireEvent.click(screen.getByRole('button', { name: '编辑图片' })))
-    fireEvent.click(screen.getByRole('button', { name: '编辑几何图' }))
+    fireEvent.click(screen.getByRole('button', { name: '修改画图' }))
     expect(listener).toHaveBeenCalled()
     window.removeEventListener('whizmd:edit-geometry', listener)
   })
@@ -189,7 +189,7 @@ describe('NodeView DOM interactions', () => {
     window.addEventListener('whizmd:edit-geometry', listener)
     const editor = await mount([{ type: 'paragraph', content: [{ type: 'imageLinkNode', attrs: { src: 'assets/geometry.svg', alt: 'geometry', title: null, href: 'https://example.com', reference: null } }] }], [...baseExtensions, ImageLinkNode])
     await event(() => fireEvent.click(screen.getByRole('button', { name: '编辑图片链接' })))
-    fireEvent.click(screen.getByRole('button', { name: '编辑几何图' }))
+    fireEvent.click(screen.getByRole('button', { name: '修改画图' }))
     expect(listener).toHaveBeenCalled()
     expect(json(editor).content?.[0].content?.[0]).toMatchObject({ type: 'imageLinkNode', attrs: { href: 'https://example.com' } })
     window.removeEventListener('whizmd:edit-geometry', listener)
@@ -198,7 +198,7 @@ describe('NodeView DOM interactions', () => {
   it('keeps geometry image-link href stable when geometry editing is requested', async () => {
     const editor = await mount([{ type: 'paragraph', content: [{ type: 'imageLinkNode', attrs: { src: 'assets/geometry.svg', alt: 'geometry', title: null, href: 'https://example.com', reference: null } }] }], [...baseExtensions, ImageLinkNode])
     await event(() => fireEvent.click(screen.getByRole('button', { name: '编辑图片链接' })))
-    fireEvent.click(screen.getByRole('button', { name: '编辑几何图' }))
+    fireEvent.click(screen.getByRole('button', { name: '修改画图' }))
     expect(json(editor).content?.[0].content?.[0]).toMatchObject({ type: 'imageLinkNode', attrs: { src: 'assets/geometry.svg', href: 'https://example.com' } })
   })
 

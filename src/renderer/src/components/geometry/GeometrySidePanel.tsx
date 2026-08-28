@@ -1,4 +1,4 @@
-import { evaluateConstraints, findPolygonCycle, getGeometryObject, getGeometryObjects, movePoint, removeConstraint, resolvePoint, solveGeometry, type GeometryArc, type GeometryDocument } from '../../geometry'
+import { evaluateConstraints, findPolygonCycle, GEOMETRY_UNITS_PER_CM, getGeometryObject, getGeometryObjects, movePoint, removeConstraint, resolvePoint, solveGeometry, type GeometryArc, type GeometryDocument } from '../../geometry'
 import { getArcAngles } from '../../geometry/core/calculations'
 import { getVertexAngle } from '../../geometry/core/polygonGuard'
 import type { GeometryConstraint } from '../../geometry/core/constraints'
@@ -208,7 +208,7 @@ function ObjectDetails({ document, selectedIds, commit }: Props): React.JSX.Elem
   const center = object.type === 'circle' ? resolvePoint(document, object.center) : null
 
   const applySegmentLength = (segmentId: string, value: number): void => {
-    const next = setSegmentLength(document, segmentId, value)
+    const next = setSegmentLength(document, segmentId, value * GEOMETRY_UNITS_PER_CM)
     commit(solveGeometry(next).document)
   }
 
@@ -217,16 +217,18 @@ function ObjectDetails({ document, selectedIds, commit }: Props): React.JSX.Elem
       <strong>{object.id}</strong>
       {point ? (
         <span>
-          {t('geometryCoordinates')}: {point.x.toFixed(2)}, {point.y.toFixed(2)}
+            {t('geometryCoordinates')}: {point.x.toFixed(2)} cm, {point.y.toFixed(2)} cm
         </span>
       ) : null}
       {length !== null ? (
         <label>
-          {t('geometryLength')}{' '}
+            <span>{t('geometryLength')}</span><span aria-hidden="true"> (cm)</span>{' '}
           <input
             aria-label={t('geometryLength')}
             type="number"
-            defaultValue={Math.round(length * 100) / 100}
+            min="0.01"
+            step="0.01"
+            defaultValue={Math.round((length / GEOMETRY_UNITS_PER_CM) * 100) / 100}
             onBlur={(event) => applySegmentLength(object.id, Number(event.target.value))}
             onKeyDown={(event) => {
               if (event.key === 'Enter') applySegmentLength(object.id, Number((event.target as HTMLInputElement).value))
@@ -241,12 +243,12 @@ function ObjectDetails({ document, selectedIds, commit }: Props): React.JSX.Elem
       ) : null}
       {object.type === 'circle' ? (
         <label>
-          {t('geometryRadius')} <input type="number" value={object.radius} onChange={(event) => commit(setCircleRadius(document, object.id, Number(event.target.value)))} />
+          <span>{t('geometryRadius')}</span><span aria-hidden="true"> (cm)</span> <input aria-label={t('geometryRadius')} type="number" min="0.01" step="0.01" value={Math.round((object.radius / GEOMETRY_UNITS_PER_CM) * 100) / 100} onChange={(event) => commit(setCircleRadius(document, object.id, Number(event.target.value) * GEOMETRY_UNITS_PER_CM))} />
         </label>
       ) : null}
       {object.type === 'ellipse' ? (
         <label>
-          {t('geometrySemiMajor')} <input aria-label={t('geometrySemiMajor')} type="number" min="1" value={object.semiMajor} onChange={(event) => commit(setEllipseSemiMajor(document, object.id, Number(event.target.value)))} />
+          <span>{t('geometrySemiMajor')}</span><span aria-hidden="true"> (cm)</span> <input aria-label={t('geometrySemiMajor')} type="number" min="0.01" step="0.01" value={Math.round((object.semiMajor / GEOMETRY_UNITS_PER_CM) * 100) / 100} onChange={(event) => commit(setEllipseSemiMajor(document, object.id, Number(event.target.value) * GEOMETRY_UNITS_PER_CM))} />
         </label>
       ) : null}
       {object.type === 'arc' ? <ArcFields document={document} arcId={object.id} commit={commit} /> : null}
@@ -282,12 +284,14 @@ function ArcFields({ document, arcId, commit }: { document: GeometryDocument; ar
   return (
     <>
       <label>
-        {t('geometryRadius')}{' '}
+        <span>{t('geometryRadius')}</span><span aria-hidden="true"> (cm)</span>{' '}
         <input
           aria-label={t('geometryRadius')}
-          type="number"
-          value={Math.round(arc.radius * 100) / 100}
-          onChange={(event) => setArc({ radius: Math.max(1, Number(event.target.value) || 1) })}
+           type="number"
+           min="0.01"
+           step="0.01"
+          value={Math.round((arc.radius / GEOMETRY_UNITS_PER_CM) * 100) / 100}
+          onChange={(event) => setArc({ radius: Math.max(0.01, Number(event.target.value) * GEOMETRY_UNITS_PER_CM || 0.01) })}
         />
       </label>
       <label>
@@ -342,7 +346,7 @@ function ConstraintsList({ document, selectedIds, commit }: Props): React.JSX.El
       case 'parallel':
       case 'perpendicular': return `${objectLabel(constraint.lineA)} / ${objectLabel(constraint.lineB)}`
       case 'equalLength': return `${objectLabel(constraint.segmentA)} = ${objectLabel(constraint.segmentB)}`
-      case 'fixedDistance': return `${pointLabel(constraint.a)}-${pointLabel(constraint.b)} = ${constraint.value.toFixed(2)}`
+       case 'fixedDistance': return `${pointLabel(constraint.a)}-${pointLabel(constraint.b)} = ${(constraint.value / GEOMETRY_UNITS_PER_CM).toFixed(2)} cm`
       case 'fixedAngle': return `∠${pointLabel(constraint.a)}${pointLabel(constraint.vertex)}${pointLabel(constraint.b)} = ${absoluteAngleDegrees(constraint.value)}°`
       case 'tangent': return `${objectLabel(constraint.curveA)} / ${objectLabel(constraint.curveB)}`
       case 'symmetric': return `${pointLabel(constraint.a)}, ${pointLabel(constraint.b)} ↔ ${objectLabel(constraint.mirror)}`

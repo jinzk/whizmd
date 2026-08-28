@@ -1,5 +1,5 @@
-.geometry-dialog { width: min(1080px, calc(100vw - 32px)); max-height: calc(100vh - 32px); display: flex; flex-direction: column; overflow: hidden; }
-.geometry-layout { display: grid; grid-template-columns: 180px minmax(0, 1fr) 240px; flex: 1 1 auto; gap: 12px; align-items: stretch; min-height: 0; overflow: hidden; }
+.geometry-dialog { width: min(1240px, calc(100vw - 32px)); max-height: calc(100vh - 32px); display: flex; flex-direction: column; overflow: hidden; }
+.geometry-layout { display: grid; grid-template-columns: 156px minmax(0, 1fr) 240px; flex: 1 1 auto; gap: 12px; align-items: stretch; min-height: 0; overflow: hidden; }
 .geometry-main { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .geometry-canvas { display: block; width: 100%; min-height: 360px; border: 1px solid var(--md-border); border-radius: 6px; background: repeating-linear-gradient(0deg, transparent 0 24px, color-mix(in srgb, var(--md-border) 30%, transparent) 25px), repeating-linear-gradient(90deg, transparent 0 24px, color-mix(in srgb, var(--md-border) 30%, transparent) 25px); outline: none; }
 .geometry-canvas text { user-select: none; font: 14px/1.2 sans-serif; }
@@ -13,6 +13,8 @@
 .geometry-handle-radius { cursor: ew-resize; }
 .geometry-handle-endpoint { cursor: crosshair; }
 .geometry-canvas line { pointer-events: stroke; }
+.geometry-hit-area { fill: none; stroke: transparent; stroke-width: 14; pointer-events: stroke; }
+.geometry-attachment-hit-area { cursor: grab; }
 .geometry-canvas-wrap { position: relative; min-height: 0; overflow: auto; }
 .geometry-construction-hint { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 2; max-width: calc(100% - 24px); padding: 4px 12px; border: 1px solid color-mix(in srgb, var(--md-accent) 35%, transparent); border-radius: 6px; background: color-mix(in srgb, var(--md-accent) 14%, var(--md-bg)); box-shadow: 0 2px 8px rgb(0 0 0 / 15%); color: var(--md-text); font-size: 13px; text-align: center; pointer-events: none; }
 .geometry-preview-line { stroke: var(--md-accent); stroke-width: 2; stroke-dasharray: 6 4; pointer-events: none; }

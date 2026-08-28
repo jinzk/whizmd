@@ -11,7 +11,8 @@ type Props = {
   onSelectForConstruction: (id: string, event: MouseEventOf) => void
   onSelectObject: (id: string, event: MouseEventOf) => void
   onPointMouseDown: (id: string, event: React.MouseEvent<SVGCircleElement>) => void
-  onPointOnSegment: (id: string, event: React.MouseEvent<SVGLineElement>) => void
+  onAttachedPointMouseDown: (id: string, event: React.MouseEvent<SVGCircleElement>) => void
+  onPointOnSegment: (id: string, event: React.MouseEvent<SVGElement>) => void
   onGrabRigid: (pointIds: string[], event: MouseEventOf) => void
   onShapeEdgeDrag: (segmentId: string, event: MouseEventOf) => boolean
   onCurveResize: (id: string, event: MouseEventOf) => boolean
@@ -69,13 +70,25 @@ function PointObject(props: Props & { id: string; x: number; y: number; label?: 
   const { id, x, y, label } = props
   return (
     <g key={id}>
+      {props.document.points.find((point) => point.id === id)?.attachment?.kind && props.document.points.find((point) => point.id === id)?.attachment?.kind !== 'segment' ? (
+        <circle
+          className="geometry-attachment-hit-area"
+          cx={x}
+          cy={y}
+          r="10"
+          fill="transparent"
+          pointerEvents="all"
+          onMouseDown={(event) => props.onAttachedPointMouseDown(id, event)}
+        />
+      ) : null}
       <circle
         cx={x}
         cy={y}
         r="5"
+        data-attachment-kind={props.document.points.find((point) => point.id === id)?.attachment?.kind}
         fill={props.selectedIds.includes(id) ? SELECTED_COLOR : HANDLE_COLOR}
         onClick={(event) => props.onSelectForConstruction(id, event)}
-        onMouseDown={(event) => props.onPointMouseDown(id, event)}
+        onMouseDown={(event) => props.document.points.find((point) => point.id === id)?.attachment ? props.onAttachedPointMouseDown(id, event) : props.onPointMouseDown(id, event)}
       />
       <text x={x + 8} y={y - 8} pointerEvents="none">
         {label}
@@ -108,11 +121,22 @@ function CircleObject(props: Props & { id: string; centerId: string; radius: num
         fill="none"
          stroke={props.selectedIds.includes(id) ? SELECTED_COLOR : DEFAULT_COLOR}
         strokeWidth="2"
-        onClick={(event) => props.onSelectObject(id, event)}
+        onClick={(event) => props.tool === 'point' ? props.onPointOnSegment(id, event) : props.onSelectObject(id, event)}
          onMouseDown={(event) => {
            if (props.tool === 'move') event.stopPropagation()
            props.onGrabRigid([centerId], event)
-         }}
+          }}
+      />
+      <circle
+        data-handle=""
+        className="geometry-handle-center"
+        cx={center.x}
+        cy={center.y}
+        r="8"
+        fill="transparent"
+        pointerEvents="all"
+        onClick={(event) => props.onSelectObject(centerId, event)}
+        onMouseDown={(event) => props.onGrabRigid([centerId], event)}
       />
        <circle data-handle="" className="geometry-handle-radius" cx={center.x + radius} cy={center.y} r="6" fill={props.selectedIds.includes(id) ? SELECTED_COLOR : HANDLE_COLOR} onMouseDown={(event) => props.onStartCircleResize(id, event)} />
     </g>
@@ -132,47 +156,55 @@ function SegmentObject(props: Props & { id: string; startId: string; endId: stri
       </g>
     )
   }
+  const handleClick = (event: React.MouseEvent<SVGElement>): void => {
+    if (props.tool === 'point') {
+      props.onPointOnSegment(id, event)
+      return
+    }
+    if (props.constructionTool) {
+      event.stopPropagation()
+      props.onSelectForConstruction(id, event)
+      return
+    }
+    props.onSelectObject(id, event)
+  }
+  const handleMouseDown = (event: React.MouseEvent<SVGElement>): void => {
+    if (props.constructionTool) {
+      event.stopPropagation()
+      return
+    }
+    if (props.tool === 'move') {
+      event.stopPropagation()
+      props.onGrabRigid([startId, endId], event)
+      return
+    }
+    if (props.tool === 'select' && props.onShapeEdgeDrag(id, event)) {
+      event.stopPropagation()
+      props.onSelectObject(id, event)
+      return
+    }
+    if (props.tool === 'select') props.onSelectObject(id, event)
+    props.onGrabRigid([startId, endId], event)
+  }
   return (
     <g key={id}>
-      <line
+       <line
         x1={start.x}
         y1={start.y}
         x2={end.x}
         y2={end.y}
          stroke={props.selectedIds.includes(id) ? SELECTED_COLOR : DEFAULT_COLOR}
         strokeWidth="2"
-         onClick={(event) => {
-           if (props.tool === 'point') {
-             props.onPointOnSegment(id, event)
-             return
-           }
-           if (props.constructionTool) {
-             event.stopPropagation()
-             props.onSelectForConstruction(id, event)
-             return
-           }
-           props.onSelectObject(id, event)
-         }}
-         onMouseDown={(event) => {
-            if (props.constructionTool) {
-              event.stopPropagation()
-              return
-            }
-            if (props.tool === 'move') {
-              event.stopPropagation()
-              props.onGrabRigid([startId, endId], event)
-              return
-            }
-           if (props.tool === 'select' && props.onShapeEdgeDrag(id, event)) {
-             event.stopPropagation()
-             props.onSelectObject(id, event)
-             return
-           }
-            if (props.tool === 'select') props.onSelectObject(id, event)
-            props.onGrabRigid([startId, endId], event)
-         }}
-      />
-      <circle data-handle="" cx={start.x} cy={start.y} r="7" fill="transparent" stroke={HANDLE_COLOR} strokeWidth="1" cursor="move" onClick={select(startId)} onMouseDown={(event) => props.onSegmentEndpointPress(id, 'start', event)} />
+          onClick={handleClick}
+          onMouseDown={handleMouseDown}
+       />
+       <path
+         className="geometry-hit-area"
+         d={`M ${start.x} ${start.y} L ${end.x} ${end.y}`}
+          onClick={handleClick}
+          onMouseDown={handleMouseDown}
+       />
+       <circle data-handle="" cx={start.x} cy={start.y} r="7" fill="transparent" stroke={HANDLE_COLOR} strokeWidth="1" cursor="move" onClick={select(startId)} onMouseDown={(event) => props.onSegmentEndpointPress(id, 'start', event)} />
       <circle data-handle="" cx={end.x} cy={end.y} r="7" fill="transparent" stroke={HANDLE_COLOR} strokeWidth="1" cursor="move" onClick={select(endId)} onMouseDown={(event) => props.onSegmentEndpointPress(id, 'end', event)} />
     </g>
   )
@@ -200,7 +232,7 @@ function ArcObject(props: Props & { id: string; centerId: string; radius: number
         fill="none"
          stroke={props.selectedIds.includes(id) ? SELECTED_COLOR : DEFAULT_COLOR}
         strokeWidth="2"
-        onClick={(event) => props.onSelectObject(id, event)}
+        onClick={(event) => props.tool === 'point' ? props.onPointOnSegment(id, event) : props.onSelectObject(id, event)}
          onMouseDown={(event) => {
            if (props.tool === 'move') {
              event.stopPropagation()
@@ -209,7 +241,18 @@ function ArcObject(props: Props & { id: string; centerId: string; radius: number
            }
            if (!(props.tool === 'select' && props.onCurveResize(id, event))) props.onGrabRigid([centerId], event)
          }}
-      />
+       />
+       <circle
+         data-handle=""
+         className="geometry-handle-center"
+         cx={center.x}
+         cy={center.y}
+         r="8"
+         fill="transparent"
+         pointerEvents="all"
+         onClick={(event) => props.onSelectObject(centerId, event)}
+         onMouseDown={(event) => props.onGrabRigid([centerId], event)}
+       />
        <circle data-handle="" className="geometry-handle-endpoint" cx={sx} cy={sy} r="6" fill={HANDLE_COLOR} onMouseDown={(event) => props.tool === 'select' || props.tool === 'point' ? props.onStartArcHandleDrag(id, 'start', event) : props.onSelectArcEndpoint(id, 'start', event)} />
        <circle data-handle="" className="geometry-handle-endpoint" cx={ex} cy={ey} r="6" fill={HANDLE_COLOR} onMouseDown={(event) => props.tool === 'select' || props.tool === 'point' ? props.onStartArcHandleDrag(id, 'end', event) : props.onSelectArcEndpoint(id, 'end', event)} />
        <circle data-handle="" className="geometry-handle-radius" cx={mx} cy={my} r="6" fill={HANDLE_COLOR} onMouseDown={(event) => props.onStartArcHandleDrag(id, 'radius', event)} />
@@ -238,7 +281,7 @@ function EllipseObject(props: Props & { id: string; focusA: string; focusB: stri
       fill="none"
        stroke={props.selectedIds.includes(id) ? SELECTED_COLOR : DEFAULT_COLOR}
       strokeWidth="2"
-      onClick={(event) => props.onSelectObject(id, event)}
+       onClick={(event) => props.tool === 'point' ? props.onPointOnSegment(id, event) : props.onSelectObject(id, event)}
        onMouseDown={(event) => {
          if (props.tool === 'move') {
            event.stopPropagation()
@@ -258,7 +301,7 @@ export function GeometryObjects(props: Props): React.JSX.Element {
   return (
     <>
       <PolygonHitAreas {...props} />
-      {[...getGeometryObjects(document, 'point'), ...getGeometryObjects(document, 'text'), ...getGeometryObjects(document, 'circle'), ...getGeometryObjects(document, 'segment'), ...getGeometryObjects(document, 'arc'), ...getGeometryObjects(document, 'ellipse')].map((object) => {
+      {[...getGeometryObjects(document, 'text'), ...getGeometryObjects(document, 'circle'), ...getGeometryObjects(document, 'segment'), ...getGeometryObjects(document, 'arc'), ...getGeometryObjects(document, 'ellipse'), ...getGeometryObjects(document, 'point')].map((object) => {
         switch (object.type) {
           case 'point':
             return <PointObject key={object.id} {...props} id={object.id} x={object.x} y={object.y} label={object.label} />

@@ -226,10 +226,11 @@ export function registerIpcHandlers(): void {
     const fileName = sanitizeFileName(name.endsWith('.svg') ? name : `${name}.svg`)
     const assetsDir = resolve(docPath ? dirname(docPath) : app.getPath('userData'), config.assetsDir)
     const existingAbsolute = typeof existingPath === 'string' ? resolveGeometryPath(existingPath, docPath) : null
-    const existing = existingAbsolute && isAllowedFile(existingAbsolute) ? existingAbsolute : null
+    const existing = existingAbsolute && (isAllowedFile(existingAbsolute) || (docPath && isAllowedFile(docPath))) ? existingAbsolute : null
     const target = existing ?? join(assetsDir, uniqueImageName(assetsDir, fileName))
     await fs.mkdir(assetsDir, { recursive: true })
     await fs.writeFile(target, safeSvg, 'utf-8')
+    allowFile(target)
     allowMediaDirectory(dirname(target))
     return { markdownPath: docPath ? relative(dirname(docPath), target).replace(/\\/g, '/') : target, absolutePath: target }
   })

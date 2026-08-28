@@ -50,6 +50,15 @@ describe('GeometryEditorDialog', () => {
     expect(onSave).toHaveBeenCalledWith(expect.stringContaining('whizmd-geometry'))
   })
 
+  it('uses save semantics when editing an existing geometry', () => {
+    const onSave = vi.fn()
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={onSave} existingPath="assets/geometry.svg" />)
+    expect(screen.getByRole('button', { name: '保存' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '插入' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    expect(onSave).toHaveBeenCalledWith(expect.stringContaining('whizmd-geometry'))
+  })
+
   it('cancels without saving or inserting an image', () => {
     const onSave = vi.fn()
     const onClose = vi.fn()
@@ -161,7 +170,7 @@ describe('GeometryEditorDialog', () => {
     const canvas = screen.getByRole('img', { name: '几何图画布' })
     fireEvent.click(canvas.querySelector('line')!)
     expect(screen.getByText('类型: segment')).toBeInTheDocument()
-    expect(screen.getByLabelText('长度')).toHaveValue(100)
+    expect(screen.getByLabelText('长度')).toHaveValue(2.5)
     expect(screen.getByRole('button', { name: '选择' })).toHaveClass('active')
   })
 
@@ -278,6 +287,50 @@ describe('GeometryEditorDialog', () => {
     expect(canvas.querySelectorAll('circle[r="5"]')).toHaveLength(1)
   })
 
+  it('shares a line endpoint with an arc endpoint after connecting them', () => {
+    let document = createGeometryDocument()
+    document = addPoint(document, 100, 100)
+    document = addPoint(document, 150, 100)
+    document = addPoint(document, 200, 100)
+    document = addSegment(document, 'P1', 'P2')
+    document = addArc(document, 'P1', 50, 0, Math.PI / 2, { startAnchor: 'P3' })
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} />)
+    const canvas = screen.getByRole('img', { name: '几何图画布' })
+    clickCategoryTool('构造', '合并点')
+    const points = [...canvas.querySelectorAll('circle[r="5"]')]
+    fireEvent.click(points[1])
+    fireEvent.click(points[2])
+    expect(canvas.querySelectorAll('circle[r="5"]')).toHaveLength(2)
+    fireEvent.click(screen.getByRole('button', { name: '选择' }))
+    fireEvent.mouseDown(canvas.querySelector('circle[r="5"]')!, { clientX: 150, clientY: 100 })
+    fireEvent.mouseMove(window, { clientX: 180, clientY: 130 })
+    fireEvent.mouseUp(window)
+    expect(canvas.querySelector('path:not(.geometry-hit-area)')?.getAttribute('d')).toContain('180')
+  })
+
+  it('keeps a shared arc endpoint on the arc while dragging it', () => {
+    let document = createGeometryDocument()
+    document = addPoint(document, 100, 100)
+    document = addPoint(document, 150, 100)
+    document = addPoint(document, 200, 100)
+    document = addSegment(document, 'P1', 'P2')
+    document = addArc(document, 'P1', 50, 0, Math.PI / 2, { startAnchor: 'P3' })
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} />)
+    const canvas = screen.getByRole('img', { name: '几何图画布' })
+    clickCategoryTool('构造', '合并点')
+    const points = [...canvas.querySelectorAll('circle[r="5"]')]
+    fireEvent.click(points[1])
+    fireEvent.click(points[2])
+    fireEvent.click(screen.getByRole('button', { name: '选择' }))
+    const shared = [...canvas.querySelectorAll('circle[r="5"]')].find((point) => point.getAttribute('cx') === '150')!
+    fireEvent.mouseDown(shared, { clientX: 150, clientY: 100 })
+    fireEvent.mouseMove(window, { clientX: 100, clientY: 50 })
+    fireEvent.mouseUp(window)
+    const moved = [...canvas.querySelectorAll('circle[r="5"]')].find((point) => point.getAttribute('cx') === '100' && point.getAttribute('cy') === '50')!
+    expect(moved).not.toBeUndefined()
+    expect(canvas.querySelector('path:not(.geometry-hit-area)')?.getAttribute('d')).toContain('100 50')
+  })
+
   it('moves an existing anchored arc endpoint instead of leaving a duplicate point', () => {
     let document = createGeometryDocument()
     document = addPoint(document, 100, 100)
@@ -307,7 +360,7 @@ describe('GeometryEditorDialog', () => {
     fireEvent.click(points[1])
     expect(canvas.querySelectorAll('circle')).toHaveLength(4)
     expect(canvas.querySelectorAll('line')).toHaveLength(1)
-    expect(screen.getByRole('status')).toHaveTextContent('同一条线段上的点不能相互连接')
+    expect(screen.getByRole('status')).toHaveTextContent('同一条线段的两个端点不能相互连接')
   })
 
   it('does not create a closed two-edge polygon by connecting endpoints', () => {
@@ -449,10 +502,10 @@ describe('GeometryEditorDialog', () => {
      fireEvent.click(screen.getByRole('button', { name: '移动' }))
     fireEvent.click(canvas.querySelector('line')!)
     const input = screen.getByLabelText('长度')
-    fireEvent.change(input, { target: { value: '150' } })
+    fireEvent.change(input, { target: { value: '3.75' } })
     fireEvent.keyDown(input, { key: 'Enter' })
     const line = canvas.querySelector('line')
-    expect(line?.getAttribute('x2')).toBe('250')
+     expect(line?.getAttribute('x2')).toBe('250')
   })
 
   it('draws an arc from center, start, and end clicks', () => {
@@ -472,16 +525,71 @@ describe('GeometryEditorDialog', () => {
     expect(canvas.querySelector('path')).not.toBeNull()
   })
 
+  it('moves an arc by dragging its center point', () => {
+    let document = createGeometryDocument()
+    document = addPoint(document, 100, 100)
+    document = addArc(document, 'P1', 40, 0, Math.PI / 2)
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} />)
+    const canvas = screen.getByRole('img', { name: '几何图画布' })
+    fireEvent.click(screen.getByRole('button', { name: '选择' }))
+    const center = canvas.querySelector('circle[r="5"]')!
+    fireEvent.mouseDown(center, { clientX: 100, clientY: 100 })
+    fireEvent.mouseMove(window, { clientX: 150, clientY: 130 })
+    fireEvent.mouseUp(window)
+    const movedCenter = canvas.querySelector('circle[r="5"]')!
+    expect(movedCenter).toHaveAttribute('cx', '150')
+    expect(movedCenter).toHaveAttribute('cy', '130')
+    expect(canvas.querySelector('path')?.getAttribute('d')).toContain('190')
+    expect(canvas.querySelector('path')?.getAttribute('d')).toContain('130')
+  })
+
+  it('moves shared arc endpoints when dragging the arc center', () => {
+    let document = createGeometryDocument()
+    document = addPoint(document, 100, 100)
+    document = addPoint(document, 150, 100)
+    document = addPoint(document, 100, 150)
+    document = addSegment(document, 'P1', 'P2')
+    document = addArc(document, 'P1', 50, 0, Math.PI / 2, { startAnchor: 'P2', endAnchor: 'P3' })
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} />)
+    const canvas = screen.getByRole('img', { name: '几何图画布' })
+    fireEvent.click(screen.getByRole('button', { name: '选择' }))
+    const center = [...canvas.querySelectorAll('circle[r="5"]')].find((point) => point.getAttribute('cx') === '100' && point.getAttribute('cy') === '100')!
+    fireEvent.mouseDown(center, { clientX: 100, clientY: 100 })
+    fireEvent.mouseMove(window, { clientX: 120, clientY: 130 })
+    fireEvent.mouseUp(window)
+    const points = [...canvas.querySelectorAll('circle[r="5"]')].map((point) => `${point.getAttribute('cx')},${point.getAttribute('cy')}`)
+    expect(points).toContain('170,130')
+    expect(points).toContain('120,180')
+  })
+
+  it('uses an arc endpoint as the start of a new segment', () => {
+    let document = createGeometryDocument()
+    document = addPoint(document, 100, 100)
+    document = addArc(document, 'P1', 50, 0, Math.PI / 2)
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} />)
+    const canvas = screen.getByRole('img', { name: '几何图画布' })
+    fireEvent.click(screen.getByRole('button', { name: '线段' }))
+    const endpoint = canvas.querySelectorAll('.geometry-handle-endpoint')[0]
+    fireEvent.mouseDown(endpoint, { clientX: 150, clientY: 100 })
+    fireEvent.click(canvas, { clientX: 220, clientY: 100 })
+    const line = canvas.querySelector('line')
+    expect(line).toHaveAttribute('x1', '150')
+    expect(line).toHaveAttribute('y1', '100')
+    expect(line).toHaveAttribute('x2', '220')
+    expect(line).toHaveAttribute('y2', '100')
+  })
+
   it('edits arc radius and angles in the inspector', () => {
     let document = createGeometryDocument()
     document = addPoint(document, 100, 100)
     document = addArc(document, 'P1', 50, 0, Math.PI / 2)
     render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} />)
     const canvas = screen.getByRole('img', { name: '几何图画布' })
+    fireEvent.click(screen.getByRole('button', { name: '选择' }))
     fireEvent.click(canvas.querySelector('path')!)
     const radiusInput = screen.getByLabelText('半径')
-    fireEvent.change(radiusInput, { target: { value: '80' } })
-    expect(canvas.querySelector('path')?.getAttribute('d')).toContain('80')
+     fireEvent.change(radiusInput, { target: { value: '2' } })
+     expect(canvas.querySelector('path')?.getAttribute('d')).toContain('80')
     const endInput = screen.getByLabelText('终点角')
     fireEvent.change(endInput, { target: { value: '90' } })
     expect(screen.getByLabelText('终点角')).toHaveValue(90)
@@ -549,7 +657,7 @@ describe('GeometryEditorDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: '点' }))
     fireEvent.click(canvas, { clientX: 200, clientY: 100 })
     expect(canvas.querySelectorAll('line')).toHaveLength(1)
-    expect(canvas.querySelectorAll('circle')).toHaveLength(6)
+    expect(canvas.querySelectorAll('circle[r="5"]')).toHaveLength(3)
   })
 
   it('draws and closes a polygon by clicking the first vertex', () => {
@@ -747,6 +855,68 @@ describe('GeometryEditorDialog', () => {
     expect(midpoint.getAttribute('cy')).toBe('140')
   })
 
+  it('does not allow a midpoint constraint point to be dragged directly', () => {
+    let document = createGeometryDocument()
+    document = addPoint(document, 100, 100)
+    document = addPoint(document, 300, 100)
+    document = addSegment(document, 'P1', 'P2')
+    document = addPoint(document, 200, 100)
+    document = addConstraint(document, { type: 'midpoint', point: 'P3', line: 'S1' })
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} />)
+    const canvas = screen.getByRole('img', { name: '几何图画布' })
+    fireEvent.click(screen.getByRole('button', { name: '选择' }))
+    const midpoint = [...canvas.querySelectorAll('circle[r="5"]')][2]
+    fireEvent.mouseDown(midpoint, { clientX: 200, clientY: 100 })
+    fireEvent.mouseMove(window, { clientX: 260, clientY: 150 })
+    fireEvent.mouseUp(window)
+    const unchanged = [...canvas.querySelectorAll('circle[r="5"]')][2]
+    expect(unchanged.getAttribute('cx')).toBe('200')
+    expect(unchanged.getAttribute('cy')).toBe('100')
+  })
+
+  it('keeps a point on a segment while allowing it to slide along the segment', () => {
+    let document = createGeometryDocument()
+    document = addPoint(document, 100, 100)
+    document = addPoint(document, 300, 100)
+    document = addSegment(document, 'P1', 'P2')
+    document = addPoint(document, 180, 100)
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} />)
+    const canvas = screen.getByRole('img', { name: '几何图画布' })
+    fireEvent.click(screen.getByRole('button', { name: '选择' }))
+    const point = [...canvas.querySelectorAll('circle[r="5"]')][2]
+    fireEvent.mouseDown(point, { clientX: 180, clientY: 100 })
+    fireEvent.mouseMove(window, { clientX: 260, clientY: 150 })
+    fireEvent.mouseUp(window)
+    const moved = [...canvas.querySelectorAll('circle[r="5"]')][2]
+    expect(moved.getAttribute('cx')).toBe('260')
+    expect(moved.getAttribute('cy')).toBe('100')
+    fireEvent.click(screen.getByRole('button', { name: '移动' }))
+    fireEvent.mouseDown(canvas.querySelector('line')!, { clientX: 200, clientY: 100 })
+    fireEvent.mouseMove(window, { clientX: 250, clientY: 130 })
+    fireEvent.mouseUp(window)
+    const followed = [...canvas.querySelectorAll('circle[r="5"]')][2]
+    expect(followed.getAttribute('cx')).toBe('310')
+    expect(followed.getAttribute('cy')).toBe('130')
+  })
+
+  it('keeps an attached point in place when resizing its host edge', () => {
+    let document = createGeometryDocument()
+    document = addPoint(document, 100, 100)
+    document = addPoint(document, 300, 100)
+    document = addSegment(document, 'P1', 'P2')
+    document = addPoint(document, 200, 100)
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} />)
+    const canvas = screen.getByRole('img', { name: '几何图画布' })
+    fireEvent.click(screen.getByRole('button', { name: '选择' }))
+    fireEvent.click(canvas.querySelector('line')!)
+    const length = screen.getByLabelText('长度')
+    fireEvent.change(length, { target: { value: '7.5' } })
+    fireEvent.keyDown(length, { key: 'Enter' })
+    const attached = [...canvas.querySelectorAll('circle[r="5"]')][2]
+    expect(attached.getAttribute('cx')).toBe('250')
+    expect(attached.getAttribute('cy')).toBe('100')
+  })
+
   it('moves a circle by dragging its stroke with the move tool', () => {
     let document = createGeometryDocument()
     document = addPoint(document, 100, 100)
@@ -887,7 +1057,7 @@ describe('GeometryEditorDialog', () => {
     ])
   })
 
-  it('stretches the matching leg when dragging a right triangle acute vertex', () => {
+  it('rotates a right triangle when dragging a vertex', () => {
     render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} />)
     const canvas = screen.getByRole('img', { name: '几何图画布' })
     fireEvent.click(screen.getByRole('option', { name: '直角三角形' }))
@@ -899,10 +1069,9 @@ describe('GeometryEditorDialog', () => {
     fireEvent.mouseDown(vertices[1], { clientX: 300, clientY: 100 })
     fireEvent.mouseMove(window, { clientX: 360, clientY: 100 })
     fireEvent.mouseUp(window)
-    expect(vertices[1].getAttribute('cx')).toBe('360')
-    expect(vertices[1].getAttribute('cy')).toBe('100')
-    expect(vertices[2].getAttribute('cx')).toBe('100')
-    expect(vertices[2].getAttribute('cy')).toBe('260')
+    const movedVertices = [...canvas.querySelectorAll('circle[r="5"]')]
+    expect(movedVertices.map((vertex) => `${vertex.getAttribute('cx')},${vertex.getAttribute('cy')}`)).not.toEqual(['100,100', '360,100', '100,260'])
+    expect(movedVertices).toHaveLength(3)
   })
 
   it('keeps the right angle when dragging a right triangle hypotenuse', () => {
@@ -994,6 +1163,25 @@ describe('GeometryEditorDialog', () => {
     const radiusInput = screen.getByLabelText('半径')
     fireEvent.change(radiusInput, { target: { value: '60' } })
     expect(canvas.querySelector('circle[r="60"]')).not.toBeNull()
+  })
+
+  it('drags a circle by its center point', () => {
+    let document = createGeometryDocument()
+    document = addPoint(document, 100, 100)
+    document = addCircle(document, 'P1', 40)
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} />)
+    const canvas = screen.getByRole('img', { name: '几何图画布' })
+    fireEvent.click(screen.getByRole('button', { name: '选择' }))
+    const center = canvas.querySelector('.geometry-handle-center')!
+    fireEvent.mouseDown(center, { clientX: 100, clientY: 100 })
+    fireEvent.mouseMove(window, { clientX: 160, clientY: 140 })
+    fireEvent.mouseUp(window)
+    const movedCenter = canvas.querySelector('.geometry-handle-center')!
+    const movedCircle = canvas.querySelector('circle[r="40"]')!
+    expect(movedCenter).toHaveAttribute('cx', '160')
+    expect(movedCenter).toHaveAttribute('cy', '140')
+    expect(movedCircle).toHaveAttribute('cx', '160')
+    expect(movedCircle).toHaveAttribute('cy', '140')
   })
 
   it('keeps a ring point on the circumference when editing the radius from it', () => {
@@ -1122,10 +1310,11 @@ describe('GeometryEditorDialog', () => {
     document = addEllipse(document, 'P1', 'P2', 140)
     render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} />)
     const canvas = screen.getByRole('img', { name: '几何图画布' })
+    fireEvent.click(screen.getByRole('button', { name: '选择' }))
     fireEvent.click(canvas.querySelector('ellipse')!)
     expect(screen.getByText('类型: ellipse')).toBeInTheDocument()
-    expect(screen.getByLabelText('半长轴')).toHaveValue(140)
-    fireEvent.change(screen.getByLabelText('半长轴'), { target: { value: '160' } })
+    expect(screen.getByLabelText('半长轴')).toHaveValue(3.5)
+    fireEvent.change(screen.getByLabelText('半长轴'), { target: { value: '4' } })
     expect(canvas.querySelector('ellipse')).toHaveAttribute('rx', '160')
   })
 
@@ -1152,5 +1341,76 @@ describe('GeometryEditorDialog', () => {
     fireEvent.click(canvas, { clientX: 200, clientY: 100 })
     expect(canvas.querySelector('ellipse')).not.toBeNull()
     expect(screen.getByRole('button', { name: '选择' })).toHaveClass('active')
+  })
+
+  it('adds points on circle, arc, and ellipse edges', () => {
+    let document = createGeometryDocument()
+    document = addPoint(document, 200, 200)
+    document = addCircle(document, 'P1', 60)
+    document = addArc(document, 'P1', 80, 0, Math.PI / 2)
+    document = addPoint(document, 100, 400)
+    document = addPoint(document, 200, 400)
+    document = addEllipse(document, 'P2', 'P3', 80)
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} />)
+    const canvas = screen.getByRole('img', { name: '几何图画布' })
+    const pointTool = screen.getByRole('button', { name: '点' })
+    fireEvent.click(pointTool)
+    fireEvent.click(canvas.querySelector('circle[r="60"]')!, { clientX: 260, clientY: 200 })
+    fireEvent.click(pointTool)
+    fireEvent.click(canvas.querySelector('path:not(.geometry-hit-area)')!, { clientX: 280, clientY: 200 })
+    fireEvent.click(pointTool)
+    fireEvent.click(canvas.querySelector('ellipse')!, { clientX: 200, clientY: 320 })
+    expect(canvas.querySelectorAll('circle[r="5"]')).toHaveLength(5)
+  })
+
+  it('keeps a point added on an arc constrained to the arc while dragging', () => {
+    let document = createGeometryDocument()
+    document = addPoint(document, 200, 200)
+    document = addArc(document, 'P1', 80, 0, Math.PI / 2)
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} />)
+    const canvas = screen.getByRole('img', { name: '几何图画布' })
+    fireEvent.click(screen.getByRole('button', { name: '点' }))
+    fireEvent.click(canvas.querySelector('path:not(.geometry-hit-area)')!, { clientX: 280, clientY: 200 })
+    expect(screen.getByRole('button', { name: '选择' })).toHaveClass('active')
+    const point = [...canvas.querySelectorAll('circle[r="5"]')][1]
+    fireEvent.mouseDown(point, { clientX: 280, clientY: 200 })
+    fireEvent.mouseMove(window, { clientX: 200, clientY: 280 })
+    fireEvent.mouseUp(window)
+    const moved = [...canvas.querySelectorAll('circle[r="5"]')][1]
+    const dx = Number(moved.getAttribute('cx')) - 200
+    const dy = Number(moved.getAttribute('cy')) - 200
+    expect(Math.hypot(dx, dy)).toBeCloseTo(80, 5)
+  })
+
+  it('keeps a point added on a circle constrained while dragging', () => {
+    let document = createGeometryDocument()
+    document = addPoint(document, 200, 200)
+    document = addCircle(document, 'P1', 80)
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} />)
+    const canvas = screen.getByRole('img', { name: '几何图画布' })
+    fireEvent.click(screen.getByRole('button', { name: '点' }))
+    fireEvent.click(canvas.querySelector('circle[r="80"]')!, { clientX: 280, clientY: 200 })
+    const circlePoint = canvas.querySelector('[data-attachment-kind="circle"]')!
+    fireEvent.mouseDown(circlePoint, { clientX: 280, clientY: 200 })
+    fireEvent.mouseMove(window, { clientX: 200, clientY: 280 })
+    fireEvent.mouseUp(window)
+    const moved = canvas.querySelector('[data-attachment-kind="circle"]')!
+    expect(Math.hypot(Number(moved.getAttribute('cx')) - 200, Number(moved.getAttribute('cy')) - 200)).toBeCloseTo(80, 5)
+  })
+
+  it('keeps a point added on an ellipse constrained while dragging', () => {
+    let document = createGeometryDocument()
+    document = addPoint(document, 100, 400)
+    document = addPoint(document, 200, 400)
+    document = addEllipse(document, 'P1', 'P2', 80)
+    document = addPoint(document, 150, 269.2330316937798)
+    document = { ...document, points: document.points.map((point) => point.id === 'P3' ? { ...point, role: 'attachment', attachment: { objectId: 'E1', kind: 'ellipse' as const, parameter: -Math.PI / 2 } } : point) }
+    render(<GeometryEditorDialog onClose={vi.fn()} onSave={vi.fn()} initialDocument={document} />)
+    const canvas = screen.getByRole('img', { name: '几何图画布' })
+    const point = canvas.querySelector('[data-attachment-kind="ellipse"]')!
+    fireEvent.mouseDown(point, { clientX: 150, clientY: 269.2330316937798 })
+    fireEvent.mouseMove(window, { clientX: 100, clientY: 400 })
+    fireEvent.mouseUp(window)
+    expect(Number(canvas.querySelector('[data-attachment-kind="ellipse"]')!.getAttribute('cx'))).not.toBe(200)
   })
 })

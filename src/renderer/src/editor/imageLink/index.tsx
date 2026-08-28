@@ -13,6 +13,7 @@ import { useNodeViewEditing } from '../nodeView/useNodeViewEditing'
 import { useNodeViewHover } from '../nodeView/useNodeViewHover'
 import { MediaPreview } from '../media/MediaPreview'
 import { MediaFields } from '../media/MediaFields'
+import { currentMediaVersion, subscribeMediaRefresh } from '../../services/mediaRefresh'
 
 const IMAGE_LINK_PATTERN = /^\[!\[([^\]]*)\]\((?:"((?:[^"\\]|\\.)*)"|([^\s)]+))(?:\s+("(?:[^"\\]|\\.)*"))?\)\]\(([^)]+)\)/
 
@@ -52,9 +53,21 @@ export function ImageLinkView({ node, updateAttributes, deleteNode, selected, ed
   const hrefField = useNodeViewField(String(node.attrs.href ?? ''), (value) => updateAttributes({ href: encodeUrlValue(value) }), { commitOnChange: false })
   const { editing, setEditing } = useNodeViewEditing(editor, getPos, node.nodeSize, selected || !srcField.value)
   const resolvedSrc = resolveSrc(srcField.value, docPath, rootDir)
-  const imageSrc = resolvedSrc && failedSrc !== resolvedSrc ? resolvedSrc : ''
+  let shownSrc = resolvedSrc && failedSrc !== resolvedSrc ? resolvedSrc : ''
   const isGeometryImage = /\.svg(?:$|[?#])/i.test(srcField.value)
-  const editGeometry = (): void => { window.dispatchEvent(new CustomEvent('whizmd:edit-geometry', { detail: { src: srcField.value } })) }
+  const geometryKey = isGeometryImage ? srcField.value.trim() : ''
+  const [mediaVersion, setMediaVersion] = useState(() => (geometryKey ? currentMediaVersion(geometryKey) : 0))
+  useEffect(() => subscribeMediaRefresh(() => {
+    if (geometryKey) setMediaVersion(currentMediaVersion(geometryKey))
+  }), [geometryKey])
+  if (mediaVersion > 0 && isGeometryImage && shownSrc && !/^(https?:|data:|blob:)/i.test(shownSrc)) {
+    shownSrc = `${shownSrc}${shownSrc.includes('?') ? '&' : '?'}v=${mediaVersion}`
+  }
+  const imageSrc = shownSrc
+  const editGeometry = (): void => {
+    const position = getPos()
+    window.dispatchEvent(new CustomEvent('whizmd:edit-geometry', { detail: { src: srcField.value, position: typeof position === 'number' ? position : undefined, editor } }))
+  }
   useEffect(() => () => { if (blurTimer.current !== null) window.clearTimeout(blurTimer.current) }, [])
 
   return <NodeViewWrapper as="span" className="image-link-node" data-selected={selected ? 'true' : 'false'} data-image-link-editing={editing ? 'true' : 'false'}>
@@ -68,7 +81,7 @@ export function ImageLinkView({ node, updateAttributes, deleteNode, selected, ed
       }, 0)
     }} ref={editorRef}>
       <span className="image-link-preview"><MediaPreview src={imageSrc} alt={altField.value} title={titleField.value} failed={!imageSrc && Boolean(resolvedSrc)} failedLabel={t('imageLoadFailed', { src: srcField.value })} emptyLabel={t('enterImageAddress')} onError={() => setFailedSrc(imageSrc)} /></span>
-      <MediaFields alt={altField} src={srcField} title={titleField} href={hrefField} onDelete={deleteNode} extra={isGeometryImage ? <button type="button" aria-label={t('editGeometry')} onClick={editGeometry}>{t('editGeometry')}</button> : null} />
+      <MediaFields alt={altField} src={srcField} title={titleField} href={hrefField} onDelete={deleteNode} srcExtra={isGeometryImage ? <button type="button" aria-label={t('modifyGeometry')} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => { event.preventDefault(); event.stopPropagation(); editGeometry() }}>{t('modifyGeometry')}</button> : null} />
     </span> : <span className="image-link-preview-wrap image-preview" onMouseEnter={show} onMouseLeave={hide}>
       <a className="image-link-anchor" href={hrefField.value || undefined} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>
         <MediaPreview src={imageSrc} alt={altField.value} title={titleField.value} failed={!imageSrc && Boolean(resolvedSrc)} failedLabel={t('imageLoadFailed', { src: srcField.value })} emptyLabel={t('enterImageAddress')} onError={() => setFailedSrc(imageSrc)} />

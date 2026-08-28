@@ -309,9 +309,9 @@ describe('geometry module', () => {
   it('exports an SVG with explicit pixel dimensions', () => {
     const document = createGeometryDocument()
     const svg = renderGeometrySvg(document)
-    expect(svg).toContain('width="800"')
-    expect(svg).toContain('height="500"')
-    expect(svg).toContain('viewBox="0 0 800 500"')
+    expect(svg).toContain('width="840"')
+    expect(svg).toContain('height="1188"')
+    expect(svg).toContain('viewBox="0 0 840 1188"')
   })
 
   it('creates and renders an ellipse from two foci', () => {

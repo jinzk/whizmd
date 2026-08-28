@@ -41,7 +41,11 @@ export function buildShape(document: GeometryDocument, kind: ShapeKind, x1: numb
     constrain({ type: 'perpendicular', lineA: sides[0], lineB: sides[1] })
     constrain({ type: 'parallel', lineA: sides[0], lineB: sides[2] })
     constrain({ type: 'parallel', lineA: sides[1], lineB: sides[3] })
-    if (kind === 'square') constrain({ type: 'equalLength', segmentA: sides[0], segmentB: sides[1] })
+    if (kind === 'square') {
+      constrain({ type: 'equalLength', segmentA: sides[0], segmentB: sides[1] })
+      constrain({ type: 'equalLength', segmentA: sides[1], segmentB: sides[2] })
+      constrain({ type: 'equalLength', segmentA: sides[2], segmentB: sides[3] })
+    }
     return addShape(next, { id: ownerId, kind, boundaryPointIds: ids, boundarySegmentIds: sides })
   }
   if (kind === 'parallelogram') {
@@ -81,7 +85,7 @@ export function buildShape(document: GeometryDocument, kind: ShapeKind, x1: numb
   const directionDown = y2 > y1
   put(leftX, baseY)
   put(rightX, baseY)
-  link(ids[0], ids[1])
+   const baseSide = link(ids[0], ids[1])
   if (kind === 'rightTriangle') {
     put(leftX, y2)
   } else if (kind === 'equilateral') {
@@ -94,8 +98,11 @@ export function buildShape(document: GeometryDocument, kind: ShapeKind, x1: numb
   }
   const leftLeg = link(ids[0], ids[2])
   const rightLeg = link(ids[1], ids[2])
-  if (kind === 'rightTriangle') constrain({ type: 'perpendicular', lineA: 'S1', lineB: leftLeg })
-  else constrain({ type: 'equalLength', segmentA: leftLeg, segmentB: rightLeg })
+   if (kind === 'rightTriangle') constrain({ type: 'perpendicular', lineA: baseSide, lineB: leftLeg })
+   else {
+     constrain({ type: 'equalLength', segmentA: leftLeg, segmentB: rightLeg })
+     if (kind === 'equilateral') constrain({ type: 'equalLength', segmentA: baseSide, segmentB: leftLeg })
+   }
   const boundarySegmentIds = next.segments.filter((object) => object.ownerId === ownerId).map((object) => object.id)
   return addShape(next, { id: ownerId, kind, boundaryPointIds: ids, boundarySegmentIds })
 }

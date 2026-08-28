@@ -1,11 +1,11 @@
 import type { GeometryDocument, GeometrySegment } from './model'
-import { angleInSpan, getArcAngles, resolveArcPoint, resolvePoint } from './calculations'
+import { angleInSpan, getArcAngles, resolveArcPoint, resolveEllipseGeometry, resolvePoint } from './calculations'
 
 export type GeometryCoordinate = { x: number; y: number }
 export type CurveProjection = { point: GeometryCoordinate; parameter: number; distance: number; inside: boolean }
 export type GeometryCurve = {
   id: string
-  kind: 'segment' | 'circle' | 'arc'
+  kind: 'segment' | 'circle' | 'arc' | 'ellipse'
   project(point: GeometryCoordinate): CurveProjection | null
 }
 
@@ -50,6 +50,19 @@ export function getGeometryCurves(document: GeometryDocument): GeometryCurve[] {
         return startDistance <= endDistance
           ? { point: start, parameter: startAngle, distance: startDistance, inside: false }
           : { point: end, parameter: endAngle, distance: endDistance, inside: false }
+      } }]
+    }
+    if (object.type === 'ellipse') {
+      const geometry = resolveEllipseGeometry(document, object)
+      if (!geometry || !geometry.radiusY) return []
+      return [{ id: object.id, kind: 'ellipse', project: (point) => {
+        const cos = Math.cos(geometry.rotation); const sin = Math.sin(geometry.rotation)
+        const dx = point.x - geometry.center.x; const dy = point.y - geometry.center.y
+        const localX = dx * cos + dy * sin; const localY = -dx * sin + dy * cos
+        const angle = Math.atan2(localY / geometry.radiusY, localX / geometry.radiusX)
+        const projectedLocal = { x: geometry.radiusX * Math.cos(angle), y: geometry.radiusY * Math.sin(angle) }
+        const projected = { x: geometry.center.x + projectedLocal.x * cos - projectedLocal.y * sin, y: geometry.center.y + projectedLocal.x * sin + projectedLocal.y * cos }
+        return { point: projected, parameter: angle, distance: Math.hypot(point.x - projected.x, point.y - projected.y), inside: true }
       } }]
     }
     return []

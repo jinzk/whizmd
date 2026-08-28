@@ -14,6 +14,10 @@ describe('geometry save boundary', () => {
     expect(resolveGeometryPath('assets/geometry.svg', null)).toBeNull()
   })
 
+  it('resolves media URLs used by unsaved geometry images', () => {
+    expect(resolveGeometryPath('media:///C:/Users/alex/assets/geometry.svg', null)).toMatch(/C:[\\/]Users[\\/]alex[\\/]assets[\\/]geometry\.svg/)
+  })
+
   it('distinguishes an existing relative geometry path from a new asset name', () => {
     const existing = resolveGeometryPath('assets/existing.svg', 'C:/docs/guide.md')
     expect(existing).toMatch(/C:[\\/]docs[\\/]assets[\\/]existing\.svg/)

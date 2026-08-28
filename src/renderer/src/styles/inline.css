@@ -45,6 +45,9 @@
 .image-link-fields { border-top: 1px solid var(--md-border); background: var(--md-code-bg); }
 .image-link-fields .image-field { display: flex; align-items: center; gap: 12px; min-height: 36px; padding: 0 12px; border-bottom: 1px solid var(--md-border); }
 .image-link-fields .image-field > span { flex: 0 0 64px; color: var(--md-text-muted); font-size: 12px; }
+.image-link-fields .image-field input { flex: 1 1 auto; min-width: 0; width: 100%; }
+.image-link-fields .image-field-action { display: flex; flex: 0 0 auto; margin-left: auto; white-space: nowrap; }
+.image-link-fields .image-field-action button { white-space: nowrap; }
 .image-link-fields input { display: block; width: 100%; min-width: 0; padding: 6px 0; border: 0; outline: none; background: var(--md-code-bg); color: var(--md-text); font: 13px/1.5 'SFMono-Regular', Consolas, monospace; }
 .image-link-fields .image-delete { flex: 0 0 auto; margin-left: auto; }
 .image-node { position: relative; display: inline-block; vertical-align: middle; }

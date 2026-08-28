@@ -9,7 +9,9 @@
 .wysiwyg-editor .tiptap .image-fields { border-top: 1px solid var(--md-border); }
 .wysiwyg-editor .tiptap .image-field { display: flex; align-items: center; gap: 12px; min-height: 36px; padding: 0 12px; border-bottom: 1px solid var(--md-border); }
 .wysiwyg-editor .tiptap .image-field span { flex: 0 0 64px; color: var(--md-text-muted); font-size: 12px; }
-.wysiwyg-editor .tiptap .image-field input { display: block; width: 100%; padding: 6px 0; border: 0; outline: none; background: var(--md-code-bg); color: var(--md-text); font: 13px/1.5 'SFMono-Regular', Consolas, monospace; }
+.wysiwyg-editor .tiptap .image-field input { display: block; flex: 1 1 auto; min-width: 0; width: 100%; padding: 6px 0; border: 0; outline: none; background: var(--md-code-bg); color: var(--md-text); font: 13px/1.5 'SFMono-Regular', Consolas, monospace; }
+.wysiwyg-editor .tiptap .image-field-action { display: flex; flex: 0 0 auto; margin-left: auto; white-space: nowrap; }
+.wysiwyg-editor .tiptap .image-field-action button { white-space: nowrap; }
 .wysiwyg-editor .tiptap .image-field .image-delete { flex: 0 0 auto; margin-left: auto; }
 .wysiwyg-editor .tiptap .image-caption { padding: 8px 12px; border-top: 1px solid var(--md-border); color: var(--md-text-muted); font-size: 13px; line-height: 1.4; text-align: center; }
 .wysiwyg-editor .tiptap .image-resize-handle { position: absolute; right: -6px; bottom: -6px; width: 12px; height: 12px; background-color: var(--md-accent); border: 2px solid var(--md-bg); border-radius: 3px; cursor: nwse-resize; }

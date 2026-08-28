@@ -12,6 +12,7 @@ import { useNodeViewEditing } from '../nodeView/useNodeViewEditing'
 import { useNodeViewHover } from '../nodeView/useNodeViewHover'
 import { MediaPreview } from '../media/MediaPreview'
 import { MediaFields } from '../media/MediaFields'
+import { currentMediaVersion, subscribeMediaRefresh } from '../../services/mediaRefresh'
 
 function resolveLocalPath(src: string, docPath: string | null, rootDir: string | null): string {
   src = decodeUrlPath(src.trim())
@@ -48,6 +49,11 @@ export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
   const src = srcField.value
   const alt = altField.value
   const isGeometryImage = /\.svg(?:$|[?#])/i.test(src)
+  const geometryKey = isGeometryImage ? src.trim() : ''
+  const [mediaVersion, setMediaVersion] = useState(() => (geometryKey ? currentMediaVersion(geometryKey) : 0))
+  useEffect(() => subscribeMediaRefresh(() => {
+    if (geometryKey) setMediaVersion(currentMediaVersion(geometryKey))
+  }), [geometryKey])
   const width = node.attrs.width ?? null
   const reference = node.attrs.reference ? referenceEntry(props.editor, String(node.attrs.reference)) : undefined
 
@@ -69,7 +75,7 @@ export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
 
 
   const value = src.trim()
-  const displaySrc = /^(https?:|data:|blob:)/i.test(value)
+  let displaySrc = /^(https?:|data:|blob:)/i.test(value)
     ? value
     : /^media:/i.test(value)
       ? window.markdownApp.mediaUrl(mediaUrlToPath(value))
@@ -77,6 +83,9 @@ export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
         const localPath = resolveLocalPath(value, docPath, rootDir)
         return localPath ? window.markdownApp.mediaUrl(localPath) : ''
       })()
+  if (mediaVersion > 0 && isGeometryImage && !/^(https?:|data:|blob:)/i.test(displaySrc)) {
+    displaySrc = `${displaySrc}${displaySrc.includes('?') ? '&' : '?'}v=${mediaVersion}`
+  }
 
   function startResize(e: React.MouseEvent): void {
     e.preventDefault()
@@ -113,7 +122,10 @@ export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
     window.addEventListener('mouseup', onUp)
   }
 
-  const editGeometry = (): void => { window.dispatchEvent(new CustomEvent('whizmd:edit-geometry', { detail: { src } })) }
+  const editGeometry = (): void => {
+    const position = getPos()
+    window.dispatchEvent(new CustomEvent('whizmd:edit-geometry', { detail: { src, position: typeof position === 'number' ? position : undefined, editor } }))
+  }
 
   const effectiveWidth = dragWidth ?? width
 
@@ -149,7 +161,7 @@ export function ImageNodeView(props: ImageNodeViewProps): React.JSX.Element {
             }, 0)
           }}
         >
-        <MediaFields alt={altField} src={srcField} title={titleField} onDelete={deleteNode} extra={<>{isGeometryImage ? <button type="button" aria-label={t('editGeometry')} onClick={editGeometry}>{t('editGeometry')}</button> : null}{node.attrs.reference ? <ReferenceStatus editor={props.editor} id={String(node.attrs.reference)} entry={reference} /> : null}</>} />
+        <MediaFields alt={altField} src={srcField} title={titleField} onDelete={deleteNode} srcExtra={isGeometryImage ? <button type="button" aria-label={t('modifyGeometry')} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => { event.preventDefault(); event.stopPropagation(); editGeometry() }}>{t('modifyGeometry')}</button> : null} extra={node.attrs.reference ? <ReferenceStatus editor={props.editor} id={String(node.attrs.reference)} entry={reference} /> : undefined} />
         </div>
       ) : null}
     </NodeViewWrapper>

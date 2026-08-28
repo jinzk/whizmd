@@ -3,7 +3,8 @@ export type GeometryShapeKind = 'circle' | 'ellipse' | 'square' | 'rectangle' | 
 export type GeometryShape = { id: string; kind: GeometryShapeKind; boundaryPointIds: string[]; boundarySegmentIds: string[] }
 export type GeometrySharedNode = { id: string; memberIds: string[] }
 export type GeometryDependency = { id: string; sourceId: string; dependencyIds: string[]; kind: 'midpoint' | 'intersection' | 'pointOnLine' | 'textAnchor' }
-export type GeometryPoint = { type: 'point'; id: string; x: number; y: number; label?: string; ownerId?: string; role?: GeometryRole }
+export type GeometryPointAttachment = { objectId: string; kind: 'segment' | 'circle' | 'arc' | 'ellipse'; parameter: number }
+export type GeometryPoint = { type: 'point'; id: string; x: number; y: number; label?: string; ownerId?: string; role?: GeometryRole; attachment?: GeometryPointAttachment }
 export type GeometrySegment = { type: 'segment'; id: string; start: string; end: string; ownerId?: string; role?: GeometryRole }
 export type GeometryCircle = { type: 'circle'; id: string; center: string; radius: number }
 export type GeometryEllipse = { type: 'ellipse'; id: string; focusA: string; focusB: string; semiMajor: number }
@@ -24,8 +25,15 @@ import { resolvePoint } from './calculations'
 export type GeometryTopology = { nodeIds: string[] }
 export type GeometryDocument = { version: 1; width: number; height: number; points: GeometryPoint[]; segments: GeometrySegment[]; curves: GeometryCurveObject[]; annotations: GeometryText[]; constraints: GeometryConstraint[]; topology: GeometryTopology; shapes: GeometryShape[]; sharedNodes: GeometrySharedNode[]; dependencies: GeometryDependency[] }
 
+// Geometry uses a 40-unit/cm working grid; the document dimensions retain a useful canvas range.
+export const GEOMETRY_UNITS_PER_CM = 40
+export const A4_WIDTH_CM = 21
+export const A4_HEIGHT_CM = 29.7
+export const A4_WIDTH_UNITS = A4_WIDTH_CM * GEOMETRY_UNITS_PER_CM
+export const A4_HEIGHT_UNITS = A4_HEIGHT_CM * GEOMETRY_UNITS_PER_CM
+
 export function createGeometryDocument(): GeometryDocument {
-  return { version: 1, width: 800, height: 500, points: [], segments: [], curves: [], annotations: [], constraints: [], topology: { nodeIds: [] }, shapes: [], sharedNodes: [], dependencies: [] }
+  return { version: 1, width: A4_WIDTH_UNITS, height: A4_HEIGHT_UNITS, points: [], segments: [], curves: [], annotations: [], constraints: [], topology: { nodeIds: [] }, shapes: [], sharedNodes: [], dependencies: [] }
 }
 
 export function splitGeometryObjects(objects: readonly GeometryObject[]): GeometryCollections {
@@ -139,15 +147,18 @@ export function checkMergePoints(document: GeometryDocument, keepId: string, rem
 function isCoincidentEndpoints(document: GeometryDocument, firstId: string, secondId: string): boolean {
   const first = resolvePoint(document, firstId); const second = resolvePoint(document, secondId)
   if (!first || !second || Math.hypot(first.x - second.x, first.y - second.y) > 1e-6) return false
-  const endpointSegments = (id: string): GeometrySegment[] => document.segments.filter((object) => object.start === id || object.end === id)
-  const firstSegments = endpointSegments(firstId); const secondSegments = endpointSegments(secondId)
-  return firstSegments.length > 0 && secondSegments.length > 0 && !firstSegments.some((segment) => secondSegments.some((other) => segment.id === other.id))
+  const endpointObjects = (id: string): string[] => [
+    ...document.segments.filter((object) => object.start === id || object.end === id).map((object) => object.id),
+    ...document.curves.filter((object) => object.type === 'arc' && (object.startAnchor === id || object.endAnchor === id)).map((object) => object.id)
+  ]
+  const firstObjects = endpointObjects(firstId); const secondObjects = endpointObjects(secondId)
+  return firstObjects.length > 0 && secondObjects.length > 0 && !firstObjects.some((id) => secondObjects.includes(id))
 }
 
 function isCoincidentIntersectionEndpoint(document: GeometryDocument, firstId: string, secondId: string): boolean {
   const first = resolvePoint(document, firstId); const second = resolvePoint(document, secondId)
   if (!first || !second || Math.hypot(first.x - second.x, first.y - second.y) > 1e-6) return false
-  const isEndpoint = (id: string): boolean => document.segments.some((object) => object.start === id || object.end === id)
+  const isEndpoint = (id: string): boolean => document.segments.some((object) => object.start === id || object.end === id) || document.curves.some((object) => object.type === 'arc' && (object.startAnchor === id || object.endAnchor === id))
   const isIntersection = (id: string): boolean => document.constraints.some((constraint) => constraint.type === 'intersection' && constraint.point === id)
   return (isEndpoint(firstId) && isIntersection(secondId)) || (isEndpoint(secondId) && isIntersection(firstId))
 }
@@ -299,9 +310,9 @@ export function removeObject(document: GeometryDocument, id: string): GeometryDo
 }
 
 function objectReferences(object: GeometryObject, id: string): boolean {
-  return     (object.type === 'segment' && (object.start === id || object.end === id)) ||
+   return     (object.type === 'segment' && (object.start === id || object.end === id)) ||
     (object.type === 'circle' && object.center === id) ||
     (object.type === 'ellipse' && (object.focusA === id || object.focusB === id)) ||
-    (object.type === 'arc' && object.center === id) ||
+     (object.type === 'arc' && (object.center === id || object.startAnchor === id || object.endAnchor === id)) ||
     false
 }

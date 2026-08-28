@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 
 type MoveHandler = (event: MouseEvent) => void
 type EndHandler = () => void
+type TrackedEndHandler = (changed: boolean) => void
 
 export function useGeometryDrag() {
   const cleanupRef = useRef<(() => void) | null>(null)
@@ -25,7 +26,12 @@ export function useGeometryDrag() {
     window.addEventListener('mouseup', stop)
   }, [])
 
+  const beginTrackedDrag = useCallback((onMove: (event: MouseEvent, markChanged: () => void) => void, onEnd: TrackedEndHandler): void => {
+    let changed = false
+    beginWindowDrag((event) => onMove(event, () => { changed = true }), () => onEnd(changed))
+  }, [beginWindowDrag])
+
   useEffect(() => () => cleanupRef.current?.(), [])
 
-  return { beginWindowDrag }
+  return { beginWindowDrag, beginTrackedDrag }
 }
