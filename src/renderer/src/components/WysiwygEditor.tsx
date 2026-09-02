@@ -162,7 +162,7 @@ export function WysiwygEditor({ content, onUpdate, spellCheck = false, onInsertA
       {editor && showLanguageMenu ? (
         <CodeLanguageMenu editor={editor} query={languageQuery} position={languageMenuPosition} menuRef={languageMenuRef} onClose={() => setShowLanguageMenu(false)} />
       ) : null}
-      {contextMenu ? <EditorContextMenu position={contextMenu} onClose={() => setContextMenu(null)} onAction={handleInsertAction} labels={{ image: t('insertImage'), link: t('insertLink'), imageLink: t('insertImageLink'), table: t('insertTable'), codeBlock: t('insertCodeBlock'), geometry: t('drawGeometry') }} /> : null}
+      {contextMenu ? <EditorContextMenu position={contextMenu} onClose={() => setContextMenu(null)} onAction={handleInsertAction} labels={{ image: t('insertImage'), link: t('insertLink'), imageLink: t('insertImageLink'), table: t('insertTable'), codeBlock: t('insertCodeBlock') }} /> : null}
     </div>
   )
 }

@@ -12,7 +12,6 @@ import { isSupportedImageName, sanitizeFileName, uniqueImageName } from './fileI
 import { readTextFile, writeTextFile } from './fileService'
 import { dialogLanguage, getConfig, setConfig } from './configService'
 import { registerDirectoryHandlers } from './directoryHandlers'
-import { resolveGeometryPath, sanitizeGeometrySvg } from './geometryService'
 
 const allowedFileRoots = new Set<string>()
 const allowedFiles = new Set<string>()
@@ -218,27 +217,6 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IpcChannels.filePrepareImages, async (_e, content: string, docPath: string): Promise<string> => {
     if (typeof content !== 'string' || typeof docPath !== 'string' || !isAllowedFile(docPath)) return content
     return prepareImages(content, docPath, { allowMediaDirectory })
-  })
-  ipcMain.handle(IpcChannels.fileSaveGeometry, async (_e, svg: string, name: string, docPath: string | null, existingPath?: string): Promise<ImportImageResult> => {
-    const safeSvg = typeof svg === 'string' ? sanitizeGeometrySvg(svg) : null
-    if (!safeSvg || typeof name !== 'string') throw new Error('Invalid geometry payload')
-    const config = await getConfig()
-    const fileName = sanitizeFileName(name.endsWith('.svg') ? name : `${name}.svg`)
-    const assetsDir = resolve(docPath ? dirname(docPath) : app.getPath('userData'), config.assetsDir)
-    const existingAbsolute = typeof existingPath === 'string' ? resolveGeometryPath(existingPath, docPath) : null
-    const existing = existingAbsolute && (isAllowedFile(existingAbsolute) || (docPath && isAllowedFile(docPath))) ? existingAbsolute : null
-    const target = existing ?? join(assetsDir, uniqueImageName(assetsDir, fileName))
-    await fs.mkdir(assetsDir, { recursive: true })
-    await fs.writeFile(target, safeSvg, 'utf-8')
-    allowFile(target)
-    allowMediaDirectory(dirname(target))
-    return { markdownPath: docPath ? relative(dirname(docPath), target).replace(/\\/g, '/') : target, absolutePath: target }
-  })
-  ipcMain.handle(IpcChannels.fileReadGeometry, async (_e, source: string, docPath: string | null): Promise<string | null> => {
-    if (typeof source !== 'string') return null
-    const absolute = resolveGeometryPath(source, docPath)
-    if (!absolute || !isAllowedFile(absolute) && !isAllowedFile(docPath ?? '')) return null
-    try { return await fs.readFile(absolute, 'utf-8') } catch { return null }
   })
 
   ipcMain.handle(

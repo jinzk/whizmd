@@ -5,7 +5,7 @@ import type { AnyExtension, JSONContent } from '@tiptap/core'
 import { NodeSelection } from '@tiptap/pm/state'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { act } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { InlineMath } from '../math'
 import { InlineSyntax } from '../inlineSyntax'
 import { InlineDecoration } from '../syntax/inlineDecoration'
@@ -172,34 +172,6 @@ describe('NodeView DOM interactions', () => {
     await event(() => fireEvent.error(document.querySelector('.image-link-preview-wrap img') as HTMLImageElement))
     await event(() => fireEvent.mouseEnter(document.querySelector('.image-link-preview-wrap') as HTMLElement))
     expect(screen.getByRole('button', { name: '编辑图片链接' })).toHaveClass('visible')
-  })
-
-  it('exposes geometry editing for SVG image sources', async () => {
-    const listener = vi.fn()
-    window.addEventListener('whizmd:edit-geometry', listener)
-    await mount([{ type: 'paragraph', content: [{ type: 'image', attrs: { src: 'assets/geometry.svg', alt: 'geometry', width: null, title: null, reference: null } }] }], [...baseExtensions, Image])
-    await event(() => fireEvent.click(screen.getByRole('button', { name: '编辑图片' })))
-    fireEvent.click(screen.getByRole('button', { name: '修改画图' }))
-    expect(listener).toHaveBeenCalled()
-    window.removeEventListener('whizmd:edit-geometry', listener)
-  })
-
-  it('exposes geometry editing from image-link fields without changing the link', async () => {
-    const listener = vi.fn()
-    window.addEventListener('whizmd:edit-geometry', listener)
-    const editor = await mount([{ type: 'paragraph', content: [{ type: 'imageLinkNode', attrs: { src: 'assets/geometry.svg', alt: 'geometry', title: null, href: 'https://example.com', reference: null } }] }], [...baseExtensions, ImageLinkNode])
-    await event(() => fireEvent.click(screen.getByRole('button', { name: '编辑图片链接' })))
-    fireEvent.click(screen.getByRole('button', { name: '修改画图' }))
-    expect(listener).toHaveBeenCalled()
-    expect(json(editor).content?.[0].content?.[0]).toMatchObject({ type: 'imageLinkNode', attrs: { href: 'https://example.com' } })
-    window.removeEventListener('whizmd:edit-geometry', listener)
-  })
-
-  it('keeps geometry image-link href stable when geometry editing is requested', async () => {
-    const editor = await mount([{ type: 'paragraph', content: [{ type: 'imageLinkNode', attrs: { src: 'assets/geometry.svg', alt: 'geometry', title: null, href: 'https://example.com', reference: null } }] }], [...baseExtensions, ImageLinkNode])
-    await event(() => fireEvent.click(screen.getByRole('button', { name: '编辑图片链接' })))
-    fireEvent.click(screen.getByRole('button', { name: '修改画图' }))
-    expect(json(editor).content?.[0].content?.[0]).toMatchObject({ type: 'imageLinkNode', attrs: { src: 'assets/geometry.svg', href: 'https://example.com' } })
   })
 
   it('returns an image to preview mode after the image fields lose focus', async () => {

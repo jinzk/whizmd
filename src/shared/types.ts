@@ -104,8 +104,6 @@ export interface MarkdownAppApi {
       docPath: string | null
     ) => Promise<ImportImageResult>
     prepareImages?: (content: string, docPath: string) => Promise<string>
-    saveGeometry: (svg: string, name: string, docPath: string | null, existingPath?: string) => Promise<ImportImageResult>
-    readGeometry: (source: string, docPath: string | null) => Promise<string | null>
   }
   dir: {
     scan: (dirPath: string, markdownOnly?: boolean, requestId?: string) => Promise<DirectoryScanResult>

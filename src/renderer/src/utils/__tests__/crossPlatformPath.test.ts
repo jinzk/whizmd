@@ -18,7 +18,7 @@ describe('cross-platform media paths', () => {
   })
 
   it('decodes media URLs with spaces and drive letters', () => {
-    expect(mediaUrlToPath('media://c/Users/alex/My%20Images/geometry.svg')).toBe('c:/Users/alex/My Images/geometry.svg')
-    expect(mediaUrlToPath('media:///home/alex/My%20Images/geometry.svg')).toBe('/home/alex/My Images/geometry.svg')
+    expect(mediaUrlToPath('media://c/Users/alex/My%20Images/photo.svg')).toBe('c:/Users/alex/My Images/photo.svg')
+    expect(mediaUrlToPath('media:///home/alex/My%20Images/photo.svg')).toBe('/home/alex/My Images/photo.svg')
   })
 })

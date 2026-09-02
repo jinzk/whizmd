@@ -23,16 +23,14 @@ interface Props {
   onSave: () => void
   onModeChange: (mode: Mode) => void
   onSettings: () => void
-  onDrawGeometry: () => void
 }
 
-export function AppToolbar({ mode, docTitle, dirty, saveStatus, onNew, onSave, onModeChange, onSettings, onDrawGeometry }: Props): React.JSX.Element {
+export function AppToolbar({ mode, docTitle, dirty, saveStatus, onNew, onSave, onModeChange, onSettings }: Props): React.JSX.Element {
   const { t } = useI18n()
   return <header className="toolbar">
     <div className="toolbar-left">
       <button type="button" onClick={onNew}><ToolbarIcon type="new" />{t('newFile')}</button>
       <button type="button" onClick={onSave} disabled={saveStatus === 'saving'}><ToolbarIcon type="save" />{saveStatus === 'saving' ? t('saving') : t('save')}</button>
-      <button type="button" onClick={onDrawGeometry}>{t('drawGeometryTest')}</button>
       <span className="toolbar-sep" />
       <div className="mode-switch" role="group" aria-label={t('editMode')}>
         <button type="button" className={mode === 'wysiwyg' ? 'active' : ''} onClick={() => onModeChange('wysiwyg')}>{t('edit')}</button>

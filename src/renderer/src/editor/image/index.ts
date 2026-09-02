@@ -121,10 +121,10 @@ export const Image = BaseImage.extend({
   addInputRules() {
     return [
       new InputRule({
-         find: /(?:^|.*)!\[([^\]\n]+)\]\[([^\]\n]+)\]$/,
+          find: /(?<!\\)!\[([^\]\n]+)\]\[([^\]\n]+)\]$/,
          handler: ({ state, range, match }) => {
            if (!canTriggerInlineMarkdown(state, range.from)) return
-           const start = range.from + match[0].indexOf('![')
+            const start = range.from
            const before = state.doc.textBetween(Math.max(0, start - 1), start, '')
            if (before === '\\') return
           const node = this.type.create({ src: match[2], alt: match[1], reference: match[2] })
@@ -133,10 +133,10 @@ export const Image = BaseImage.extend({
         }
       }),
       new InputRule({
-         find: /(?:^|.*)!\[([^\]\n]*)\]\($/,
+          find: /(?<!\\)!\[([^\]\n]*)\]\($/,
          handler: ({ state, range, match }) => {
            if (!canTriggerInlineMarkdown(state, range.from)) return
-           const start = range.from + match[0].indexOf('![')
+            const start = range.from
            const before = state.doc.textBetween(Math.max(0, start - 1), start, '')
            if (before === '\\') return
           const transaction = state.tr.replaceRangeWith(

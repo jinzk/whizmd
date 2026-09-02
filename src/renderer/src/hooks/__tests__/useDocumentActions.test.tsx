@@ -2,7 +2,6 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useDocumentStore } from '../../store/documents'
 import { useDocumentActions } from '../useDocumentActions'
-import { addPendingGeometryAsset, clearPendingGeometryAssets } from '../../services/pendingGeometryAssets'
 import type { FileNode, MarkdownAppApi } from '@shared/types'
 
 const initialDocument = { id: 'untitled-1', path: null, content: '', dirty: false }
@@ -50,7 +49,6 @@ function createApi(overrides: Partial<MarkdownAppApi['file']> = {}): MarkdownApp
 describe('useDocumentActions', () => {
   beforeEach(() => {
     useDocumentStore.setState({ documents: [initialDocument], activeDocumentId: initialDocument.id })
-    clearPendingGeometryAssets(initialDocument.id)
     vi.restoreAllMocks()
     window.alert = vi.fn()
     window.markdownApp = createApi()
@@ -211,32 +209,6 @@ describe('useDocumentActions', () => {
     expect(alert).toHaveBeenNthCalledWith(2, 'saveFailed: write failed')
     expect(consoleError).toHaveBeenCalledTimes(2)
     expect(useDocumentStore.getState().documents[0]).toMatchObject({ path: 'C:/draft.md', content: 'draft', dirty: true })
-  })
-
-  it('skips staged geometry assets whose image node was undone before save', async () => {
-    const saveGeometry = vi.fn(async (_svg: string, name: string) => ({
-      markdownPath: `assets/${name}`,
-      absolutePath: `C:/notes/${name}`
-    }))
-    const write = vi.fn(async (path: string) => path)
-    window.markdownApp = createApi({
-      saveFileDialog: vi.fn(async () => 'C:/notes.md'),
-      write,
-      saveGeometry
-    })
-    useDocumentStore.getState().updateDocument('untitled-1', {
-      content: '![几何图](C:/temp/kept.svg)',
-      dirty: true
-    })
-    addPendingGeometryAsset('untitled-1', { id: 'kept', svg: '<svg>kept</svg>', previousRef: 'C:/temp/kept.svg' })
-    addPendingGeometryAsset('untitled-1', { id: 'undone', svg: '<svg>gone</svg>', previousRef: 'C:/temp/gone.svg' })
-    const { result } = renderHook(() => useDocumentActions(translate, vi.fn(), vi.fn()))
-
-    await act(async () => result.current.save())
-
-    expect(saveGeometry).toHaveBeenCalledTimes(1)
-    expect(saveGeometry.mock.calls[0][0]).toBe('<svg>kept</svg>')
-    expect(write).toHaveBeenCalledWith('C:/notes.md', '![几何图](assets/geometry-kept.svg)')
   })
 
   it('saves every dirty document before reporting close success', async () => {

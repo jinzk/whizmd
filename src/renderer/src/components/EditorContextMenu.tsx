@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-export type EditorInsertAction = 'image' | 'link' | 'imageLink' | 'table' | 'codeBlock' | 'geometry'
+export type EditorInsertAction = 'image' | 'link' | 'imageLink' | 'table' | 'codeBlock'
 type Props = { position: { left: number; top: number }; onAction: (action: EditorInsertAction) => void; onClose: () => void; labels: Record<EditorInsertAction, string> }
 
 export function EditorContextMenu({ position, onAction, onClose, labels }: Props): React.JSX.Element {

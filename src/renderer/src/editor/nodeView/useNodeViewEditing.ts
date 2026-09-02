@@ -15,7 +15,9 @@ export function useNodeViewEditing(
       const position = getPos()
       if (position === undefined) return
       const selection = editor.state.selection
-      if (selection.from <= position || selection.from >= position + nodeSize) setEditing(false)
+       // A NodeSelection starts exactly at the node position. Keep the editor
+       // open while its fields commit an attribute transaction.
+       if (selection.from < position || selection.from >= position + nodeSize) setEditing(false)
     }
     editor.on('selectionUpdate', update)
     return () => { editor.off('selectionUpdate', update) }

@@ -42,6 +42,21 @@ describe('paired trigger regressions', () => {
     editor.destroy()
   })
 
+  it('opens link, image, and image-link nodes after inline text', () => {
+    const cases = [
+      ['前缀 [链接](', 'linkNode'],
+      ['前缀 ![图片](', 'image'],
+      ['前缀 [![图片](', 'imageLinkNode']
+    ] as const
+
+    for (const [input, type] of cases) {
+      const editor = new Editor({ extensions: buildEditorExtensions() })
+      typeInto(editor, input)
+      expect(editor.state.doc.firstChild?.content.content.map((node) => node.type.name)).toContain(type)
+      editor.destroy()
+    }
+  })
+
   it('keeps links in the unified inline sequence', () => {
     const editor = new Editor({ extensions: buildEditorExtensions() })
     editor.commands.setContent('$a$ [doc](https://example.com) ==x==', { contentType: 'markdown' })

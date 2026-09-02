@@ -1,4 +1,4 @@
-.wysiwyg-editor { height: 100%; overflow-y: auto; padding: 24px; }
+.wysiwyg-editor { height: 100%; overflow-y: auto; padding: 24px 24px 360px; }
 .wysiwyg-editor .tiptap { max-width: var(--editor-content-width, 800px); margin: 0 auto; outline: none; min-height: 100%; }
 .wysiwyg-editor .tiptap, .source-editor .cm-editor { font-size: var(--editor-font-size, 16px); }
 .wysiwyg-editor .tiptap p { margin: 0.5em 0; }
