@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FileNode } from '@shared/types'
 import { useI18n } from '../i18n'
+import { OutlinePanel } from './OutlinePanel'
 
 interface Props {
   root: FileNode | null
@@ -22,6 +23,7 @@ interface Props {
   onRemoveRecent: (path: string) => void
   onRemoveRecentFolder: (path: string) => void
   onClearRecent: () => void
+  content: string
 }
 
 function fileName(path: string): string {
@@ -95,9 +97,10 @@ export function FileSidebar({
   openedFiles,
   onOpenFile,
   onSelectDocument,
-  onCloseDocument, onRefresh, showMarkdownOnly, onToggleMarkdownOnly, treeStatus, recentFiles, recentFolders, onOpenRecent, onOpenRecentFolder, onRemoveRecent, onRemoveRecentFolder, onClearRecent
+  onCloseDocument, onRefresh, showMarkdownOnly, onToggleMarkdownOnly, treeStatus, recentFiles, recentFolders, onOpenRecent, onOpenRecentFolder, onRemoveRecent, onRemoveRecentFolder, onClearRecent, content
 }: Props): React.JSX.Element {
   const { t } = useI18n()
+  const [activeTab, setActiveTab] = useState<'file' | 'outline'>('file')
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set(root ? [root.path] : []))
   const toggleDirectory = (path: string): void => setExpandedPaths((current) => {
     const next = new Set(current)
@@ -121,58 +124,86 @@ export function FileSidebar({
   }, [expandedPaths])
   return (
     <aside className="sidebar">
-      <section className="sidebar-section sidebar-open-files">
-        <div className="sidebar-section-title">{t('openedFiles')}</div>
-        {openedFiles.length > 0 ? (
-          openedFiles.map((file) => {
-            const active = file.id === activeDocumentId
-            const label = file.path ? fileName(file.path) : t('untitledDocument')
-            return (
-              <div key={file.id} className={`file-row ${active ? 'active' : ''}`}>
-                <button
-                  type="button"
-                  className="file-item"
-                  onClick={() => {
-                    if (file.path) onOpenFile(file.path)
-                    else onSelectDocument(file.id)
-                  }}
-                  title={label}
-                >
-                  {file.dirty ? <span className="file-dirty" aria-label={t('unsavedChanges')}>●</span> : null}
-                  {label}
-                </button>
-                <button
-                  type="button"
-                  className="file-close"
-                  aria-label={`${t('closeFile')}: ${label}`}
-                  title={t('closeFile')}
-                  onClick={() => {
-                    onCloseDocument(file.id)
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-            )
-          })
-        ) : (
-          <p className="sidebar-empty">{t('noOpenFiles')}</p>
-        )}
-      </section>
-      {recentFiles.length > 0 ? <section className="sidebar-section">
-        <div className="sidebar-section-title sidebar-section-heading"><span>{t('recentFiles')}</span><button type="button" className="sidebar-tool" onClick={onClearRecent}>{t('clear')}</button></div>
-        {recentFiles.map((path) => <div key={path} className="file-row"><button type="button" className="file-item" title={path} onClick={() => onOpenRecent(path)}>{fileName(path)}</button><button type="button" className="file-close recent-remove" aria-label={`${t('removeRecent')}: ${fileName(path)}`} onClick={() => onRemoveRecent(path)}>×</button></div>)}
-        {recentFolders.map((path) => <div key={path} className="file-row"><button type="button" className="file-item" title={path} onClick={() => onOpenRecentFolder(path)}>Folder: {fileName(path)}</button><button type="button" className="file-close recent-remove" aria-label={`${t('removeRecent')}: ${fileName(path)}`} onClick={() => onRemoveRecentFolder(path)}>×</button></div>)}
-      </section> : null}
-      {rootDir ? (
-        <section className="sidebar-section sidebar-folder-tree">
-          <div className="sidebar-section-title sidebar-section-heading"><span>{t('folder')}</span><span><button type="button" className="sidebar-tool" title={t('refresh')} aria-label={t('refresh')} onClick={onRefresh}>↻</button><button type="button" className="sidebar-tool" title={t('toggleMarkdownOnly')} aria-label={t('toggleMarkdownOnly')} onClick={onToggleMarkdownOnly}>{showMarkdownOnly ? 'MD' : 'ALL'}</button></span></div>
-          <div className="sidebar-header" title={rootDir}>{rootDir}</div>
-          {treeStatus === 'loading' ? <p className="sidebar-empty">{t('loading')}</p> : treeStatus === 'error' ? <p className="sidebar-empty settings-error">{t('folderScanFailed')}</p> : root ? (
-            <TreeNode node={root} depth={0} activePath={activePath} onOpenFile={onOpenFile} expandedPaths={expandedPaths} onToggleDirectory={toggleDirectory} />
-          ) : <p className="sidebar-empty">{t('emptyFolder')}</p>}
-        </section>
-      ) : null}
+      <div className="sidebar-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'file'}
+          className={`sidebar-tab ${activeTab === 'file' ? 'active' : ''}`}
+          onClick={() => setActiveTab('file')}
+        >
+          {t('fileTab')}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'outline'}
+          className={`sidebar-tab ${activeTab === 'outline' ? 'active' : ''}`}
+          onClick={() => setActiveTab('outline')}
+        >
+          {t('outlineTab')}
+        </button>
+      </div>
+      {activeTab === 'file' ? (
+        <div className="sidebar-file-panel">
+          <section className="sidebar-section sidebar-open-files">
+            <div className="sidebar-section-title">{t('openedFiles')}</div>
+            {openedFiles.length > 0 ? (
+              openedFiles.map((file) => {
+                const active = file.id === activeDocumentId
+                const label = file.path ? fileName(file.path) : t('untitledDocument')
+                return (
+                  <div key={file.id} className={`file-row ${active ? 'active' : ''}`}>
+                    <button
+                      type="button"
+                      className="file-item"
+                      onClick={() => {
+                        if (file.path) onOpenFile(file.path)
+                        else onSelectDocument(file.id)
+                      }}
+                      title={label}
+                    >
+                      {file.dirty ? <span className="file-dirty" aria-label={t('unsavedChanges')}>●</span> : null}
+                      {label}
+                    </button>
+                    <button
+                      type="button"
+                      className="file-close"
+                      aria-label={`${t('closeFile')}: ${label}`}
+                      title={t('closeFile')}
+                      onClick={() => {
+                        onCloseDocument(file.id)
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                )
+              })
+            ) : (
+              <p className="sidebar-empty">{t('noOpenFiles')}</p>
+            )}
+          </section>
+          {recentFiles.length > 0 ? <section className="sidebar-section">
+            <div className="sidebar-section-title sidebar-section-heading"><span>{t('recentFiles')}</span><button type="button" className="sidebar-tool" onClick={onClearRecent}>{t('clear')}</button></div>
+            {recentFiles.map((path) => <div key={path} className="file-row"><button type="button" className="file-item" title={path} onClick={() => onOpenRecent(path)}>{fileName(path)}</button><button type="button" className="file-close recent-remove" aria-label={`${t('removeRecent')}: ${fileName(path)}`} onClick={() => onRemoveRecent(path)}>×</button></div>)}
+            {recentFolders.map((path) => <div key={path} className="file-row"><button type="button" className="file-item" title={path} onClick={() => onOpenRecentFolder(path)}>Folder: {fileName(path)}</button><button type="button" className="file-close recent-remove" aria-label={`${t('removeRecent')}: ${fileName(path)}`} onClick={() => onRemoveRecentFolder(path)}>×</button></div>)}
+          </section> : null}
+          {rootDir ? (
+            <section className="sidebar-section sidebar-folder-tree">
+              <div className="sidebar-section-title sidebar-section-heading"><span>{t('folder')}</span><span><button type="button" className="sidebar-tool" title={t('refresh')} aria-label={t('refresh')} onClick={onRefresh}>↻</button><button type="button" className="sidebar-tool" title={t('toggleMarkdownOnly')} aria-label={t('toggleMarkdownOnly')} onClick={onToggleMarkdownOnly}>{showMarkdownOnly ? 'MD' : 'ALL'}</button></span></div>
+              <div className="sidebar-header" title={rootDir}>{rootDir}</div>
+              {treeStatus === 'loading' ? <p className="sidebar-empty">{t('loading')}</p> : treeStatus === 'error' ? <p className="sidebar-empty settings-error">{t('folderScanFailed')}</p> : root ? (
+                <TreeNode node={root} depth={0} activePath={activePath} onOpenFile={onOpenFile} expandedPaths={expandedPaths} onToggleDirectory={toggleDirectory} />
+              ) : <p className="sidebar-empty">{t('emptyFolder')}</p>}
+            </section>
+          ) : null}
+        </div>
+      ) : (
+        <div className="sidebar-outline-panel">
+          <OutlinePanel content={content} />
+        </div>
+      )}
     </aside>
   )
 }

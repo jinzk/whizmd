@@ -14,6 +14,12 @@
 .code-language-menu button:hover { background: var(--md-bg-hover); }
 .code-language-menu button span { color: var(--md-text-muted); font-size: 12px; }
 
+.heading-level-menu { position: fixed; z-index: 20; min-width: 168px; padding: 6px; border: 1px solid var(--md-border); border-radius: 8px; background: var(--md-bg); box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+.heading-level-menu button { display: flex; width: 100%; align-items: center; gap: 10px; padding: 7px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--md-text); cursor: pointer; text-align: left; }
+.heading-level-menu button:hover, .heading-level-menu button:focus-visible { background: var(--md-bg-hover); outline: none; }
+.heading-level-menu .heading-level-preview { color: var(--md-accent); font-weight: 600; width: 42px; }
+.heading-level-menu .heading-level-check { margin-left: auto; color: var(--md-text-muted); font-size: 11px; }
+
 /* Highlight.js token colors. */
 .wysiwyg-editor .tiptap pre code .hljs-comment, .wysiwyg-editor .tiptap pre code .hljs-quote { color: var(--md-text-subtle); font-style: italic; }
 .wysiwyg-editor .tiptap pre code .hljs-keyword, .wysiwyg-editor .tiptap pre code .hljs-selector-tag, .wysiwyg-editor .tiptap pre code .hljs-subst { color: var(--md-error); }

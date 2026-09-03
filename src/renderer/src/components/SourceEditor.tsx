@@ -10,6 +10,7 @@ import { indentUnit, indentOnInput } from '@codemirror/language'
 import { insertNewlineContinueMarkup, deleteMarkupBackward } from '@codemirror/lang-markdown'
 import { indentWithTab, insertTab, indentLess } from '@codemirror/commands'
 import type { EffectiveTheme } from '../hooks/useTheme'
+import { useEditorStore } from '../store/editor'
 
 const themeCompartment = new Compartment()
 const externalSync = Annotation.define<boolean>()
@@ -55,9 +56,10 @@ interface Props {
   onUpdate: (markdown: string) => void
   theme: EffectiveTheme
   spellCheck?: boolean
+  onViewReady?: (view: EditorView | null) => void
 }
 
-export function SourceEditor({ content, onUpdate, theme, spellCheck = false }: Props): React.JSX.Element {
+export function SourceEditor({ content, onUpdate, theme, spellCheck = false, onViewReady }: Props): React.JSX.Element {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const onUpdateRef = useRef(onUpdate)
@@ -107,10 +109,14 @@ export function SourceEditor({ content, onUpdate, theme, spellCheck = false }: P
 
     const view = new EditorView({ state, parent: hostRef.current })
     viewRef.current = view
+    useEditorStore.getState().setSourceEditorView(view)
+    onViewReady?.(view)
 
     return () => {
       view.destroy()
       viewRef.current = null
+      useEditorStore.getState().setSourceEditorView(null)
+      onViewReady?.(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

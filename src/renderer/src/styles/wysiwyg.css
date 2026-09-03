@@ -11,4 +11,6 @@
 .wysiwyg-editor .tiptap blockquote { border-left: 3px solid var(--md-border); margin: 0; padding-left: 12px; color: var(--md-text-muted); }
 .wysiwyg-editor .tiptap a { color: var(--md-accent); }
 .wysiwyg-editor .tiptap .editor-line-active { position: relative; margin-left: -14px; padding-left: 11px; border-left: 3px solid var(--md-accent); border-radius: 0 6px 6px 0; background: linear-gradient(90deg, var(--md-active-line), transparent 88%); transition: background-color 120ms ease; }
+.wysiwyg-editor .tiptap .editor-heading-marker { display: inline-block; margin-right: 8px; padding: 0; background: none; border: none; color: var(--md-accent); font: inherit; font-weight: 700; opacity: 0.85; user-select: none; cursor: pointer; transition: opacity 120ms ease; }
+.wysiwyg-editor .tiptap .editor-heading-marker:hover { opacity: 1; }
 .wysiwyg-editor:focus-within .tiptap .editor-line-active { background: linear-gradient(90deg, color-mix(in srgb, var(--md-accent) 12%, transparent), transparent 92%); }

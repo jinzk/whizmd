@@ -255,6 +255,7 @@ export function App(): React.JSX.Element {
           onRemoveRecent={(path) => void window.markdownApp.recent?.removeFile(path).then((recent) => setRecentFiles(recent.files))}
           onRemoveRecentFolder={(path) => void window.markdownApp.recent?.removeFolder(path).then((recent) => setRecentFolders(recent.folders))}
           onClearRecent={() => void window.markdownApp.recent?.clear().then(() => { setRecentFiles([]); setRecentFolders([]) })}
+          content={documentContent}
         />
         <main className="editor-area" style={{ '--editor-font-size': `${config?.editorFontSize ?? 16}px`, '--editor-content-width': `${config?.editorContentWidth ?? 800}px` } as React.CSSProperties}>
           {mode === 'wysiwyg' ? (

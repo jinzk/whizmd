@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import type { Editor } from '@tiptap/core'
+import { useEditorStore } from '../store/editor'
 import { buildEditorExtensions } from '../editor/extensions'
 import { insertDroppedImages, insertPastedImages, insertImageFromDialog, isImageFile } from '../editor/image/insert'
 import { CodeLanguageMenu } from './CodeLanguageMenu'
+import { HeadingLevelMenu } from './HeadingLevelMenu'
 import { useWysiwygContent } from './useWysiwygContent'
 import { EditorContextMenu, type EditorInsertAction } from './EditorContextMenu'
 import { useI18n } from '../i18n'
@@ -26,6 +28,8 @@ export function WysiwygEditor({ content, onUpdate, spellCheck = false, onInsertA
   const [languageMenuPosition, setLanguageMenuPosition] = useState({ top: 0, left: 0 })
   const languageMenuRef = useRef<HTMLDivElement>(null)
   const [contextMenu, setContextMenu] = useState<{ left: number; top: number } | null>(null)
+  const headingMenu = useEditorStore((state) => state.headingMenu)
+  const headingMenuRef = useRef<HTMLDivElement>(null)
 
   const syncLanguageMenu = (instance: Editor): void => {
     const { $from } = instance.state.selection
@@ -135,6 +139,13 @@ export function WysiwygEditor({ content, onUpdate, spellCheck = false, onInsertA
   })
 
   useEffect(() => {
+    useEditorStore.getState().setWysiwygEditor(editor)
+    return () => {
+      useEditorStore.getState().setWysiwygEditor(null)
+    }
+  }, [editor])
+
+  useEffect(() => {
     if (!editor) return
     const onSelectionUpdate = (): void => syncLanguageMenu(editor)
     editor.on('selectionUpdate', onSelectionUpdate)
@@ -156,11 +167,32 @@ export function WysiwygEditor({ content, onUpdate, spellCheck = false, onInsertA
 
   useEffect(() => { sync(editor) }, [editor, sync])
 
+  useEffect(() => {
+    if (!headingMenu) return
+    const onPointerDown = (event: MouseEvent): void => {
+      if (headingMenuRef.current && !headingMenuRef.current.contains(event.target as Node)) {
+        useEditorStore.getState().setHeadingMenu(null)
+      }
+    }
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') useEditorStore.getState().setHeadingMenu(null)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [headingMenu])
+
   return (
     <div className="wysiwyg-editor" onContextMenu={(event) => { event.preventDefault(); setContextMenu({ left: event.clientX, top: event.clientY }) }}>
        <EditorContent editor={editor} spellCheck={spellCheck} />
       {editor && showLanguageMenu ? (
         <CodeLanguageMenu editor={editor} query={languageQuery} position={languageMenuPosition} menuRef={languageMenuRef} onClose={() => setShowLanguageMenu(false)} />
+      ) : null}
+      {editor && headingMenu ? (
+        <HeadingLevelMenu editor={editor} pos={headingMenu.pos} level={headingMenu.level} position={{ top: headingMenu.top, left: headingMenu.left }} menuRef={headingMenuRef} onClose={() => useEditorStore.getState().setHeadingMenu(null)} />
       ) : null}
       {contextMenu ? <EditorContextMenu position={contextMenu} onClose={() => setContextMenu(null)} onAction={handleInsertAction} labels={{ image: t('insertImage'), link: t('insertLink'), imageLink: t('insertImageLink'), table: t('insertTable'), codeBlock: t('insertCodeBlock') }} /> : null}
     </div>

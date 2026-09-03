@@ -45,6 +45,7 @@ const messages = {
     noFolder: '未打开文件夹',
     openedFiles: '已打开文件',
      noOpenFiles: '没有已打开的文件',
+     fileTab: '文件', outlineTab: '大纲', outlineEmpty: '暂未找到标题',
      unsavedChanges: '有未保存的修改',
      saved: '已保存',
      saving: '保存中…',
@@ -137,6 +138,9 @@ const messages = {
     jumpToDefinition: '跳转定义',
     mermaid: 'Mermaid 图表',
     plaintext: '纯文本',
+    heading: '标题',
+    headingLevel: '选择标题级别',
+    current: '当前',
     untitled: '未命名'
   },
   'en-US': {
@@ -180,6 +184,7 @@ const messages = {
     noFolder: 'No folder opened',
     openedFiles: 'Opened files',
      noOpenFiles: 'No open files',
+     fileTab: 'Files', outlineTab: 'Outline', outlineEmpty: 'No headings found',
      unsavedChanges: 'Unsaved changes',
      saved: 'Saved',
      saving: 'Saving…',
@@ -272,6 +277,9 @@ const messages = {
     jumpToDefinition: 'Jump to definition',
     mermaid: 'Mermaid diagram',
     plaintext: 'Plain text',
+    heading: 'Heading',
+    headingLevel: 'Heading level',
+    current: 'Current',
     untitled: 'Untitled'
   }
 } as const
